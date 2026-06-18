@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\ProfileController;
 
 // Redirect root to dashboard
 Route::get('/', function () {
@@ -25,4 +26,10 @@ Route::middleware('auth.agent')->group(function () {
 
     // Logs
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
+
+    // Profile
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
+    Route::put('/profile/bank', [ProfileController::class, 'updateBank'])->name('profile.bank');
 });

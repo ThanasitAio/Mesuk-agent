@@ -103,27 +103,28 @@
 
         {{-- User Info at Bottom --}}
         <div class="border-t border-brand-800 p-4">
-            <div class="flex items-center gap-3">
-                <div class="w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    {{ strtoupper(substr(session('agent_name', 'A'), 0, 1)) }}
+            <a href="{{ route('profile') }}"
+               class="flex items-center gap-3 rounded-xl p-1 transition-colors
+                      {{ request()->routeIs('profile*') ? 'bg-brand-700' : 'hover:bg-brand-800' }}">
+                <div class="w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
                 </div>
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-white truncate">{{ session('agent_name', 'ผู้ใช้') }}</p>
                     <p class="text-xs text-brand-300 truncate">{{ session('agent_code', '') }}</p>
                 </div>
-                <form action="{{ route('logout') }}" method="POST">
-                    @csrf
-                    <button type="submit"
-                            title="ออกจากระบบ"
-                            class="p-2 text-brand-300 hover:text-white hover:bg-brand-700 rounded-lg transition-colors"
-                            onclick="return confirm('ต้องการออกจากระบบ?')">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                    </button>
-                </form>
-            </div>
+                <button type="button"
+                        title="ออกจากระบบ"
+                        onclick="event.preventDefault(); openModal('logout-confirm')"
+                        class="p-2 text-brand-300 hover:text-white hover:bg-brand-700 rounded-lg transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                </button>
+            </a>
         </div>
     </aside>
 
@@ -152,8 +153,10 @@
             <div class="hidden lg:block relative" id="user-dropdown-container">
                 <button onclick="toggleUserMenu()"
                         class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm">
-                    <div class="w-7 h-7 bg-brand-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
-                        {{ strtoupper(substr(session('agent_name', 'A'), 0, 1)) }}
+                    <div class="w-7 h-7 bg-brand-600 rounded-full flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
                     </div>
                     <span class="text-gray-700 font-medium max-w-32 truncate">{{ session('agent_name', 'ผู้ใช้') }}</span>
                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,19 +168,26 @@
                      class="hidden absolute right-0 mt-1 w-52 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-50">
                     <div class="px-4 py-3 border-b border-gray-100">
                         <p class="text-sm font-semibold text-gray-800 truncate">{{ session('agent_name') }}</p>
-                        <p class="text-xs text-gray-500 truncate">{{ session('agent_email') }}</p>
+                        <p class="text-xs text-gray-500 truncate font-mono">{{ session('agent_code') }}</p>
                     </div>
-                    <form action="{{ route('logout') }}" method="POST">
-                        @csrf
-                        <button type="submit"
-                                class="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                            </svg>
-                            ออกจากระบบ
-                        </button>
-                    </form>
+                    <a href="{{ route('profile') }}"
+                       class="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                        โปรไฟล์ของฉัน
+                    </a>
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <button type="button"
+                            onclick="openModal('logout-confirm')"
+                            class="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        ออกจากระบบ
+                    </button>
                 </div>
             </div>
         </header>
@@ -240,93 +250,180 @@
 {{-- ===== MOBILE BOTTOM NAVIGATION BAR ===== --}}
 <nav class="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-40"
      style="padding-bottom: env(safe-area-inset-bottom, 0px)">
-    <div class="flex items-stretch" style="height:60px">
+    <div class="flex items-stretch" style="height:64px">
 
         {{-- Dashboard --}}
         <a href="{{ route('dashboard') }}"
-           class="flex-1 flex flex-col items-center justify-center gap-0.5 tap-effect transition-colors
+           class="flex-1 flex flex-col items-center justify-center gap-1 tap-effect transition-colors
                   {{ request()->routeIs('dashboard') ? 'text-brand-600' : 'text-gray-400' }}">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-            </svg>
-            <span class="text-xs {{ request()->routeIs('dashboard') ? 'font-semibold' : '' }}">หน้าหลัก</span>
+            <div class="relative">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+                @if(request()->routeIs('dashboard'))
+                    <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
+                @endif
+            </div>
+            <span class="text-[11px] leading-none {{ request()->routeIs('dashboard') ? 'font-semibold' : '' }}">หน้าหลัก</span>
         </a>
 
         {{-- Agents --}}
         <a href="{{ route('agents.index') }}"
-           class="flex-1 flex flex-col items-center justify-center gap-0.5 tap-effect transition-colors
+           class="flex-1 flex flex-col items-center justify-center gap-1 tap-effect transition-colors
                   {{ request()->routeIs('agents.*') ? 'text-brand-600' : 'text-gray-400' }}">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-            </svg>
-            <span class="text-xs {{ request()->routeIs('agents.*') ? 'font-semibold' : '' }}">ตัวแทน</span>
+            <div class="relative">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+                @if(request()->routeIs('agents.*'))
+                    <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
+                @endif
+            </div>
+            <span class="text-[11px] leading-none {{ request()->routeIs('agents.*') ? 'font-semibold' : '' }}">ตัวแทน</span>
         </a>
 
         {{-- Logs --}}
         <a href="{{ route('logs.index') }}"
-           class="flex-1 flex flex-col items-center justify-center gap-0.5 tap-effect transition-colors
+           class="flex-1 flex flex-col items-center justify-center gap-1 tap-effect transition-colors
                   {{ request()->routeIs('logs.*') ? 'text-brand-600' : 'text-gray-400' }}">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <span class="text-xs {{ request()->routeIs('logs.*') ? 'font-semibold' : '' }}">ประวัติ</span>
+            <div class="relative">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                @if(request()->routeIs('logs.*'))
+                    <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
+                @endif
+            </div>
+            <span class="text-[11px] leading-none {{ request()->routeIs('logs.*') ? 'font-semibold' : '' }}">ประวัติ</span>
         </a>
 
-        {{-- Profile --}}
-        <button onclick="openProfileSheet()"
-                class="flex-1 flex flex-col items-center justify-center gap-0.5 text-gray-400 tap-effect">
-            <div class="w-6 h-6 bg-brand-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                {{ strtoupper(substr(session('agent_name', 'A'), 0, 1)) }}
-            </div>
-            <span class="text-xs">โปรไฟล์</span>
+        {{-- More --}}
+        <button id="more-tab-btn"
+                onclick="openMoreSheet()"
+                class="flex-1 flex flex-col items-center justify-center gap-1 text-gray-400 tap-effect transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/>
+            </svg>
+            <span class="text-[11px] leading-none">เพิ่มเติม</span>
         </button>
 
     </div>
 </nav>
 
-{{-- ===== MOBILE PROFILE BOTTOM SHEET ===== --}}
-<div id="profile-overlay"
-     class="hidden lg:hidden fixed inset-0 bg-black/40 z-50"
-     onclick="closeProfileSheet()"></div>
+{{-- ===== MOBILE MORE BOTTOM SHEET ===== --}}
+<div id="more-overlay"
+     class="hidden lg:hidden fixed inset-0 bg-black/50 z-50 backdrop-blur-sm"
+     onclick="closeMoreSheet()"></div>
 
-<div id="profile-sheet"
-     class="hidden lg:hidden fixed inset-x-0 bottom-0 bg-white rounded-t-2xl z-50 shadow-2xl"
-     style="padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px)">
+<div id="more-sheet"
+     class="hidden lg:hidden fixed inset-x-0 bottom-0 bg-white rounded-t-3xl z-50 shadow-2xl"
+     style="padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px)">
+
     {{-- Drag handle --}}
-    <div class="flex justify-center pt-3 pb-1">
-        <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
+    <div class="flex justify-center pt-3 pb-2">
+        <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
     </div>
-    {{-- User info --}}
-    <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-4">
-        <div class="w-14 h-14 bg-brand-600 rounded-full flex items-center justify-center text-2xl font-bold text-white flex-shrink-0">
-            {{ strtoupper(substr(session('agent_name', 'A'), 0, 1)) }}
+
+    {{-- User Info --}}
+    <div class="px-5 pt-2 pb-4 flex items-center gap-4">
+        <div class="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
         </div>
-        <div class="min-w-0">
-            <p class="text-base font-semibold text-gray-800 truncate">{{ session('agent_name', 'ผู้ใช้') }}</p>
-            <p class="text-sm text-gray-500 truncate">{{ session('agent_email', '') }}</p>
-            <span class="inline-block mt-1 text-xs font-mono bg-brand-50 text-brand-700 px-2 py-0.5 rounded-md">
-                {{ session('agent_code', '') }}
-            </span>
+        <div class="min-w-0 flex-1">
+            <p class="text-base font-bold text-gray-900 truncate">{{ session('agent_name', 'ผู้ใช้') }}</p>
+            <p class="text-sm text-gray-400 font-mono truncate">{{ session('agent_code', '') }}</p>
+        </div>
+        {{-- Close button --}}
+        <button onclick="closeMoreSheet()"
+                class="w-9 h-9 flex items-center justify-center bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    {{-- ─── เพิ่มเมนูใหม่ที่นี่ (grid 3 คอลัมน์) ─────────────────────────────
+         ตัวอย่าง:
+         <a href="{{ route('reports.index') }}"
+            onclick="closeMoreSheet()"
+            class="more-menu-item {{ request()->routeIs('reports.*') ? 'bg-brand-50 text-brand-700' : 'bg-gray-50 text-gray-600' }}">
+             <div class="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-2">
+                 <svg class="w-6 h-6" .../>
+             </div>
+             <span class="text-xs font-medium text-center leading-tight">รายงาน</span>
+         </a>
+    ─────────────────────────────────────────────────────────────────────── --}}
+    @php
+        $extraMenus = [
+            // ['route' => 'reports.index', 'pattern' => 'reports.*', 'label' => 'รายงาน', 'icon' => '...svg path...'],
+        ];
+    @endphp
+
+    @if(count($extraMenus) > 0)
+    <div class="px-5 pb-4">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">เมนูอื่น ๆ</p>
+        <div class="grid grid-cols-3 gap-3">
+            @foreach($extraMenus as $menu)
+            <a href="{{ route($menu['route']) }}"
+               onclick="closeMoreSheet()"
+               class="flex flex-col items-center p-3 rounded-2xl transition-colors tap-effect
+                      {{ request()->routeIs($menu['pattern']) ? 'bg-brand-50 text-brand-700' : 'bg-gray-50 text-gray-600' }}">
+                <div class="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-2">
+                    {!! $menu['icon'] !!}
+                </div>
+                <span class="text-xs font-medium text-center leading-tight">{{ $menu['label'] }}</span>
+            </a>
+            @endforeach
         </div>
     </div>
-    {{-- Logout --}}
-    <div class="px-6 py-4">
-        <form action="{{ route('logout') }}" method="POST">
-            @csrf
-            <button type="submit"
-                    class="w-full flex items-center justify-center gap-3 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-4 rounded-xl transition-colors text-sm tap-effect">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    @endif
+
+    <div class="h-px bg-gray-100 mx-5 mb-4"></div>
+
+    {{-- Profile link --}}
+    <div class="px-5 mb-3">
+        <a href="{{ route('profile') }}"
+           onclick="closeMoreSheet()"
+           class="w-full flex items-center gap-3 bg-gray-50 active:bg-gray-100 text-gray-700 font-semibold py-4 rounded-2xl transition-colors text-sm tap-effect">
+            <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center flex-shrink-0 ml-2">
+                <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                 </svg>
-                ออกจากระบบ
-            </button>
-        </form>
+            </div>
+            โปรไฟล์ของฉัน
+        </a>
+    </div>
+
+    {{-- Logout --}}
+    <div class="px-5">
+        <button type="button"
+                onclick="openModal('logout-confirm')"
+                class="w-full flex items-center justify-center gap-3 bg-red-50 active:bg-red-100 text-red-600 font-semibold py-4 rounded-2xl transition-colors text-sm tap-effect">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+            ออกจากระบบ
+        </button>
     </div>
 </div>
+
+{{-- Logout Confirm Modal --}}
+<x-confirm-modal
+    id="logout-confirm"
+    title="ออกจากระบบ"
+    action="{{ route('logout') }}"
+    confirm-label="ออกจากระบบ"
+    icon-variant="warning"
+>
+    ต้องการออกจากระบบหรือไม่?
+</x-confirm-modal>
 
 {{-- ===== TOAST CONTAINER ===== --}}
 <div id="toast-container"
@@ -453,19 +550,27 @@
         }
     });
 
-    // Mobile profile sheet
-    function openProfileSheet() {
-        const sheet = document.getElementById('profile-sheet');
-        const overlay = document.getElementById('profile-overlay');
+    // Mobile more sheet
+    function openMoreSheet() {
+        const sheet   = document.getElementById('more-sheet');
+        const overlay = document.getElementById('more-overlay');
+        const btn     = document.getElementById('more-tab-btn');
         sheet.classList.remove('hidden');
         overlay.classList.remove('hidden');
         sheet.classList.add('sheet-animate');
         document.body.style.overflow = 'hidden';
+        btn.classList.add('text-brand-600');
+        btn.classList.remove('text-gray-400');
     }
-    function closeProfileSheet() {
-        document.getElementById('profile-sheet').classList.add('hidden');
-        document.getElementById('profile-overlay').classList.add('hidden');
+    function closeMoreSheet() {
+        const sheet   = document.getElementById('more-sheet');
+        const overlay = document.getElementById('more-overlay');
+        const btn     = document.getElementById('more-tab-btn');
+        sheet.classList.add('hidden');
+        overlay.classList.add('hidden');
         document.body.style.overflow = '';
+        btn.classList.remove('text-brand-600');
+        btn.classList.add('text-gray-400');
     }
 
     // ─── Alpine: Searchable Select ─────────────────────────────────────────────

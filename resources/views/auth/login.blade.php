@@ -71,23 +71,22 @@
         <form method="POST" action="{{ route('login.post') }}" class="space-y-5">
             @csrf
 
-            {{-- Email --}}
+            {{-- Agent Code --}}
             <div>
-                <label for="email" class="block text-sm font-medium text-gray-700 mb-1.5">อีเมลของคุณ</label>
-                <input type="email"
-                       id="email"
-                       name="email"
-                       value="{{ old('email') }}"
-                       placeholder="admin@example.com"
+                <label for="agent_code" class="block text-sm font-medium text-gray-700 mb-1.5">รหัสตัวแทน</label>
+                <input type="text"
+                       id="agent_code"
+                       name="agent_code"
+                       value="{{ old('agent_code', request()->cookie('agent_remember_code')) }}"
+                       placeholder="กรอกรหัสตัวแทน"
                        required
                        autofocus
-                       autocomplete="email"
+                       autocomplete="username"
                        autocapitalize="none"
                        autocorrect="off"
-                       inputmode="email"
                        class="w-full px-4 py-3 border rounded-xl text-sm transition focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
-                              {{ $errors->has('email') ? 'border-red-400 bg-red-50' : 'border-gray-300' }}">
-                @error('email')
+                              {{ $errors->has('agent_code') ? 'border-red-400 bg-red-50' : 'border-gray-300' }}">
+                @error('agent_code')
                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                 @enderror
             </div>
@@ -107,17 +106,32 @@
                     <button type="button"
                             onclick="togglePwd()"
                             class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                        <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg id="eye-open" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                   d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                   d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                        <svg id="eye-closed" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
                         </svg>
                     </button>
                 </div>
                 @error('password')
                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                 @enderror
+            </div>
+
+            {{-- Remember Me --}}
+            <div class="flex items-center gap-2">
+                <input type="checkbox"
+                       id="remember"
+                       name="remember"
+                       value="1"
+                       {{ request()->cookie('agent_remember_code') ? 'checked' : '' }}
+                       class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer">
+                <label for="remember" class="text-sm text-gray-600 cursor-pointer select-none">จำรหัสตัวแทนในครั้งถัดไป</label>
             </div>
 
             {{-- Submit --}}
@@ -140,7 +154,17 @@
 <script>
     function togglePwd() {
         const pwd = document.getElementById('password');
-        pwd.type = pwd.type === 'password' ? 'text' : 'password';
+        const open = document.getElementById('eye-open');
+        const closed = document.getElementById('eye-closed');
+        if (pwd.type === 'password') {
+            pwd.type = 'text';
+            open.classList.add('hidden');
+            closed.classList.remove('hidden');
+        } else {
+            pwd.type = 'password';
+            open.classList.remove('hidden');
+            closed.classList.add('hidden');
+        }
     }
 </script>
 </body>

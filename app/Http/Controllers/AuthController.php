@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AgentMember;
+use App\Models\HrAgent;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Http\Response;
 
 class AuthController extends Controller
 {
+    private const REMEMBER_COOKIE = 'agent_remember_code';
+    private const REMEMBER_DAYS   = 30;
+
     public function showLogin()
     {
         if (session('agent_logged_in')) {
@@ -20,55 +23,60 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
+            'agent_code' => 'required|string',
+            'password'   => 'required|string',
         ]);
 
-        $member = AgentMember::where('email', $request->email)->first();
+        $agent = HrAgent::where('agent_code', $request->agent_code)->first();
 
-        if (!$member || !Hash::check($request->password, $member->password)) {
+        if (!$agent || $agent->pass_decode !== $request->password) {
             logSystem('agent', null, 'Auth', 'LOGIN_FAILED',
-                'Failed login attempt for: ' . $request->email);
+                'Failed login attempt for agent_code: ' . $request->agent_code);
 
             return back()
-                ->withInput($request->only('email'))
-                ->with('error', 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+                ->withInput($request->only('agent_code'))
+                ->with('error', 'รหัสตัวแทนหรือรหัสผ่านไม่ถูกต้อง');
         }
 
-        if ($member->status !== 'active') {
-            logSystem('agent', $member->id, 'Auth', 'LOGIN_BLOCKED',
-                'Inactive account login attempt: ' . $member->email);
-
-            return back()
-                ->withInput($request->only('email'))
-                ->with('error', 'บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
-        }
+        $fullName = trim(($agent->prefix ? $agent->prefix . ' ' : '') . $agent->name);
 
         session([
             'agent_logged_in' => true,
-            'agent_id'        => $member->id,
-            'agent_name'      => $member->name,
-            'agent_email'     => $member->email,
-            'agent_code'      => $member->member_code,
+            'agent_id'        => $agent->id,
+            'agent_name'      => $fullName ?: $agent->agent_code,
+            'agent_code'      => $agent->agent_code,
         ]);
 
-        logSystem('agent', $member->id, 'Auth', 'LOGIN',
-            'Member logged in: ' . $member->name . ' [' . $member->member_code . ']');
+        logSystem('agent', $agent->id, 'Auth', 'LOGIN',
+            'Agent logged in: [' . $agent->agent_code . ']');
 
-        return redirect()->intended(route('dashboard'));
+        $response = redirect()->intended(route('dashboard'));
+
+        if ($request->boolean('remember')) {
+            $response->withCookie(
+                cookie(self::REMEMBER_COOKIE, $agent->agent_code, 60 * 24 * self::REMEMBER_DAYS, '/', null, false, true)
+            );
+        } else {
+            $response->withCookie(
+                cookie()->forget(self::REMEMBER_COOKIE)
+            );
+        }
+
+        return $response;
     }
 
     public function logout(Request $request)
     {
         $agentId   = session('agent_id');
-        $agentName = session('agent_name');
+        $agentName = session('agent_code');
 
         logSystem('agent', $agentId, 'Auth', 'LOGOUT',
-            'Member logged out: ' . $agentName);
+            'Agent logged out: [' . $agentName . ']');
 
         $request->session()->flush();
 
         return redirect()->route('login')
+            ->withCookie(cookie()->forget(self::REMEMBER_COOKIE))
             ->with('success', 'ออกจากระบบเรียบร้อยแล้ว');
     }
 }

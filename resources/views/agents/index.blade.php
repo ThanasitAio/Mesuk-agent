@@ -97,18 +97,12 @@
                         </svg>
                         แก้ไข
                     </x-btn>
-                    <form action="{{ route('agents.destroy', $agent) }}" method="POST"
-                          class="contents"
-                          onsubmit="return confirm('ลบตัวแทน {{ addslashes($agent->name) }}? ไม่สามารถกู้คืนได้')">
-                        @csrf
-                        @method('DELETE')
-                        <x-btn type="submit" size="sm" variant="danger">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
-                            ลบ
-                        </x-btn>
-                    </form>
+                    <x-btn type="button" size="sm" variant="danger" onclick="openModal('delete-agent-{{ $agent->id }}')">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        ลบ
+                    </x-btn>
                 </div>
             </td>
         </tr>
@@ -135,8 +129,10 @@
         <x-card class="p-4">
             <div class="flex items-start justify-between gap-2 mb-3">
                 <div class="flex items-start gap-3">
-                    <div class="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center text-brand-600 font-bold text-sm flex-shrink-0">
-                        {{ strtoupper(substr($agent->name, 0, 1)) }}
+                    <div class="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
                     </div>
                     <div>
                         <p class="font-semibold text-gray-800 text-sm">{{ $agent->name }}</p>
@@ -177,17 +173,12 @@
                     </svg>
                     แก้ไข
                 </x-btn>
-                <form action="{{ route('agents.destroy', $agent) }}" method="POST" class="flex-1"
-                      onsubmit="return confirm('ลบ {{ addslashes($agent->name) }}? ไม่สามารถกู้คืนได้')">
-                    @csrf
-                    @method('DELETE')
-                    <x-btn type="submit" variant="danger" size="sm" class="w-full py-2.5">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                        ลบ
-                    </x-btn>
-                </form>
+                <x-btn type="button" variant="danger" size="sm" class="flex-1 py-2.5" onclick="openModal('delete-agent-{{ $agent->id }}')">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    ลบ
+                </x-btn>
             </div>
         </x-card>
     @empty
@@ -204,5 +195,18 @@
 <x-pagination :paginator="$agents" label="รายการ">
     @if(request('search')) สำหรับ "<strong>{{ request('search') }}</strong>" @endif
 </x-pagination>
+
+{{-- Delete Confirm Modals --}}
+@foreach($agents as $agent)
+    <x-confirm-modal
+        id="delete-agent-{{ $agent->id }}"
+        title="ลบตัวแทน"
+        action="{{ route('agents.destroy', $agent) }}"
+        method="DELETE"
+        confirm-label="ลบ"
+    >
+        ลบตัวแทน <strong>{{ $agent->name }}</strong> ไม่สามารถกู้คืนได้
+    </x-confirm-modal>
+@endforeach
 
 @endsection
