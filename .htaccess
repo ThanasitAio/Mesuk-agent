@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Serve files/directories directly (assets, etc.)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Rewrite everything else to public/index.php
+    # Use this when the domain points to the project root (not public/)
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
