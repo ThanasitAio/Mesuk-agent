@@ -1,0 +1,1318 @@
+@extends('layouts.app')
+
+@section('title', $property->title ?? 'รอบบิล')
+@section('breadcrumb', 'อสังหาริมทรัพย์ / รอบบิลและสลิป')
+
+@section('content')
+
+@php
+    $totalPaid    = (float) $allRecords->where('payment_status', 'paid')->sum('amount');
+    $totalVerif   = (float) $allRecords->where('payment_status', 'pending_verification')->sum('amount');
+    $totalPending = (float) $allRecords->whereIn('payment_status', ['pending', 'failed'])->sum('amount');
+    $overdueList  = $allRecords->filter(fn($r) =>
+        $r->due_date && $r->due_date->toDateString() < now()->toDateString() &&
+        ! in_array($r->payment_status, ['paid', 'pending_verification', 'refunded'])
+    );
+    $depositType   = $booking->deposit_type   ?? 'full';
+    $renterType    = $booking->renter_type    ?? 'individual';
+    $paymentDueDay = $booking->payment_due_day ?? 5;
+    $startDate     = $booking->contract_start_date ?? $booking->check_in;
+
+    $depositPhase1Record = $allRecords
+        ->where('payment_type', 'deposit')
+        ->filter(fn($r) => ! $r->deposit_phase || (int) $r->deposit_phase === 1)
+        ->first();
+
+    $cdHasPending  = $isInitialPaymentPhase
+        && $depositPhase1Record
+        && in_array($depositPhase1Record->payment_status, ['pending', 'failed']);
+    $cdDeadline    = $booking->created_at->copy()->addHours(8);
+    $cdDeadlineIso = $cdHasPending ? $cdDeadline->toIso8601String() : null;
+    $cdDeadlineTh  = $cdDeadline->locale('th')->translatedFormat('j M Y H:i น.');
+
+    $hasProcessingFee = $allRecords->where('payment_type', 'processing_fee')->isNotEmpty();
+    $cdBannerTitle = $hasProcessingFee
+        ? 'เวลาคงเหลือในการชำระเงินมัดจำ + ค่าดำเนินการ'
+        : ($depositType === 'half' ? 'เวลาคงเหลือในการชำระเงินมัดจำงวดที่ 1' : 'เวลาคงเหลือในการชำระเงินมัดจำ');
+
+    $hasBothPhase1 = $hasProcessingFee
+        && $allRecords
+            ->whereIn('payment_type', ['deposit', 'processing_fee'])
+            ->whereIn('payment_status', ['pending', 'failed'])
+            ->count() >= 2;
+
+    $owner = $property->owner;
+    $companyBankName     = $company?->bank_name;
+    $companyBankAcct     = $company?->bank_account_number;
+    $companyBankAcctName = $company?->bank_account_name;
+    $companyBankBranch   = $company?->bank_branch;
+    $companyQrPath       = $company?->qr_code_image;
+    $companyQrUrl        = $companyQrPath ? $happyestPublic . '/storage/' . $companyQrPath : null;
+
+    $investorBankName     = $owner?->bank_name;
+    $investorBankAcct     = $owner?->bank_account_number;
+    $investorBankAcctName = $owner?->bank_account_name;
+    $investorBankBranch   = $owner?->bank_branch;
+    $investorQrPath       = $owner?->bank_qr_code_path;
+    $investorQrUrl        = $investorQrPath ? $happyestPublic . '/storage/' . $investorQrPath : null;
+
+    $depositTypes = ['deposit', 'processing_fee'];
+    $rentTypes    = ['monthly_rent', 'late_fee'];
+    $pendingForBank = $actionableRecords->isNotEmpty() ? $actionableRecords : $allRecords->whereIn('payment_status', ['pending', 'failed']);
+    $hasPendingCompany  = $pendingForBank->filter(fn($r) =>
+        (in_array($r->payment_type, $depositTypes) && ! $isDepositToInvestor) ||
+        (in_array($r->payment_type, $rentTypes) && ! $isRentToInvestor)
+    )->isNotEmpty();
+    $hasPendingInvestor = $pendingForBank->filter(fn($r) =>
+        (in_array($r->payment_type, $depositTypes) && $isDepositToInvestor) ||
+        (in_array($r->payment_type, $rentTypes) && $isRentToInvestor)
+    )->isNotEmpty();
+
+    $phaseCardColor = $isInitialPaymentPhase ? 'border-brand-500' : (($isWaitingContract || $isDepositPendingVerification) ? 'border-amber-400' : 'border-emerald-500');
+    $fmtAmt = fn($a) => ((float) $a != floor((float) $a)) ? number_format((float) $a, 2) : number_format((int) $a);
+@endphp
+
+<style>
+.cd-banner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+    padding: 12px 16px;
+    background: linear-gradient(135deg,#0ea5e9,#0284c7);
+    color: #fff;
+}
+.cd-banner.warn   { background: linear-gradient(135deg,#f59e0b,#d97706); }
+.cd-banner.danger { background: linear-gradient(135deg,#ef4444,#dc2626); }
+.cd-banner.expired{ background: linear-gradient(135deg,#ef4444,#b91c1c); }
+.cd-units { display: flex; gap: 5px; align-items: stretch; }
+.cd-unit {
+    display: flex; flex-direction: column; align-items: center;
+    background: rgba(255,255,255,0.20);
+    border-radius: 9px; padding: 5px 9px 4px; min-width: 44px;
+    backdrop-filter: blur(4px);
+}
+.cd-unit-num { font-size: 1.45rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.cd-unit-lbl { font-size: 0.58rem; font-weight: 700; opacity: .8; text-transform: uppercase; margin-top: 2px; }
+.cd-sep { font-size: 1.3rem; font-weight: 800; align-self: center; opacity: .7; }
+.cd-bottom {
+    background: rgba(255,255,255,0.10); padding: 8px 16px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 0.77rem; color: #fff; font-weight: 600;
+    border-top: 1px solid rgba(255,255,255,0.15);
+}
+</style>
+
+{{-- ===== Page Header ===== --}}
+<div class="flex items-center gap-3 mb-5">
+    <a href="{{ route('properties.index') }}"
+       class="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800 hover:border-gray-300 transition-all flex-shrink-0 shadow-sm active:scale-95">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+    </a>
+    <div class="min-w-0 flex-1">
+        <h1 class="text-base font-bold text-gray-900 truncate">{{ $property->title }}</h1>
+        <p class="text-xs text-gray-400 font-mono">{{ $property->property_code }}</p>
+    </div>
+</div>
+
+{{-- ===== Overdue Alert ===== --}}
+@if($overdueList->count() > 0)
+<div class="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-4 mb-5">
+    <div class="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+    </div>
+    <div class="flex-1 min-w-0">
+        <p class="text-sm font-bold text-red-700">มี {{ $overdueList->count() }} รายการเกินกำหนดชำระ</p>
+        <p class="text-xs text-red-500 mt-0.5">ยอดค้างรวม <span class="font-bold tabular-nums">฿{{ number_format($overdueList->sum('amount'), 0) }}</span> — กรุณาติดต่อผู้เช่าโดยด่วน</p>
+    </div>
+</div>
+@endif
+
+{{-- ===== Booking Summary Card ===== --}}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+
+    {{-- Gradient Header --}}
+    <div class="bg-gradient-to-br from-brand-600 to-brand-800 px-5 py-5">
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+                <p class="text-xs text-brand-300 mb-1 font-medium tracking-wide">ผู้เช่าปัจจุบัน</p>
+                <p class="text-xl font-bold text-white leading-tight truncate">
+                    {{ $booking->customer?->full_name ?? '—' }}
+                </p>
+                @if($booking->customer?->mobile)
+                    <div class="flex items-center gap-1.5 mt-2">
+                        <svg class="w-3.5 h-3.5 text-brand-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                        </svg>
+                        <span class="text-sm text-brand-100">{{ $booking->customer->mobile }}</span>
+                    </div>
+                @endif
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0">
+                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-full">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {{ $booking->getStatusLabel() }}
+                </span>
+                <span class="text-xs font-medium text-brand-200 bg-white/10 px-2.5 py-1 rounded-full font-mono">{{ $booking->booking_code }}</span>
+                @if($renterType === 'juristic')
+                    <span class="text-xs font-medium text-brand-200 bg-white/10 px-2.5 py-1 rounded-full">นิติบุคคล</span>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- 4-stat grid --}}
+    <div class="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-gray-100 border-b border-gray-100">
+        <div class="px-4 py-3.5">
+            <p class="text-[11px] text-gray-400 mb-1 font-medium">ค่าเช่า/เดือน</p>
+            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($booking->monthly_rent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
+        </div>
+        <div class="px-4 py-3.5">
+            <p class="text-[11px] text-gray-400 mb-1 font-medium">เงินประกัน</p>
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <p class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($booking->deposit, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
+                @if($depositType === 'half')
+                    <span class="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md leading-none">แบ่ง 2 งวด</span>
+                @endif
+            </div>
+        </div>
+        <div class="px-4 py-3.5">
+            <p class="text-[11px] text-gray-400 mb-1 font-medium">ระยะสัญญา</p>
+            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ $booking->rental_months ?? '—' }} <span class="text-xs font-normal text-gray-400">เดือน</span></p>
+        </div>
+        <div class="px-4 py-3.5">
+            <p class="text-[11px] text-gray-400 mb-1 font-medium">ครบกำหนดชำระ</p>
+            <p class="text-sm font-bold text-gray-900">ทุกวันที่ <span class="text-brand-600">{{ $paymentDueDay }}</span></p>
+        </div>
+    </div>
+
+    {{-- Contract details row 1 --}}
+    <div class="grid grid-cols-2 border-b border-gray-100">
+        <div class="px-4 py-3 border-r border-gray-100">
+            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">เริ่มสัญญา</p>
+            <p class="text-xs font-semibold text-gray-700">
+                {{ $startDate ? $startDate->locale('th')->translatedFormat('d M Y') : '—' }}
+            </p>
+        </div>
+        <div class="px-4 py-3">
+            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">สถานะสัญญา</p>
+            @if($booking->contract_status === 'sent')
+                <p class="text-xs font-semibold text-emerald-600">{{ $booking->getContractStatusLabel() }} ✓</p>
+                @if($booking->contract_sent_at)
+                    <p class="text-[10px] text-gray-400 mt-0.5">ส่งเมื่อ {{ $booking->contract_sent_at->locale('th')->translatedFormat('d M Y') }}</p>
+                @endif
+            @else
+                <p class="text-xs font-semibold text-amber-600">{{ $booking->getContractStatusLabel() }}</p>
+            @endif
+        </div>
+    </div>
+
+    {{-- Contract details row 2 --}}
+    <div class="grid grid-cols-2 sm:grid-cols-3 border-t border-gray-100">
+        <div class="px-4 py-3 border-r border-gray-100">
+            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">รูปแบบมัดจำ</p>
+            <p class="text-xs font-semibold text-gray-700">
+                {{ $depositType === 'half' ? 'แบ่งครึ่ง 2 งวด' : 'ชำระครั้งเดียว' }}
+            </p>
+        </div>
+        <div class="px-4 py-3 border-r border-gray-100">
+            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">ชำระค่าเช่าก่อนสัญญา</p>
+            <div class="flex items-center gap-2 mt-1">
+                @if($allowPay)
+                    <span class="text-xs font-semibold text-emerald-600">เปิดใช้งานแล้ว</span>
+                @else
+                    <span class="text-xs font-semibold text-gray-500">ปิดใช้งาน</span>
+                @endif
+                <form action="{{ route('properties.togglePrePay', $property->id) }}" method="POST" class="inline-block m-0 p-0">
+                    @csrf
+                    <button type="submit" class="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded border border-gray-200 transition-colors">
+                        สลับสถานะ
+                    </button>
+                </form>
+            </div>
+            @if($isWaitingContract && !$allowPay)
+                <p class="text-[10px] text-amber-600 mt-1">ต้องเปิดหากต้องการให้โอนก่อนสัญญา</p>
+            @endif
+        </div>
+        <div class="px-4 py-3 col-span-2 sm:col-span-1">
+            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">สถานะการชำระ</p>
+            <p class="text-xs font-semibold text-gray-700">{{ $booking->getPaymentStatusLabel() }}</p>
+        </div>
+    </div>
+</div>
+
+{{-- ===== Payment Phase Banner ===== --}}
+<div class="bg-white rounded-2xl border-l-4 {{ $phaseCardColor }} border border-gray-100 shadow-sm px-5 py-4 mb-5 flex items-center justify-between flex-wrap gap-2">
+    <div>
+        <p class="text-sm font-bold text-gray-900">{{ $phaseTitle }}</p>
+        <p class="text-xs text-gray-500 mt-1 leading-relaxed">{{ $phaseDescription }}</p>
+    </div>
+</div>
+
+@if($hasComboPayment)
+<div class="bg-violet-50 border border-violet-200 rounded-2xl overflow-hidden mb-5">
+    <div class="px-4 py-4 border-b border-violet-200">
+        <p class="text-sm font-bold text-violet-900 mb-1 flex items-center gap-2">
+            🔀 รูปแบบการชำระ: มัดจำงวด 2 + ค่าเช่าเดือน 1
+        </p>
+        <p class="text-xs text-violet-700 leading-relaxed">เลือกว่าจะรวมทั้ง 2 รายการแนบ 1 สลิป หรือแยกแนบ 2 สลิป</p>
+    </div>
+    <div class="px-4 py-4">
+        <div class="grid grid-cols-2 gap-3" id="combo-mode-selector">
+            <button type="button" 
+                    onclick="selectComboMode('join')" 
+                    id="main-combo-btn-join"
+                    class="main-combo-btn group relative text-sm font-bold py-4 rounded-xl border-2 border-violet-500 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-all shadow-sm">
+                <div class="flex flex-col items-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span>รวม 1 สลิป</span>
+                    <span class="text-[10px] opacity-75">โอนรวมกันในใบเดียว</span>
+                </div>
+            </button>
+            <button type="button" 
+                    onclick="selectComboMode('sep')" 
+                    id="main-combo-btn-sep"
+                    class="main-combo-btn group relative text-sm font-bold py-4 rounded-xl border-2 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-all">
+                <div class="flex flex-col items-center gap-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>
+                    </svg>
+                    <span>แยก 2 สลิป</span>
+                    <span class="text-[10px] opacity-75">แนบแยกทีละรายการ</span>
+                </div>
+            </button>
+        </div>
+        <div id="main-combo-note" class="mt-3 bg-white rounded-lg border border-violet-200 px-3 py-2.5">
+            <p class="text-xs text-violet-700 leading-relaxed"></p>
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- ===== Financial Summary Strip ===== --}}
+@if($allRecords->count() > 0)
+<div class="grid grid-cols-3 gap-3 mb-5">
+    <div class="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-4">
+        <div class="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center mb-2">
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-base font-bold text-emerald-800 tabular-nums leading-none">{{ number_format($totalPaid, 0) }}</p>
+        <p class="text-[11px] text-emerald-600 mt-1 font-medium">ชำระแล้ว (฿)</p>
+    </div>
+    <div class="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-4">
+        <div class="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
+            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-base font-bold text-blue-800 tabular-nums leading-none">{{ number_format($totalVerif, 0) }}</p>
+        <p class="text-[11px] text-blue-600 mt-1 font-medium">รอตรวจสอบ (฿)</p>
+    </div>
+    @if($overdueList->count() > 0)
+    <div class="bg-red-50 border border-red-100 rounded-2xl px-4 py-4">
+        <div class="w-7 h-7 bg-red-100 rounded-lg flex items-center justify-center mb-2">
+            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+        </div>
+        <p class="text-base font-bold text-red-800 tabular-nums leading-none">{{ number_format($totalPending, 0) }}</p>
+        <p class="text-[11px] text-red-600 mt-1 font-medium">ค้างชำระ (฿)</p>
+    </div>
+    @else
+    <div class="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-4">
+        <div class="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center mb-2">
+            <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-base font-bold text-amber-800 tabular-nums leading-none">{{ number_format($totalPending, 0) }}</p>
+        <p class="text-[11px] text-amber-600 mt-1 font-medium">ค้างชำระ (฿)</p>
+    </div>
+    @endif
+</div>
+@endif
+
+{{-- ===== Deposit Deadline Alert ===== --}}
+@if($cdDeadlineIso)
+<div class="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 mb-5 flex items-center gap-3">
+    <span class="text-xl flex-shrink-0">⏰</span>
+    <div>
+        <p class="text-xs font-bold text-blue-900">{{ $cdBannerTitle }}</p>
+        <p class="text-[10px] text-blue-700 mt-0.5" id="cdDateLabel">ครบกำหนด {{ $cdDeadlineTh }}</p>
+    </div>
+</div>
+@endif
+
+{{-- ===== Payment Account Info ===== --}}
+@if(($hasPendingCompany && $company) || ($hasPendingInvestor && $owner))
+<div x-data="{ showAccount: false }" class="mb-5">
+    <button @click="showAccount = !showAccount" type="button" class="w-full flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 hover:bg-gray-50 transition-colors">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 bg-violet-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                </svg>
+            </div>
+            <div class="text-left">
+                <h2 class="text-sm font-bold text-gray-800">บัญชีรับชำระเงิน</h2>
+                <p class="text-[10px] text-gray-500 mt-0.5">กดเพื่อดูข้อมูลบัญชี (เผื่อตัวแทนต้องการตรวจสอบ)</p>
+            </div>
+        </div>
+        <svg class="w-5 h-5 text-gray-400 transform transition-transform" :class="{'rotate-180': showAccount}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </button>
+
+    <div x-show="showAccount" x-collapse class="mt-3">
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {{-- Company account --}}
+            @if($hasPendingCompany && $company)
+            @php
+                $companyLabels = collect();
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $depositTypes) && !$isDepositToInvestor)->isNotEmpty())
+                    $companyLabels->push('มัดจำ' . ($hasProcessingFee ? '/ค่าดำเนินการ' : ''));
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && !$isRentToInvestor)->isNotEmpty())
+                    $companyLabels->push('ค่าเช่า');
+            @endphp
+            <div class="px-5 py-4 {{ ($hasPendingInvestor && $owner) ? 'border-b border-gray-100' : '' }}">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                        {{ $companyName }}
+                    </span>
+                    <span class="text-xs text-gray-400">{{ $companyLabels->join(' · ') }}</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        @if($companyBankName)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ธนาคาร</span>
+                            <span class="text-xs font-semibold text-gray-800">{{ $companyBankName }}</span>
+                        </div>
+                        @endif
+                        @if($companyBankAcct)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">เลขบัญชี</span>
+                            <span class="text-xs font-bold text-gray-900 font-mono tracking-wide">{{ $companyBankAcct }}</span>
+                        </div>
+                        @endif
+                        @if($companyBankAcctName)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ชื่อบัญชี</span>
+                            <span class="text-xs font-semibold text-gray-800">{{ $companyBankAcctName }}</span>
+                        </div>
+                        @endif
+                        @if($companyBankBranch)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">สาขา</span>
+                            <span class="text-xs text-gray-600">{{ $companyBankBranch }}</span>
+                        </div>
+                        @endif
+                        @if(!$companyBankName && !$companyBankAcct)
+                            <p class="text-xs text-gray-400 italic">ยังไม่ได้ตั้งค่าบัญชีธนาคาร</p>
+                        @endif
+                    </div>
+                    @if($companyQrUrl)
+                    <div class="flex flex-col items-center">
+                        <p class="text-[11px] text-gray-400 mb-2 font-medium">QR Code</p>
+                        <img src="{{ $companyQrUrl }}" alt="QR {{ $companyName }}"
+                             class="w-32 h-32 object-contain rounded-xl border border-gray-200 shadow-sm cursor-zoom-in"
+                             onclick="this.requestFullscreen?.()" loading="lazy">
+                    </div>
+                    @endif
+                </div>
+            </div>
+            @endif
+
+            {{-- Investor account --}}
+            @if($hasPendingInvestor && $owner)
+            @php
+                $investorLabels = collect();
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $depositTypes) && $isDepositToInvestor)->isNotEmpty())
+                    $investorLabels->push('มัดจำ' . ($hasProcessingFee ? '/ค่าดำเนินการ' : ''));
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && $isRentToInvestor)->isNotEmpty())
+                    $investorLabels->push('ค่าเช่า');
+            @endphp
+            <div class="px-5 py-4">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                        {{ $investorName }}
+                    </span>
+                    <span class="text-xs text-gray-400">{{ $investorLabels->join(' · ') }}</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        @if($investorBankName)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ธนาคาร</span>
+                            <span class="text-xs font-semibold text-gray-800">{{ $investorBankName }}</span>
+                        </div>
+                        @endif
+                        @if($investorBankAcct)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">เลขบัญชี</span>
+                            <span class="text-xs font-bold text-gray-900 font-mono tracking-wide">{{ $investorBankAcct }}</span>
+                        </div>
+                        @endif
+                        @if($investorBankAcctName)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ชื่อบัญชี</span>
+                            <span class="text-xs font-semibold text-gray-800">{{ $investorBankAcctName }}</span>
+                        </div>
+                        @endif
+                        @if($investorBankBranch)
+                        <div class="flex items-start gap-2">
+                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">สาขา</span>
+                            <span class="text-xs text-gray-600">{{ $investorBankBranch }}</span>
+                        </div>
+                        @endif
+                        @if(!$investorBankName && !$investorBankAcct)
+                            <p class="text-xs text-gray-400 italic">นักลงทุนยังไม่ได้ตั้งค่าบัญชีธนาคาร</p>
+                        @endif
+                    </div>
+                    @if($investorQrUrl)
+                    <div class="flex flex-col items-center">
+                        <p class="text-[11px] text-gray-400 mb-2 font-medium">QR Code</p>
+                        <img src="{{ $investorQrUrl }}" alt="QR {{ $investorName }}"
+                             class="w-32 h-32 object-contain rounded-xl border border-gray-200 shadow-sm cursor-zoom-in"
+                             onclick="this.requestFullscreen?.()" loading="lazy">
+                    </div>
+                    @endif
+                </div>
+            </div>
+            @endif
+        </div>
+    </div>
+</div>
+@endif
+
+{{-- ===== Billing Records ===== --}}
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+    {{-- Section Header --}}
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </div>
+            <h2 class="text-sm font-bold text-gray-800">รอบบิลทั้งหมด</h2>
+        </div>
+        <span class="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full tabular-nums">
+            {{ $displayRecords->count() }} รายการ
+            @if($lockedRecords->count() > 0)
+                · {{ $lockedRecords->count() }} ล็อก
+            @endif
+        </span>
+    </div>
+
+    @if($isWaitingContract && $displayRecords->isEmpty())
+        <div class="py-16 text-center px-6">
+            <div class="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <svg class="w-7 h-7 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <p class="text-gray-700 font-semibold">รอแอดมินดำเนินการจัดทำสัญญา</p>
+            <p class="text-xs text-gray-400 mt-1 max-w-sm mx-auto">เงินมัดจำได้รับการยืนยันแล้ว รายการค่าเช่าจะแสดงเมื่อสัญญาพร้อม หรือเมื่อตัวแทนเปิดชำระก่อนสัญญา</p>
+        </div>
+    @elseif($displayRecords->isEmpty())
+        <div class="py-16 text-center">
+            <div class="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <svg class="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </div>
+            <p class="text-gray-600 font-semibold">ยังไม่มีรอบบิล</p>
+            <p class="text-xs text-gray-400 mt-1">รอบบิลจะปรากฏที่นี่เมื่อระบบสร้างขึ้น</p>
+        </div>
+    @else
+
+    {{-- ─── Desktop Table ─── --}}
+    <div class="hidden md:block overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-100">
+                <tr>
+                    <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">รายการ</th>
+                    <th class="text-right px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">ยอดชำระ</th>
+                    <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">ครบกำหนด</th>
+                    <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">สถานะ</th>
+                    <th class="px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+                @foreach($displayRecords as $record)
+                    @php
+                        $meta = $recordMeta[$record->id] ?? [];
+                        $colorMap = [
+                            'yellow' => ['badge' => 'text-yellow-700 bg-yellow-50 border-yellow-200', 'row' => ''],
+                            'blue'   => ['badge' => 'text-blue-700 bg-blue-50 border-blue-200',       'row' => 'bg-blue-50/30'],
+                            'green'  => ['badge' => 'text-emerald-700 bg-emerald-50 border-emerald-200', 'row' => ''],
+                            'red'    => ['badge' => 'text-red-700 bg-red-50 border-red-200',           'row' => 'bg-red-50/40'],
+                            'gray'   => ['badge' => 'text-gray-600 bg-gray-50 border-gray-200',        'row' => ''],
+                        ];
+                        $colorKey   = $record->getStatusColor();
+                        $badgeClass = $colorMap[$colorKey]['badge'] ?? $colorMap['gray']['badge'];
+                        $rowClass   = $colorMap[$colorKey]['row']   ?? '';
+                        $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
+                                      && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
+                        $landTax    = (float) ($record->land_tax_amount   ?? 0);
+                        $stampDuty  = (float) ($record->stamp_duty_amount ?? 0);
+                        $whtAmount  = (float) ($record->withholding_tax_amount ?? 0);
+                        $baseRent   = (float) ($record->base_rent_amount  ?? 0);
+                        $hasBreakdown = $record->payment_type === 'monthly_rent'
+                                        && ($landTax > 0 || $stampDuty > 0 || $whtAmount > 0);
+                        $isProrated  = (bool) ($record->is_prorated ?? false);
+                        $recSlips    = $record->payment_slips ?? [];
+                        if (empty($recSlips) && $record->payment_slip_path) $recSlips = [$record->payment_slip_path];
+                        $slipCount   = count($recSlips);
+
+                        $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
+                        $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : $record->amount;
+                        $canUpload     = $meta['can_upload'] ?? false;
+                        $recToInvestor = $meta['to_investor'] ?? false;
+                        $recRecipient  = $meta['recipient_name'] ?? $companyName;
+                        $recRecipientBadge = $recToInvestor
+                            ? 'text-blue-600 bg-blue-50 border-blue-200'
+                            : 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                    @endphp
+                    <tr class="hover:bg-gray-50/80 transition-colors {{ $rowClass }}">
+
+                        {{-- Type --}}
+                        <td class="px-5 py-4">
+                            <div class="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                <p class="font-semibold text-gray-800">{{ $displayLabel }}</p>
+                                @if($meta['is_split_payment'] ?? false)
+                                    <span class="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
+                                        โอนแยก 2 บัญชี
+                                    </span>
+                                @endif
+                                @if($isProrated && $record->prorated_days)
+                                    <span class="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
+                                        {{ $record->prorated_days }}/{{ $record->prorated_total_days_in_month ?? '?' }} วัน
+                                    </span>
+                                @endif
+                            </div>
+                            {{-- Recipient badge --}}
+                            <span class="inline-flex items-center text-[10px] font-semibold border px-1.5 py-0.5 rounded-md leading-none {{ $recRecipientBadge }}">
+                                {{ $recToInvestor ? '👤' : '🏢' }} {{ $recRecipient }}
+                            </span>
+                            @if($record->payment_code)
+                                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
+                            @endif
+                            @if($record->payment_status === 'pending_verification' && $record->paid_at)
+                                <div class="flex items-center gap-1 mt-1">
+                                    <svg class="w-3 h-3 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                                    </svg>
+                                    <p class="text-xs text-blue-500">
+                                        {{ $slipCount > 1 ? "{$slipCount} ไฟล์" : '1 ไฟล์' }} · {{ $record->paid_at->locale('th')->diffForHumans() }}
+                                    </p>
+                                </div>
+                            @endif
+                            @if($record->payment_status === 'failed' && $record->rejection_reason)
+                                <p class="text-[10px] text-red-600 mt-0.5">เหตุผล: {{ Str::limit($record->rejection_reason, 40) }}</p>
+                            @endif
+                        </td>
+
+                        {{-- Amount --}}
+                        <td class="px-5 py-4 text-right">
+                            <p class="font-bold text-gray-900 text-base tabular-nums">{{ number_format($displayAmount, 0) }}</p>
+                            @if($meta['is_phase2_combo'] ?? false)
+                                <p class="text-[10px] text-violet-600">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
+                            @endif
+                            <p class="text-xs text-gray-400">บาท</p>
+                            @if($hasBreakdown)
+                                <div class="mt-1.5 space-y-0.5 text-right">
+                                    @if($baseRent > 0)
+                                        <p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ number_format($baseRent, 0) }}</p>
+                                    @endif
+                                    @if($landTax > 0)
+                                        <p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>
+                                    @endif
+                                    @if($stampDuty > 0)
+                                        <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>
+                                    @endif
+                                    @if($whtAmount > 0)
+                                        <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
+
+                        {{-- Due date --}}
+                        <td class="px-5 py-4">
+                            @if($record->due_date)
+                                <p class="text-sm {{ $isOverdue ? 'text-red-600 font-bold' : 'text-gray-700' }}">
+                                    {{ $record->due_date->locale('th')->translatedFormat('d M Y') }}
+                                </p>
+                                @if($isOverdue)
+                                    <div class="flex items-center gap-1 mt-0.5">
+                                        <svg class="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <p class="text-xs text-red-500 font-semibold tabular-nums">เกิน {{ $record->due_date->diffInDays(now()) }} วัน</p>
+                                    </div>
+                                @endif
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
+                        </td>
+
+                        {{-- Status --}}
+                        <td class="px-5 py-4">
+                            <span class="inline-flex items-center text-xs font-semibold border px-2.5 py-1 rounded-full {{ $badgeClass }}">
+                                {{ $record->getStatusLabel() }}
+                            </span>
+                        </td>
+
+                        {{-- Action --}}
+                        <td class="px-5 py-4 text-center">
+                            @if($canUpload)
+                                <button type="button"
+                                        onclick="openSlipModal({{ $record->id }}, '{{ addslashes($displayLabel) }}', '{{ number_format($displayAmount, 0) }}', {{ ($meta['is_phase2_combo'] ?? false) ? 'true' : 'false' }}, {{ $canCombinePayment ? 'true' : 'false' }})"
+                                        class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-3.5 py-2 rounded-xl transition-all shadow-sm">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                    </svg>
+                                    แนบสลิป
+                                </button>
+                            @elseif($record->payment_status === 'pending_verification')
+                                <div class="inline-flex flex-col items-center gap-1.5">
+                                    <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        รอตรวจสอบ
+                                    </div>
+                                    @foreach($recSlips as $si => $_)
+                                    <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
+                                       class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600 transition-colors">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                        ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
+                                    </a>
+                                    @endforeach
+                                </div>
+                            @elseif($record->payment_status === 'paid')
+                                <div class="inline-flex flex-col items-center gap-1.5">
+                                    <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        ชำระแล้ว
+                                    </div>
+                                    @if($slipCount > 0)
+                                    <a href="{{ route('billing.slip.view', $record->id) }}" target="_blank"
+                                       class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600 transition-colors">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                        ดูสลิป{{ $slipCount > 1 ? " ({$slipCount})" : '' }}
+                                    </a>
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    {{-- ─── Mobile Cards ─── --}}
+    <div class="md:hidden">
+        @foreach($displayRecords as $record)
+            @php
+                $meta = $recordMeta[$record->id] ?? [];
+                $colorMap = [
+                    'yellow' => ['badge' => 'text-yellow-700 bg-yellow-50 border-yellow-200', 'bar' => 'bg-yellow-400'],
+                    'blue'   => ['badge' => 'text-blue-700 bg-blue-50 border-blue-200',       'bar' => 'bg-blue-400'],
+                    'green'  => ['badge' => 'text-emerald-700 bg-emerald-50 border-emerald-200', 'bar' => 'bg-emerald-500'],
+                    'red'    => ['badge' => 'text-red-700 bg-red-50 border-red-200',           'bar' => 'bg-red-500'],
+                    'gray'   => ['badge' => 'text-gray-600 bg-gray-50 border-gray-200',        'bar' => 'bg-gray-300'],
+                ];
+                $colorKey   = $record->getStatusColor();
+                $badgeClass = $colorMap[$colorKey]['badge'] ?? $colorMap['gray']['badge'];
+                $barClass   = $colorMap[$colorKey]['bar']   ?? $colorMap['gray']['bar'];
+                $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
+                              && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
+                $landTax    = (float) ($record->land_tax_amount   ?? 0);
+                $stampDuty  = (float) ($record->stamp_duty_amount ?? 0);
+                $whtAmount  = (float) ($record->withholding_tax_amount ?? 0);
+                $hasBreakdown = $record->payment_type === 'monthly_rent'
+                                && ($landTax > 0 || $stampDuty > 0 || $whtAmount > 0);
+                $isProrated  = (bool) ($record->is_prorated ?? false);
+                $recSlips    = $record->payment_slips ?? [];
+                if (empty($recSlips) && $record->payment_slip_path) $recSlips = [$record->payment_slip_path];
+                $slipCount   = count($recSlips);
+
+                $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
+                $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : $record->amount;
+                $canUpload     = $meta['can_upload'] ?? false;
+                $recToInvestor = $meta['to_investor'] ?? false;
+                $recRecipient  = $meta['recipient_name'] ?? $companyName;
+                $recRecipientBadge = $recToInvestor
+                    ? 'text-blue-600 bg-blue-50 border-blue-200'
+                    : 'text-emerald-600 bg-emerald-50 border-emerald-200';
+            @endphp
+            <div class="relative px-5 py-4 border-b border-gray-50 last:border-0 {{ $isOverdue ? 'bg-red-50/30' : '' }}">
+                {{-- Left accent bar --}}
+                <span class="absolute left-0 top-4 bottom-4 w-1 rounded-r-full {{ $barClass }}"></span>
+
+                {{-- Top row: type + status badge --}}
+                <div class="flex items-start justify-between gap-3 mb-2 pl-1">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <p class="font-bold text-gray-900 text-sm">{{ $displayLabel }}</p>
+                            @if($meta['is_split_payment'] ?? false)
+                                <span class="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-md leading-none">โอนแยก 2 บัญชี</span>
+                            @endif
+                            @if($isProrated && $record->prorated_days)
+                                <span class="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md leading-none">
+                                    {{ $record->prorated_days }}/{{ $record->prorated_total_days_in_month ?? '?' }} วัน
+                                </span>
+                            @endif
+                        </div>
+                        {{-- Recipient badge --}}
+                        <span class="inline-flex items-center text-[10px] font-semibold border px-1.5 py-0.5 rounded-md leading-none mt-0.5 {{ $recRecipientBadge }}">
+                            {{ $recToInvestor ? '👤' : '🏢' }} {{ $recRecipient }}
+                        </span>
+                        @if($record->payment_code)
+                            <p class="text-xs text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
+                        @endif
+                    </div>
+                    <span class="flex-shrink-0 inline-flex items-center text-xs font-semibold border px-2 py-1 rounded-full {{ $badgeClass }}">
+                        {{ $record->getStatusLabel() }}
+                    </span>
+                </div>
+
+                {{-- Bottom row: amount + action --}}
+                <div class="flex items-end justify-between pl-1">
+                    <div>
+                        <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
+                            {{ number_format($displayAmount, 0) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
+                        </p>
+                        @if($meta['is_phase2_combo'] ?? false)
+                            <p class="text-[10px] text-violet-600 mt-0.5">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
+                        @endif
+                        @if($hasBreakdown)
+                            <div class="mt-1.5 space-y-0.5">
+                                @if($landTax > 0)
+                                    <p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>
+                                @endif
+                                @if($stampDuty > 0)
+                                    <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>
+                                @endif
+                                @if($whtAmount > 0)
+                                    <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>
+                                @endif
+                            </div>
+                        @endif
+                        @if($record->due_date)
+                            <p class="text-xs mt-1.5 {{ $isOverdue ? 'text-red-600 font-bold' : 'text-gray-400' }}">
+                                ครบ {{ $record->due_date->locale('th')->translatedFormat('d M Y') }}
+                                @if($isOverdue)
+                                    · <span class="tabular-nums">เกิน {{ $record->due_date->diffInDays(now()) }} วัน</span>
+                                @endif
+                            </p>
+                        @endif
+                        @if($record->payment_status === 'failed' && $record->rejection_reason)
+                            <p class="text-[10px] text-red-600 mt-1">{{ Str::limit($record->rejection_reason, 50) }}</p>
+                        @endif
+                    </div>
+
+                    {{-- Action button --}}
+                    @if($canUpload)
+                        <button type="button"
+                                onclick="openSlipModal({{ $record->id }}, '{{ addslashes($displayLabel) }}', '{{ number_format($displayAmount, 0) }}', {{ ($meta['is_phase2_combo'] ?? false) ? 'true' : 'false' }}, {{ $canCombinePayment ? 'true' : 'false' }})"
+                                class="flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-4 py-2.5 rounded-xl transition-all shadow-sm flex-shrink-0">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                            </svg>
+                            แนบสลิป
+                        </button>
+                    @elseif($record->payment_status === 'pending_verification')
+                        <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
+                            <div class="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-2 rounded-xl">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                รอตรวจสอบ
+                            </div>
+                            @foreach($recSlips as $si => $_)
+                            <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
+                               class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                                ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
+                            </a>
+                            @endforeach
+                        </div>
+                    @elseif($record->payment_status === 'paid')
+                        <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
+                            <div class="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                ชำระแล้ว
+                            </div>
+                            @if($slipCount > 0)
+                            <a href="{{ route('billing.slip.view', $record->id) }}" target="_blank"
+                               class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                                ดูสลิป{{ $slipCount > 1 ? " ({$slipCount})" : '' }}
+                            </a>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+
+                {{-- Slip attachment note (pending_verification) --}}
+                @if($record->payment_status === 'pending_verification' && $record->paid_at)
+                    <div class="flex items-center gap-1.5 mt-3 pl-1">
+                        <svg class="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                        </svg>
+                        <p class="text-xs text-blue-500">แนบสลิปแล้ว · {{ $record->paid_at->locale('th')->diffForHumans() }}</p>
+                    </div>
+                @endif
+            </div>
+        @endforeach
+    </div>
+
+    @if($lockedRecords->count() > 0)
+    <div class="border-t border-gray-100 bg-gray-50/80 px-5 py-4">
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
+            รอบถัดไป (ล็อก — ชำระตามลำดับเดือน)
+        </p>
+        <div class="space-y-2">
+            @foreach($lockedRecords as $locked)
+            @php $lmeta = $recordMeta[$locked->id] ?? []; @endphp
+            <div class="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 opacity-70">
+                <div>
+                    <p class="text-sm font-semibold text-gray-600">{{ $lmeta['display_label'] ?? $locked->getTypeLabel() }}</p>
+                    @if($locked->due_date)
+                        <p class="text-xs text-gray-400">ครบ {{ $locked->due_date->locale('th')->translatedFormat('d M Y') }}</p>
+                    @endif
+                </div>
+                <p class="text-sm font-bold text-gray-500 tabular-nums">{{ number_format($locked->amount, 0) }} ฿</p>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
+    @endif
+</div>
+
+{{-- ===== Slip Upload Modal ===== --}}
+<div id="slip-modal_backdrop"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+     onclick="closeSlipModal()">
+
+    <div id="slip-modal_panel"
+         style="opacity:0; transform: translateY(40px); scale: 0.98; transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);"
+         class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[92vh] overflow-y-auto"
+         onclick="event.stopPropagation()"
+         x-data="slipUploader()"
+         x-init="init()">
+
+        <div class="sm:hidden flex justify-center pt-3 pb-1">
+            <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
+        </div>
+
+        <div class="flex items-start justify-between px-6 pt-4 pb-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-3xl sm:rounded-t-2xl z-10">
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="w-7 h-7 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                    </div>
+                    <p class="text-base font-bold text-gray-800">แนบสลิปแทนลูกค้า</p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span id="slip-record-label" class="text-sm text-gray-500"></span>
+                    <span id="slip-record-amount-badge"
+                          class="hidden text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-lg">
+                        <span id="slip-record-amount"></span> ฿
+                    </span>
+                </div>
+            </div>
+            <button type="button"
+                    onclick="closeSlipModal()"
+                    class="ml-3 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <form id="slip-form" method="POST" enctype="multipart/form-data" class="px-6 py-5 space-y-4">
+            @csrf
+
+            <div id="slip-bank-info" class="hidden rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2 text-xs">
+                <p class="font-bold text-gray-700" id="slip-bank-recipient"></p>
+                <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+                    <span class="text-gray-400">ธนาคาร</span><span class="font-semibold text-gray-800 text-right" id="slip-bank-name"></span>
+                    <span class="text-gray-400">เลขบัญชี</span><span class="font-mono font-bold text-gray-900 text-right" id="slip-bank-acct"></span>
+                    <span class="text-gray-400">ชื่อบัญชี</span><span class="font-semibold text-gray-800 text-right" id="slip-bank-acct-name"></span>
+                </div>
+                <div id="slip-qr-wrap" class="hidden flex flex-col items-center pt-2">
+                    <img id="slip-qr-img" src="" alt="QR" class="w-28 h-28 object-contain rounded-lg border border-gray-200 bg-white">
+                </div>
+                <div id="slip-split-info" class="hidden pt-2 border-t border-dashed border-gray-300 space-y-1">
+                    <p class="font-bold text-orange-700">โอนแยก 2 บัญชี</p>
+                    <p class="text-gray-600">นักลงทุน: <span id="slip-split-inv" class="font-semibold"></span> ฿</p>
+                    <p class="text-gray-600">{{ $companyName }}: <span id="slip-split-com" class="font-semibold"></span> ฿</p>
+                </div>
+            </div>
+
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">เลือกไฟล์สลิป</p>
+
+            <div
+                class="relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200 cursor-pointer"
+                :class="isDragging ? 'border-brand-500 bg-brand-50 scale-[1.01]' : 'border-gray-200 bg-gray-50/50 hover:border-brand-300 hover:bg-brand-50/30'"
+                @dragover.prevent="isDragging = true"
+                @dragleave.prevent="isDragging = false"
+                @drop.prevent="handleDrop($event)"
+                @click="$refs.fileInput.click()">
+
+                <input type="file"
+                       x-ref="fileInput"
+                       multiple
+                       accept="image/jpeg,image/png,application/pdf"
+                       class="hidden"
+                       @change="handleFileInput($event)">
+
+                <div x-show="files.length === 0">
+                    <div class="w-14 h-14 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-7 h-7 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                    </div>
+                    <p class="text-sm font-bold text-gray-700 mb-1">ลากวางไฟล์ที่นี่</p>
+                    <p class="text-xs text-gray-400 mb-3">หรือแตะเพื่อเลือกจากอุปกรณ์</p>
+                    <div class="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-4 py-2 text-xs font-semibold text-gray-600 shadow-sm">
+                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                        </svg>
+                        JPG · PNG · PDF · ไม่เกิน 5MB/ไฟล์
+                    </div>
+                </div>
+
+                <div x-show="files.length > 0" class="space-y-2" @click.stop>
+                    <template x-for="(file, index) in files" :key="index">
+                        <div class="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 text-left shadow-sm border border-gray-100 hover:border-gray-200 transition-colors">
+                            <div class="w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center"
+                                 :class="file.type === 'application/pdf' ? 'bg-red-100' : 'bg-sky-100'">
+                                <svg style="width:18px;height:18px"
+                                     :class="file.type === 'application/pdf' ? 'text-red-600' : 'text-sky-600'"
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0 text-left">
+                                <p class="text-sm font-semibold text-gray-800 truncate" x-text="file.name"></p>
+                                <p class="text-xs text-gray-400" x-text="formatSize(file.size)"></p>
+                            </div>
+                            <button type="button"
+                                    @click.stop="removeFile(index)"
+                                    class="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+
+                    <button type="button"
+                            x-show="files.length < 5"
+                            @click.stop="$refs.fileInput.click()"
+                            class="w-full flex items-center justify-center gap-2 border-2 border-dashed border-brand-200 text-brand-600 hover:border-brand-400 hover:bg-brand-50 rounded-xl py-2.5 text-xs font-semibold transition-colors mt-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        เพิ่มไฟล์ (<span x-text="5 - files.length"></span> ไฟล์ที่เหลือ)
+                    </button>
+                </div>
+            </div>
+
+            <div x-show="errorMsg" x-cloak class="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span x-text="errorMsg"></span>
+            </div>
+
+            <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p class="text-xs text-amber-800 leading-relaxed">
+                    สลิปที่แนบจะถูกส่งไปรอการตรวจสอบจากทีมงาน และบันทึกในชื่อผู้เช่ารายนั้น
+                </p>
+            </div>
+
+            <div class="flex gap-3 pt-1">
+                <button type="button"
+                        onclick="closeSlipModal()"
+                        class="flex-1 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 active:scale-95 rounded-xl transition-all">
+                    ยกเลิก
+                </button>
+                <button type="button"
+                        @click="submit()"
+                        :disabled="files.length === 0 || submitting"
+                        class="flex-1 py-3.5 text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm">
+                    <svg x-show="submitting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <svg x-show="!submitting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span x-text="submitting ? 'กำลังอัพโหลด...' : 'ยืนยันส่งสลิป'"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@endsection
+
+@push('scripts')
+<script>
+window.billingRecordMeta = @json($recordMeta);
+let mainPageComboMode = 'join'; // Default mode สำหรับหน้าหลัก
+</script>
+<script>
+/* Countdown removed for Agent View */
+
+    let currentRecordId = null;
+    let currentIsPhase2Combo = false;
+    let currentCanCombine = false;
+    let _comboMode = 'join';
+    const billingUploadBase = '{{ url("billing") }}';
+
+    // ฟังก์ชันสำหรับเลือกโหมดในหน้าหลัก
+    function selectComboMode(mode) {
+        mainPageComboMode = mode;
+        
+        // อัพเดท UI ปุ่ม
+        const btnJoin = document.getElementById('main-combo-btn-join');
+        const btnSep = document.getElementById('main-combo-btn-sep');
+        
+        if (btnJoin && btnSep) {
+            // Reset ทั้งหมด
+            btnJoin.classList.remove('border-violet-500', 'bg-violet-50', 'text-violet-700');
+            btnJoin.classList.add('border-gray-200', 'text-gray-600');
+            btnSep.classList.remove('border-violet-500', 'bg-violet-50', 'text-violet-700');
+            btnSep.classList.add('border-gray-200', 'text-gray-600');
+            
+            // เลือกปุ่มที่ active
+            const activeBtn = mode === 'join' ? btnJoin : btnSep;
+            activeBtn.classList.remove('border-gray-200', 'text-gray-600');
+            activeBtn.classList.add('border-violet-500', 'bg-violet-50', 'text-violet-700');
+        }
+        
+        // อัพเดทข้อความอธิบาย
+        const noteEl = document.getElementById('main-combo-note');
+        if (noteEl) {
+            const noteText = noteEl.querySelector('p');
+            if (noteText) {
+                if (mode === 'join') {
+                    noteText.innerHTML = '✅ <strong>โหมดรวม:</strong> แนบสลิปเดียวที่ครอบคลุมทั้งมัดจำงวด 2 และค่าเช่าเดือน 1 พร้อมกัน';
+                } else {
+                    noteText.innerHTML = '🔁 <strong>โหมดแยก:</strong> แนบสลิปมัดจำงวด 2 ก่อน จากนั้นกลับมาแนบสลิปค่าเช่าเดือน 1 อีกครั้ง';
+                }
+            }
+        }
+        
+        // เก็บค่าใน _comboMode สำหรับใช้ใน popup
+        _comboMode = mode;
+    }
+
+    function setComboMode(mode) {
+        _comboMode = mode;
+        // ไม่ต้องทำอะไรเพิ่ม เพราะเลือกที่หน้าหลักแล้ว
+    }
+
+    function openSlipModal(recordId, label, amount, isPhase2Combo, canCombine) {
+        currentRecordId = recordId;
+        currentIsPhase2Combo = !!isPhase2Combo;
+        currentCanCombine = !!canCombine;
+        
+        // ใช้ค่าจากการเลือกในหน้าหลัก
+        _comboMode = mainPageComboMode;
+
+        document.getElementById('slip-record-label').textContent = label;
+
+        const meta = window.billingRecordMeta[recordId] || {};
+        const bankInfo = document.getElementById('slip-bank-info');
+        if (bankInfo && meta.bank_account) {
+            bankInfo.classList.remove('hidden');
+            document.getElementById('slip-bank-recipient').textContent = 'โอนให้: ' + (meta.recipient_name || '');
+            document.getElementById('slip-bank-name').textContent = meta.bank_name || '—';
+            document.getElementById('slip-bank-acct').textContent = meta.bank_account || '—';
+            document.getElementById('slip-bank-acct-name').textContent = meta.bank_acct_name || '—';
+            const qrWrap = document.getElementById('slip-qr-wrap');
+            const qrImg = document.getElementById('slip-qr-img');
+            if (meta.qr_url && qrWrap && qrImg) {
+                qrImg.src = meta.qr_url;
+                qrWrap.classList.remove('hidden');
+            } else if (qrWrap) {
+                qrWrap.classList.add('hidden');
+            }
+            const splitInfo = document.getElementById('slip-split-info');
+            if (meta.is_split_payment && splitInfo) {
+                splitInfo.classList.remove('hidden');
+                document.getElementById('slip-split-inv').textContent = Number(meta.split_investor_amount || 0).toLocaleString();
+                document.getElementById('slip-split-com').textContent = Number(meta.split_company_amount || 0).toLocaleString();
+            } else if (splitInfo) {
+                splitInfo.classList.add('hidden');
+            }
+        } else if (bankInfo) {
+            bankInfo.classList.add('hidden');
+        }
+
+        const amountBadge = document.getElementById('slip-record-amount-badge');
+        const amountEl    = document.getElementById('slip-record-amount');
+        if (amount) {
+            amountEl.textContent = amount;
+            amountBadge.classList.remove('hidden');
+        } else {
+            amountBadge.classList.add('hidden');
+        }
+
+        const panel = document.getElementById('slip-modal_panel');
+        if (panel._x_dataStack) {
+            const alpineData = Alpine.$data(panel);
+            alpineData.files      = [];
+            alpineData.errorMsg   = '';
+            alpineData.submitting = false;
+        }
+
+        openModal('slip-modal');
+    }
+
+    function closeSlipModal() {
+        closeModal('slip-modal');
+        currentRecordId = null;
+    }
+
+    function slipUploader() {
+        return {
+            files: [],
+            isDragging: false,
+            submitting: false,
+            errorMsg: '',
+
+            init() {},
+
+            handleDrop(e) {
+                this.isDragging = false;
+                this.addFiles(e.dataTransfer.files);
+            },
+
+            handleFileInput(e) {
+                this.addFiles(e.target.files);
+                e.target.value = '';
+            },
+
+            addFiles(fileList) {
+                const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+                const maxSize = 5 * 1024 * 1024;
+
+                for (const file of Array.from(fileList)) {
+                    if (this.files.length >= 5) {
+                        this.errorMsg = 'อัพโหลดได้สูงสุด 5 ไฟล์';
+                        break;
+                    }
+                    if (!allowed.includes(file.type)) {
+                        this.errorMsg = `ไฟล์ "${file.name}" ไม่รองรับ — กรุณาใช้ JPG, PNG หรือ PDF`;
+                        continue;
+                    }
+                    if (file.size > maxSize) {
+                        this.errorMsg = `ไฟล์ "${file.name}" ขนาดเกิน 5MB`;
+                        continue;
+                    }
+                    this.errorMsg = '';
+                    this.files.push(file);
+                }
+            },
+
+            removeFile(index) {
+                this.files.splice(index, 1);
+                if (this.files.length < 5) this.errorMsg = '';
+            },
+
+            formatSize(bytes) {
+                if (bytes < 1024)        return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+            },
+
+            submit() {
+                if (this.files.length === 0 || !currentRecordId) return;
+                this.submitting = true;
+                this.errorMsg   = '';
+
+                const formData = new FormData();
+                formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+                if (currentIsPhase2Combo) {
+                    formData.append('combo_mode', _comboMode);
+                }
+                this.files.forEach(f => formData.append('payment_slips[]', f));
+
+                fetch(`${billingUploadBase}/${currentRecordId}/slip`, {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(res => {
+                    if (res.redirected) {
+                        window.location.href = res.url;
+                        return;
+                    }
+                    return res.text().then(html => {
+                        document.open();
+                        document.write(html);
+                        document.close();
+                    });
+                })
+                .catch(() => {
+                    this.submitting = false;
+                    this.errorMsg = 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง';
+                });
+            }
+        };
+    }
+
+    // เริ่มต้นโหมด combo เมื่อโหลดหน้าเว็บ
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.getElementById('main-combo-btn-join')) {
+            selectComboMode('join'); // เริ่มต้นที่โหมดรวม
+        }
+    });
+</script>
+@endpush

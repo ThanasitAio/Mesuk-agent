@@ -5,6 +5,44 @@ Read and follow every section before writing or suggesting any code.
 
 ---
 
+## 0. Happy Realestate Reference Project (MUST READ FIRST)
+
+> **CRITICAL — Before writing any code related to database tables, models, or business logic:**
+>
+> This agent system shares the **same MySQL database** as the Happy Realestate project at `C:\laragon\www\happyest`.
+> You **MUST** read the relevant model or controller in happyest first to understand the actual table schema,
+> column names, status values, and business rules before writing or modifying any code here.
+
+### What to check in happyest before coding:
+
+| Task | Read in happyest first |
+|---|---|
+| Booking status / flow | `app/Models/Booking.php` |
+| Property fields | `app/Models/Property.php` |
+| Payment record types/status | `app/Models/PaymentRecord.php` |
+| Customer fields | `app/Models/Customer.php` |
+| Agent fields | `app/Models/Agent.php` |
+| Admin actions / status transitions | `app/Http/Controllers/Admin/` |
+
+### Key status values (from happyest — do NOT guess):
+
+**`hr_bookings.status`:** `pending` → `deposit_confirmed` → `confirmed` → `checked_in` → `checked_out` → `completed` / `cancelled` / `rejected`
+
+**`hr_bookings.contract_status`:** `drafting` → `sent`
+
+**`hr_payment_records.payment_status`:** `pending` → `pending_verification` → `paid` / `failed` / `refunded`
+
+**`hr_payment_records.payment_type`:** `deposit` / `processing_fee` / `monthly_rent` / `late_fee`
+
+### Strict rules:
+
+- **Read happyest models/controllers** to verify column names and enum values before using them
+- **NEVER modify** any file in `C:\laragon\www\happyest` — read only
+- **Only modify** files in this agent project (`C:\laragon\www\agent`)
+- If happyest schema contradicts what you assumed, trust happyest
+
+---
+
 ## Project Overview
 
 **Laravel 13 HR Agent Management & Audit Logging System**
@@ -15,7 +53,7 @@ Read and follow every section before writing or suggesting any code.
 | Auth | Custom session-based (HrAgent model, NOT Laravel default User auth) |
 | Frontend | Blade templates + Tailwind CSS v4 |
 | Build Tool | Vite 8 |
-| Database (Local) | SQLite |
+| Database (Local) | MySQL (`happyfra_hw`) — shared with Happy Realestate |
 | Database (Production) | MySQL (configured via `.env` on server) |
 | Deployment Method | **Manual FileZilla FTP/SFTP — NO CI/CD** |
 

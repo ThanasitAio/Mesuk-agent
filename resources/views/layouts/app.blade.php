@@ -73,6 +73,16 @@
                 หน้าหลัก
             </a>
 
+            <a href="{{ route('properties.index') }}"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('properties.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+                อสังหาริมทรัพย์
+            </a>
+
             <a href="{{ route('logs.index') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                       {{ request()->routeIs('logs.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
@@ -249,6 +259,22 @@
                 @endif
             </div>
             <span class="text-[11px] leading-none {{ request()->routeIs('dashboard') ? 'font-semibold' : '' }}">หน้าหลัก</span>
+        </a>
+
+        {{-- Properties --}}
+        <a href="{{ route('properties.index') }}"
+           class="flex-1 flex flex-col items-center justify-center gap-1 tap-effect transition-colors
+                  {{ request()->routeIs('properties.*') ? 'text-brand-600' : 'text-gray-400' }}">
+            <div class="relative">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+                @if(request()->routeIs('properties.*'))
+                    <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
+                @endif
+            </div>
+            <span class="text-[11px] leading-none {{ request()->routeIs('properties.*') ? 'font-semibold' : '' }}">อสังหา</span>
         </a>
 
         {{-- Logs --}}

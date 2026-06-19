@@ -47,6 +47,19 @@ return [
             'report' => false,
         ],
 
+        /*
+         | Shared payment slip storage — must point to the same directory
+         | as Happy Realestate's "local" disk root so slips are accessible
+         | from both systems.  Override HAPPYEST_STORAGE_PATH in .env for
+         | production (absolute path to happyest/storage/app on the server).
+         */
+        'payment_storage' => [
+            'driver' => 'local',
+            'root'   => env('HAPPYEST_STORAGE_PATH', realpath(base_path('../happyest/storage/app')) ?: storage_path('app/private')),
+            'throw'  => false,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
