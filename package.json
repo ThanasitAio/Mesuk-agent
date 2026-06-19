@@ -3,10 +3,11 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
-        "dev": "vite"
+        "dev": "npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --watch",
+        "build": "npx @tailwindcss/cli -i ./resources/css/app.css -o ./public/css/app.css --minify"
     },
     "devDependencies": {
+        "@tailwindcss/cli": "^4.0.0",
         "@tailwindcss/vite": "^4.0.0",
         "concurrently": "^9.0.1",
         "laravel-vite-plugin": "^3.0.0",

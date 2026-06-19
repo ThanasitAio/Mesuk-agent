@@ -6,31 +6,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#468432">
     <title>@yield('title', 'หน้าหลัก') — ระบบจัดการตัวแทน</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script>
-    tailwind.config = {
-        theme: {
-            extend: {
-                colors: {
-                    brand: {
-                        50:  '#f2fbea',
-                        100: '#dff5bc',
-                        200: '#c3ea8e',
-                        300: '#9AD872',
-                        400: '#72c453',
-                        500: '#52a038',
-                        600: '#468432',
-                        700: '#38692a',
-                        800: '#2a4f1f',
-                        900: '#1c3514',
-                        950: '#112009',
-                    }
-                }
-            }
-        }
-    }
-    </script>
     <style>
         body { -webkit-tap-highlight-color: transparent; }
         .tap-effect:active { opacity: 0.7; transition: opacity 0.1s; }
@@ -44,7 +22,22 @@
         .toast-progress { transition: width linear; }
         /* Modal */
         .modal-open .modal-panel { transform: translateY(0) !important; opacity: 1 !important; scale: 1 !important; }
-        input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; }
+        /* Date input overlay: hide native UI, full-area click to open picker */
+        input[type="date"] { position: relative; cursor: pointer; }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        /* When date input is used as a transparent overlay (.date-overlay), hide all native text */
+        .date-overlay::-webkit-datetime-edit { opacity: 0; }
+        .date-overlay::-webkit-inner-spin-button { display: none; }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-50 font-sans antialiased">
@@ -78,16 +71,6 @@
                           d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                 </svg>
                 หน้าหลัก
-            </a>
-
-            <a href="{{ route('agents.index') }}"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                      {{ request()->routeIs('agents.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
-                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-                </svg>
-                ตัวแทน
             </a>
 
             <a href="{{ route('logs.index') }}"
@@ -266,22 +249,6 @@
                 @endif
             </div>
             <span class="text-[11px] leading-none {{ request()->routeIs('dashboard') ? 'font-semibold' : '' }}">หน้าหลัก</span>
-        </a>
-
-        {{-- Agents --}}
-        <a href="{{ route('agents.index') }}"
-           class="flex-1 flex flex-col items-center justify-center gap-1 tap-effect transition-colors
-                  {{ request()->routeIs('agents.*') ? 'text-brand-600' : 'text-gray-400' }}">
-            <div class="relative">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-                </svg>
-                @if(request()->routeIs('agents.*'))
-                    <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
-                @endif
-            </div>
-            <span class="text-[11px] leading-none {{ request()->routeIs('agents.*') ? 'font-semibold' : '' }}">ตัวแทน</span>
         </a>
 
         {{-- Logs --}}
@@ -573,10 +540,42 @@
         btn.classList.add('text-gray-400');
     }
 
+    // ─── Thai Date Formatter (YYYY-MM-DD → "19 มิ.ย. 2569") ──────────────────
+    function formatThaiDate(str) {
+        if (!str) return '';
+        const p = str.split('-');
+        if (p.length !== 3) return str;
+        const y = parseInt(p[0], 10), m = parseInt(p[1], 10), d = parseInt(p[2], 10);
+        const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+        return d + ' ' + months[m - 1] + ' ' + (y + 543);
+    }
+
+    // ─── Alpine: Flatpickr Date Picker ────────────────────────────────────────
+    function alpineDatePicker(initVal) {
+        return {
+            v: initVal || '',
+            fp: null,
+            init() {
+                if (typeof flatpickr === 'undefined') return;
+                const wrapper = this.$refs.fpWrapper;
+                if (!wrapper) return;
+                this.fp = flatpickr(wrapper, {
+                    wrap: true,
+                    locale: typeof flatpickr.l10ns !== 'undefined' && flatpickr.l10ns.th ? 'th' : 'default',
+                    dateFormat: 'Y-m-d',
+                    defaultDate: this.v || null,
+                    disableMobile: false,
+                    onChange: (selectedDates, dateStr) => { this.v = dateStr; }
+                });
+            }
+        };
+    }
+
     // ─── Alpine: Searchable Select ─────────────────────────────────────────────
     function selectSearch(uid) {
         return {
             open: false, search: '', selected: '', selectedLabel: '',
+            placeholder: '— เลือก —',
             options: [],
             get filteredOptions() {
                 if (!this.search) return this.options;
@@ -586,6 +585,8 @@
             init() {
                 const native = document.getElementById(uid + '_native');
                 if (!native) return;
+                const emptyOpt = native.querySelector('option[value=""]');
+                if (emptyOpt && emptyOpt.text.trim()) this.placeholder = emptyOpt.text.trim();
                 this.options = Array.from(native.options)
                     .filter(o => o.value !== '')
                     .map(o => ({ value: o.value, label: o.text }));
@@ -611,6 +612,8 @@
     }, 4000);
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
 @stack('scripts')
 </body>
 </html>

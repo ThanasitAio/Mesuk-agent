@@ -7,6 +7,7 @@
     'required'   => false,
     'yearFrom'   => null,
     'yearTo'     => null,
+    'disabled'   => false,
 ])
 
 @php
@@ -25,7 +26,19 @@
 
     $hasMonthError = $errors->has($nameMonth);
     $hasYearError  = $errors->has($nameYear);
-    $baseClass     = 'w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white transition appearance-none';
+
+    $baseClass = 'w-full pl-4 pr-10 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 bg-white transition appearance-none cursor-pointer';
+    $monthClass = $baseClass . ' ' . ($hasMonthError
+        ? 'border-red-400 bg-red-50 focus:ring-red-400/30'
+        : 'border-gray-300 focus:border-brand-500 focus:ring-brand-500/20');
+    $yearClass  = $baseClass . ' ' . ($hasYearError
+        ? 'border-red-400 bg-red-50 focus:ring-red-400/30'
+        : 'border-gray-300 focus:border-brand-500 focus:ring-brand-500/20');
+
+    if ($disabled) {
+        $monthClass .= ' opacity-50 cursor-not-allowed';
+        $yearClass  .= ' opacity-50 cursor-not-allowed';
+    }
 @endphp
 
 <div>
@@ -37,28 +50,54 @@
 
     <div class="grid grid-cols-2 gap-2">
         {{-- Month --}}
-        <select name="{{ $nameMonth }}" id="{{ $nameMonth }}"
-                class="{{ $baseClass }} {{ $hasMonthError ? 'border-red-400 bg-red-50' : 'border-gray-300' }}">
-            <option value="">— เดือน —</option>
-            @foreach($months as $num => $thai)
-                <option value="{{ $num }}" @selected($selMonth === (string)$num)>{{ $thai }}</option>
-            @endforeach
-        </select>
+        <div class="relative">
+            <select name="{{ $nameMonth }}" id="{{ $nameMonth }}"
+                    @disabled($disabled)
+                    class="{{ $monthClass }}">
+                <option value="">— เดือน —</option>
+                @foreach($months as $num => $thai)
+                    <option value="{{ $num }}" @selected($selMonth === (string)$num)>{{ $thai }}</option>
+                @endforeach
+            </select>
+            <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </span>
+        </div>
 
         {{-- Year --}}
-        <select name="{{ $nameYear }}" id="{{ $nameYear }}"
-                class="{{ $baseClass }} {{ $hasYearError ? 'border-red-400 bg-red-50' : 'border-gray-300' }}">
-            <option value="">— ปี —</option>
-            @for($y = $yearTo; $y >= $yearFrom; $y--)
-                <option value="{{ $y }}" @selected($selYear === (string)$y)>{{ $y + 543 }}</option>
-            @endfor
-        </select>
+        <div class="relative">
+            <select name="{{ $nameYear }}" id="{{ $nameYear }}"
+                    @disabled($disabled)
+                    class="{{ $yearClass }}">
+                <option value="">— ปี —</option>
+                @for($y = $yearTo; $y >= $yearFrom; $y--)
+                    <option value="{{ $y }}" @selected($selYear === (string)$y)>{{ $y + 543 }}</option>
+                @endfor
+            </select>
+            <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </span>
+        </div>
     </div>
 
     @error($nameMonth)
-        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+        <p class="text-red-500 text-xs mt-1.5 flex items-center gap-1">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {{ $message }}
+        </p>
     @enderror
     @error($nameYear)
-        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+        <p class="text-red-500 text-xs mt-1.5 flex items-center gap-1">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {{ $message }}
+        </p>
     @enderror
 </div>

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class AgentLog extends Model
 {
-    protected $table = 'agent_logs';
+    protected $table = 'ag_logs';
 
     public $timestamps = false;
 
