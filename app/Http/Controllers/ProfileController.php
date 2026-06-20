@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\HrAgent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
@@ -62,6 +63,45 @@ class ProfileController extends Controller
             'Updated bank info for agent: [' . $agent->agent_code . ']');
 
         return back()->with('success', 'อัปเดตข้อมูลธนาคารเรียบร้อยแล้ว');
+    }
+
+    public function uploadPhoto(Request $request)
+    {
+        $agent = HrAgent::findOrFail(session('agent_id'));
+
+        $request->validate([
+            'avatar' => 'required|image|mimes:jpg,jpeg,png,webp|max:3072',
+        ], [
+            'avatar.required' => 'กรุณาเลือกไฟล์รูปภาพ',
+            'avatar.image'    => 'ไฟล์ต้องเป็นรูปภาพเท่านั้น',
+            'avatar.mimes'    => 'รองรับเฉพาะ JPG, PNG, WebP',
+            'avatar.max'      => 'ขนาดไฟล์ต้องไม่เกิน 3MB',
+        ]);
+
+        // ลบรูปเก่า
+        if ($agent->avatar) {
+            Storage::disk('payment_storage')->delete($agent->avatar);
+        }
+
+        // บันทึกรูปใหม่ (ไม่ใช้ public/ prefix เหมือน payment slips)
+        $file = $request->file('avatar');
+        $ext  = strtolower($file->getClientOriginalExtension());
+        $name = uniqid('av_', true) . '.' . $ext;
+        $dir  = 'avatars/' . $agent->id;
+
+        // ใช้ putFileAs แบบไม่มี public/ prefix
+        $path = $dir . '/' . $name;
+        Storage::disk('payment_storage')->putFileAs($dir, $file, $name);
+
+        $agent->avatar = $path;
+        $agent->save();
+
+        // อัพเดต session ให้แสดง avatar ใหม่ทันที
+        session(['agent_avatar' => $agent->avatar]);
+
+        logSystem('agent', $agent->id, 'Profile', 'UPDATE', 'อัปโหลดรูปโปรไฟล์');
+
+        return back()->with('success', 'อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว');
     }
 
     public function updatePassword(Request $request)

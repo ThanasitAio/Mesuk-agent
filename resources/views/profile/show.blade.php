@@ -24,13 +24,54 @@
         </div>
 
         {{-- Profile Banner --}}
+        @php
+            $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
+            $avatarUrl = $agent->avatar ? ($happyestPublic . '/storage/' . $agent->avatar) : null;
+        @endphp
         <div class="px-6 py-4 bg-gradient-to-r from-brand-50 to-white border-b border-gray-100 flex items-center gap-4">
-            <div class="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"
-                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
-            </div>
+
+            {{-- Avatar + Upload --}}
+            <form action="{{ route('profile.photo') }}" method="POST" enctype="multipart/form-data" id="avatar-upload-form">
+                @csrf
+                <input type="file" id="avatar-file-input" name="avatar"
+                       accept="image/jpeg,image/png,image/webp"
+                       class="hidden"
+                       onchange="document.getElementById('avatar-upload-form').submit()">
+                <label for="avatar-file-input"
+                       class="relative w-16 h-16 flex-shrink-0 cursor-pointer group block"
+                       title="คลิกเพื่อเปลี่ยนรูปโปรไฟล์">
+                    @if($avatarUrl)
+                        <img src="{{ $avatarUrl }}"
+                             alt="{{ $agent->name }}"
+                             id="avatar-preview"
+                             class="w-16 h-16 rounded-2xl object-cover shadow-sm ring-2 ring-brand-100 group-hover:ring-brand-400 transition-all"
+                             onerror="this.style.display='none';document.getElementById('avatar-fallback').style.display='flex'">
+                        <div id="avatar-fallback"
+                             class="w-16 h-16 bg-brand-600 rounded-2xl items-center justify-center shadow-sm hidden">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"
+                                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                    @else
+                        <div class="w-16 h-16 bg-brand-600 rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-brand-700 transition-colors">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75"
+                                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                    @endif
+                    {{-- Camera badge --}}
+                    <div class="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full border-2 border-brand-100 shadow flex items-center justify-center group-hover:bg-brand-600 group-hover:border-brand-600 transition-all">
+                        <svg class="w-3 h-3 text-gray-500 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                </label>
+            </form>
+
             <div class="min-w-0 flex-1">
                 <p class="text-base font-bold text-gray-900 truncate">
                     {{ trim(($agent->prefix ? $agent->prefix . ' ' : '') . $agent->name) ?: $agent->agent_code }}
@@ -50,6 +91,7 @@
                         </span>
                     @endif
                 </div>
+                <p class="text-[11px] text-gray-400 mt-1.5">คลิกรูปเพื่อเปลี่ยนรูปโปรไฟล์ · JPG, PNG, WebP ไม่เกิน 3MB</p>
             </div>
         </div>
 

@@ -26,6 +26,7 @@ class HrAgent extends Model
         'bank_name',
         'bank_branch',
         'bank_account_no',
+        'avatar',
     ];
 
     protected $hidden = ['pass_decode'];

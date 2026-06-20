@@ -17,7 +17,7 @@ class PropertyBillingController extends Controller
         $agentCode = session('agent_code');
 
         $properties = HrProperty::where('manager_agent_code', $agentCode)
-            ->with(['activeBooking.customer'])
+            ->with(['activeBooking.customer', 'primaryImageMedia'])
             ->get();
 
         $withContract    = $properties->filter(fn ($p) => $p->activeBooking !== null)->values();
@@ -40,7 +40,7 @@ class PropertyBillingController extends Controller
             abort(403, 'คุณไม่มีสิทธิ์เข้าถึงอสังหาริมทรัพย์นี้');
         }
 
-        $property->load('owner');
+        $property->load(['owner', 'imageMedia']);
 
         $booking = $property->activeBooking()->with(['customer', 'paymentRecords'])->first();
 
@@ -77,8 +77,20 @@ class PropertyBillingController extends Controller
             abort(403, 'คุณไม่มีสิทธิ์เข้าถึงอสังหาริมทรัพย์นี้');
         }
 
-        $booking = $property->activeBooking()->first();
+        $booking = $property->activeBooking()->with('paymentRecords')->first();
         abort_if(! $booking, 404, 'ไม่พบข้อมูลการจอง');
+
+        if ($booking->isContractSent()) {
+            return redirect()
+                ->route('properties.show', $property->id)
+                ->with('error', 'สัญญาส่งแล้ว ไม่จำเป็นต้องเปิดเงื่อนไขนี้');
+        }
+
+        if (! $booking->hasInitialPaymentsUploaded()) {
+            return redirect()
+                ->route('properties.show', $property->id)
+                ->with('error', 'ยังไม่ได้อัปโหลดสลิปมัดจำ ไม่สามารถสลับสถานะได้');
+        }
 
         $newValue = ! $booking->allow_pay_before_contract;
         $booking->update(['allow_pay_before_contract' => $newValue]);
@@ -431,8 +443,17 @@ class PropertyBillingController extends Controller
         $canCombinePayment = false;
         $comboMonth1Record = null;
 
-        // ตรวจสอบว่าสามารถรวมรายการได้หรือไม่ (เฉพาะเมื่อมัดจำงวด 2 + เช่าเดือน 1 ทั้งคู่ยัง pending/failed)
-        if ($isFinalPaymentPhase && $phase2DepositRecord) {
+        // ตรวจสอบ deposit phase 2 แยกออกมาเพื่อให้ combo detection ทำงานได้ทุก phase
+        // (รวม waiting_contract) เนื่องจาก agent แสดง record ทุก phase รวมกัน
+        if (! $phase2DepositRecord) {
+            $phase2DepositRecord = $allRecords
+                ->where('payment_type', 'deposit')
+                ->filter(fn ($r) => (int) $r->deposit_phase === 2)
+                ->whereIn('payment_status', ['pending', 'failed'])
+                ->first();
+        }
+
+        if ($phase2DepositRecord) {
             $firstMonth1Rent = $allRecords
                 ->where('payment_type', 'monthly_rent')
                 ->where('month_number', 1)
@@ -441,7 +462,7 @@ class PropertyBillingController extends Controller
 
             if ($firstMonth1Rent) {
                 $hasComboPayment   = true;
-                $canCombinePayment = true;
+                $canCombinePayment = ($depositRoute === $paymentCondition);
                 $comboMonth1Record = $firstMonth1Rent;
             }
         }

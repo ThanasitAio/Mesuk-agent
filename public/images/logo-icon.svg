@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Background -->
+  <rect width="48" height="48" rx="11" fill="#468432"/>
+  <!-- Chimney -->
+  <rect x="32" y="9" width="5" height="9" rx="1" fill="white"/>
+  <!-- Roof -->
+  <path d="M4 24 L24 7 L44 24 Z" fill="white"/>
+  <!-- Body -->
+  <rect x="8" y="22" width="32" height="22" rx="2" fill="white"/>
+  <!-- Left window -->
+  <rect x="10" y="26" width="8" height="6" rx="1.5" fill="#468432"/>
+  <!-- Right window -->
+  <rect x="30" y="26" width="8" height="6" rx="1.5" fill="#468432"/>
+  <!-- Door -->
+  <rect x="19" y="32" width="10" height="12" rx="2" fill="#468432"/>
+  <!-- Door knob -->
+  <circle cx="27" cy="39" r="1.2" fill="white"/>
+</svg>

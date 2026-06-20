@@ -6,6 +6,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#468432">
     <title>@yield('title', 'หน้าหลัก') — ระบบจัดการตัวแทน</title>
+    <link rel="icon" type="image/svg+xml" href="{{ asset('images/logo-icon.svg') }}">
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -48,17 +50,10 @@
     <aside class="hidden lg:flex lg:flex-col fixed inset-y-0 left-0 w-64 bg-brand-900 text-white z-30">
 
         {{-- Logo --}}
-        <div class="flex items-center gap-3 px-6 py-5 border-b border-brand-800">
-            <div class="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-            </div>
-            <div>
-                <p class="text-sm font-bold text-white leading-tight">ระบบตัวแทน</p>
-                <p class="text-xs text-brand-300">แพลตฟอร์มจัดการ</p>
-            </div>
+        <div class="flex items-center px-5 py-4 border-b border-brand-800">
+            <img src="{{ asset('images/logo-white.svg') }}"
+                 alt="Mesuk ระบบจัดการตัวแทน"
+                 class="h-10">
         </div>
 
         {{-- Navigation --}}
@@ -99,11 +94,27 @@
             <a href="{{ route('profile') }}"
                class="flex items-center gap-3 rounded-xl p-1 transition-colors
                       {{ request()->routeIs('profile*') ? 'bg-brand-700' : 'hover:bg-brand-800' }}">
-                <div class="w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                    </svg>
-                </div>
+                @if(session('agent_avatar'))
+                    @php
+                        $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
+                        $avatarUrl = $happyestPublic . '/storage/' . session('agent_avatar');
+                    @endphp
+                    <img src="{{ $avatarUrl }}"
+                         alt="{{ session('agent_name', 'ผู้ใช้') }}"
+                         class="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-brand-600"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                    <div class="w-9 h-9 bg-brand-600 rounded-full items-center justify-center flex-shrink-0 hidden">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                    </div>
+                @else
+                    <div class="w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                    </div>
+                @endif
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-white truncate">{{ session('agent_name', 'ผู้ใช้') }}</p>
                     <p class="text-xs text-brand-300 truncate">{{ session('agent_code', '') }}</p>
@@ -128,12 +139,9 @@
         <header class="bg-white border-b border-gray-200 px-4 sticky top-0 z-10 flex-shrink-0 h-14 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 {{-- App icon (mobile only) --}}
-                <div class="lg:hidden w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                </div>
+                <img src="{{ asset('images/logo-icon.svg') }}"
+                     alt="Mesuk"
+                     class="lg:hidden w-8 h-8 flex-shrink-0">
                 <div>
                     <h1 class="text-base font-semibold text-gray-800 leading-tight">@yield('title', 'หน้าหลัก')</h1>
                     @hasSection('breadcrumb')
@@ -146,11 +154,27 @@
             <div class="hidden lg:block relative" id="user-dropdown-container">
                 <button onclick="toggleUserMenu()"
                         class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm">
-                    <div class="w-7 h-7 bg-brand-600 rounded-full flex items-center justify-center">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                        </svg>
-                    </div>
+                    @if(session('agent_avatar'))
+                        @php
+                            $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
+                            $avatarUrl = $happyestPublic . '/storage/' . session('agent_avatar');
+                        @endphp
+                        <img src="{{ $avatarUrl }}"
+                             alt="{{ session('agent_name', 'ผู้ใช้') }}"
+                             class="w-7 h-7 rounded-full object-cover ring-2 ring-brand-600"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                        <div class="w-7 h-7 bg-brand-600 rounded-full items-center justify-center hidden">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                    @else
+                        <div class="w-7 h-7 bg-brand-600 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                        </div>
+                    @endif
                     <span class="text-gray-700 font-medium max-w-32 truncate">{{ session('agent_name', 'ผู้ใช้') }}</span>
                     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -234,8 +258,9 @@
         </main>
 
         {{-- Footer (desktop only) --}}
-        <footer class="hidden lg:block flex-shrink-0 text-center text-xs text-gray-400 py-3 border-t border-gray-100">
-            ระบบจัดการตัวแทน &copy; {{ date('Y') }}
+        <footer class="hidden lg:flex flex-shrink-0 items-center justify-center gap-2 text-xs text-gray-400 py-3 border-t border-gray-100">
+            <img src="{{ asset('images/logo-icon.svg') }}" alt="Mesuk" class="w-4 h-4 opacity-50">
+            Mesuk &copy; {{ date('Y') }}
         </footer>
     </div>
 </div>
@@ -322,11 +347,27 @@
 
     {{-- User Info --}}
     <div class="px-5 pt-2 pb-4 flex items-center gap-4">
-        <div class="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
-            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-            </svg>
-        </div>
+        @if(session('agent_avatar'))
+            @php
+                $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
+                $avatarUrl = $happyestPublic . '/storage/' . session('agent_avatar');
+            @endphp
+            <img src="{{ $avatarUrl }}"
+                 alt="{{ session('agent_name', 'ผู้ใช้') }}"
+                 class="w-14 h-14 rounded-2xl object-cover flex-shrink-0 shadow-sm ring-2 ring-brand-600"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="w-14 h-14 bg-brand-600 rounded-2xl items-center justify-center flex-shrink-0 shadow-sm hidden">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+            </div>
+        @else
+            <div class="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+            </div>
+        @endif
         <div class="min-w-0 flex-1">
             <p class="text-base font-bold text-gray-900 truncate">{{ session('agent_name', 'ผู้ใช้') }}</p>
             <p class="text-sm text-gray-400 font-mono truncate">{{ session('agent_code', '') }}</p>

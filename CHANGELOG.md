@@ -2,6 +2,28 @@
 
 ## [Unreleased](https://github.com/laravel/laravel/compare/v13.3.0...13.x)
 
+### 2026-06-20 - แสดงรูปภาพตัวแทนใน Sidebar และ Navbar (Fix #3 - Final)
+- 🔧 **เปลี่ยนวิธีการแสดงรูป**: ใช้ URL ของระบบ Happyest โดยตรง (`http://happyest/public/storage/{avatar}`)
+- ✅ ไม่ต้องสร้าง route `/avatar/{id}` ใหม่
+- ✅ ใช้โครงสร้างเดียวกับรูปอสังหา (consistency)
+- 🐛 แก้ไข 500 Internal Server Error
+- 🎨 เพิ่ม `onerror` handler สำหรับ fallback เป็น SVG icon
+- 📝 สร้างเอกสาร AVATAR_SOLUTION_FINAL.md
+
+### 2026-06-20 - แสดงรูปภาพตัวแทนใน Sidebar และ Navbar (Fix #2)
+- 🐛 แก้ไข HAPPYEST_STORAGE_PATH ให้ชี้ไปที่ `C:/laragon/www/happyest/storage/app`
+- ➕ เพิ่ม AvatarHelper.php พร้อม helper functions
+- 📝 เพิ่มเอกสาร AVATAR_SETUP.md
+
+### 2026-06-20 - แสดงรูปภาพตัวแทนใน Sidebar และ Navbar
+- ✨ เพิ่มการแสดงรูปภาพตัวแทน (avatar) ใน Sidebar (Desktop)
+- ✨ เพิ่มการแสดงรูปภาพตัวแทนใน Navbar (Desktop) 
+- ✨ เพิ่มการแสดงรูปภาพตัวแทนใน Bottom Sheet (Mobile)
+- 🔧 เพิ่ม `agent_avatar` ใน session เมื่อ login
+- 🔧 อัพเดต session `agent_avatar` เมื่ออัปโหลดรูปโปรไฟล์ใหม่
+- 💄 ปรับ UI ให้แสดงรูปภาพแบบ rounded พร้อม ring-2 สี brand
+- 💄 Fallback เป็น icon SVG เมื่อไม่มีรูปภาพ
+
 ## [v13.3.0](https://github.com/laravel/laravel/compare/v13.2.0...v13.3.0) - 2026-04-16
 
 * [13.x] enable npm audit by default by [@leo95batista](https://github.com/leo95batista) in https://github.com/laravel/laravel/pull/6788

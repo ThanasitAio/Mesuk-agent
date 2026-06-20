@@ -21,7 +21,8 @@
     },
     "autoload": {
         "files": [
-            "app/Helpers/LogHelper.php"
+            "app/Helpers/LogHelper.php",
+            "app/Helpers/AvatarHelper.php"
         ],
         "psr-4": {
             "App\\": "app/",

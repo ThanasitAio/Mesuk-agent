@@ -22,4 +22,26 @@ class HrProperty extends Model
     {
         return $this->belongsTo(HrCustomer::class, 'customer_id');
     }
+
+    /**
+     * รูปภาพหลักของทรัพย์ (cover ก่อน ถ้าไม่มีให้ใช้รูปแรกตาม sort_order)
+     */
+    public function primaryImageMedia()
+    {
+        return $this->hasOne(HrPropertyMedia::class, 'property_id')
+            ->where('media_type', 'image')
+            ->orderByDesc('is_cover')
+            ->orderBy('sort_order');
+    }
+
+    /**
+     * รูปภาพทั้งหมดของทรัพย์
+     */
+    public function imageMedia()
+    {
+        return $this->hasMany(HrPropertyMedia::class, 'property_id')
+            ->where('media_type', 'image')
+            ->orderByDesc('is_cover')
+            ->orderBy('sort_order');
+    }
 }

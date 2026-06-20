@@ -56,6 +56,20 @@
     $investorQrPath       = $owner?->bank_qr_code_path;
     $investorQrUrl        = $investorQrPath ? $happyestPublic . '/storage/' . $investorQrPath : null;
 
+    $customerPhoto    = $booking->customer?->photo;
+    $customerPhotoUrl = null;
+    if ($customerPhoto) {
+        $customerPhotoUrl = str_starts_with($customerPhoto, 'http')
+            ? $customerPhoto
+            : $happyestPublic . '/storage/' . $customerPhoto;
+    } elseif ($booking->customer?->avatar && $booking->customer?->provider_id) {
+        $av = $booking->customer->avatar;
+        $customerPhotoUrl = str_starts_with($av, 'http') ? $av : $happyestPublic . '/storage/' . $av;
+    }
+    $customerInitials = $booking->customer?->full_name
+        ? mb_strtoupper(mb_substr($booking->customer->full_name, 0, 1))
+        : '?';
+
     $depositTypes = ['deposit', 'processing_fee'];
     $rentTypes    = ['monthly_rent', 'late_fee'];
     $pendingForBank = $actionableRecords->isNotEmpty() ? $actionableRecords : $allRecords->whereIn('payment_status', ['pending', 'failed']);
@@ -138,7 +152,12 @@
     </a>
     <div class="min-w-0 flex-1">
         <h1 class="text-base font-bold text-gray-900 truncate">{{ $property->title }}</h1>
-        <p class="text-xs font-semibold font-mono text-brand-600">{{ $property->property_code }}</p>
+        <div class="flex items-center gap-2 mt-0.5">
+            <span class="text-[11px] font-bold font-mono text-brand-600 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-md">{{ $property->property_code }}</span>
+            @if($property->property_type ?? false)
+                <span class="text-[11px] text-gray-400">{{ $property->property_type }}</span>
+            @endif
+        </div>
     </div>
 </div>
 
@@ -164,34 +183,80 @@
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
 
     {{-- Gradient Header --}}
-    <div class="bg-gradient-to-br from-brand-700 to-brand-900 px-5 py-5 relative overflow-hidden booking-header-shimmer">
-        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.06),transparent_55%)] pointer-events-none"></div>
-        <div class="flex items-start justify-between gap-3 relative">
-            <div class="min-w-0 flex-1">
-                <p class="text-xs text-brand-200 mb-1 font-medium tracking-wide uppercase">ผู้เช่าปัจจุบัน</p>
-                <p class="text-xl font-bold text-white leading-tight truncate">
-                    {{ $booking->customer?->full_name ?? '—' }}
-                </p>
-                @if($booking->customer?->mobile)
-                    <div class="flex items-center gap-1.5 mt-2">
-                        <svg class="w-3.5 h-3.5 text-brand-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-                        </svg>
-                        <span class="text-sm text-white/90">{{ $booking->customer->mobile }}</span>
-                    </div>
-                @endif
+    <div class="relative overflow-hidden booking-header-shimmer px-5 pt-4"
+         style="padding-bottom:2.5rem; background: linear-gradient(135deg, #38692a 0%, #2a4f1f 55%, #1c3514 100%)">
+        {{-- decorative overlays --}}
+        <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse at top right, rgba(255,255,255,0.07) 0%, transparent 55%)"></div>
+        <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse at bottom left, rgba(0,0,0,0.18) 0%, transparent 60%)"></div>
+
+        {{-- Label row --}}
+        <div class="flex items-center justify-between mb-3 relative">
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-bold tracking-widest uppercase" style="color: rgba(154,216,114,0.9)">ผู้เช่าปัจจุบัน</span>
+                <span class="text-[10px] font-mono" style="color:rgba(255,255,255,0.35)">·</span>
+                <span class="text-[10px] font-mono font-semibold" style="color:rgba(255,255,255,0.5)">{{ $booking->booking_code }}</span>
             </div>
-            <div class="flex flex-col items-end gap-2 flex-shrink-0">
-                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-white px-3 py-1.5 rounded-full shadow-sm shadow-black/10">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-white px-2.5 py-1 rounded-full shadow-sm">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     {{ $booking->getStatusLabel() }}
                 </span>
-                <span class="text-xs font-semibold text-brand-200 bg-brand-800/60 px-2.5 py-1 rounded-full font-mono border border-brand-600/50">{{ $booking->booking_code }}</span>
                 @if($renterType === 'juristic')
-                    <span class="text-xs font-medium text-brand-200 bg-brand-800/40 px-2.5 py-1 rounded-full border border-brand-600/30">นิติบุคคล</span>
+                    <span class="text-[10px] font-semibold px-2 py-1 rounded-full" style="color:#fde68a; background:rgba(245,158,11,0.25); border:1px solid rgba(245,158,11,0.35)">นิติบุคคล</span>
                 @endif
             </div>
         </div>
+
+        {{-- Main info row --}}
+        <div class="flex items-start gap-4 relative">
+            {{-- Avatar --}}
+            <div class="flex-shrink-0 relative">
+                @if($customerPhotoUrl)
+                    <img src="{{ $customerPhotoUrl }}"
+                         alt="{{ $booking->customer?->full_name }}"
+                         class="w-16 h-16 rounded-2xl object-cover shadow-xl"
+                         style="border: 2px solid rgba(255,255,255,0.3)"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                    <div class="w-16 h-16 rounded-2xl items-center justify-center shadow-xl hidden"
+                         style="background:rgba(255,255,255,0.18); border:2px solid rgba(255,255,255,0.25)">
+                        <span class="text-2xl font-bold text-white">{{ $customerInitials }}</span>
+                    </div>
+                @else
+                    <div class="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+                         style="background:rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.22)">
+                        <span class="text-2xl font-bold text-white">{{ $customerInitials }}</span>
+                    </div>
+                @endif
+                <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full shadow"
+                     style="border: 2px solid #1c3514"></div>
+            </div>
+
+            {{-- Name + contact --}}
+            <div class="min-w-0 flex-1">
+                <p class="text-xl font-bold text-white leading-tight truncate">
+                    {{ $booking->customer?->full_name ?? '—' }}
+                </p>
+                <div class="mt-2 space-y-1">
+                    @if($booking->customer?->mobile)
+                        <div class="flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:rgba(154,216,114,0.8)">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                            </svg>
+                            <span class="text-sm font-semibold text-white">{{ $booking->customer->mobile }}</span>
+                        </div>
+                    @endif
+                    @if($booking->customer?->email)
+                        <div class="flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:rgba(154,216,114,0.8)">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                            <span class="text-xs" style="color:rgba(255,255,255,0.75)">{{ $booking->customer->email }}</span>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
     </div>
 
     {{-- 4-stat grid --}}
@@ -248,6 +313,9 @@
                 {{ $depositType === 'half' ? 'แบ่งครึ่ง 2 งวด' : 'ชำระครั้งเดียว' }}
             </p>
         </div>
+        @php
+            $canTogglePrePay = ! $booking->isContractSent() && $booking->hasInitialPaymentsUploaded();
+        @endphp
         <div class="px-4 py-3">
             <p class="text-[11px] text-gray-400 mb-0.5 font-medium">ชำระค่าเช่าก่อนสัญญา</p>
             <div class="flex items-center gap-2 mt-1">
@@ -256,15 +324,19 @@
                 @else
                     <span class="text-xs font-semibold text-gray-500">ปิดใช้งาน</span>
                 @endif
+                @if($canTogglePrePay)
                 <form action="{{ route('properties.togglePrePay', $property->id) }}" method="POST" class="inline-block m-0 p-0">
                     @csrf
                     <button type="submit" class="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded border border-gray-200 transition-colors">
                         สลับสถานะ
                     </button>
                 </form>
+                @endif
             </div>
             @if($isWaitingContract && !$allowPay)
                 <p class="text-[10px] text-amber-600 mt-1">ต้องเปิดหากต้องการให้โอนก่อนสัญญา</p>
+            @elseif($isInitialPaymentPhase && !$allowPay)
+                <p class="text-[10px] text-gray-400 mt-1">เปิดได้เมื่อลูกค้าอัปโหลดสลิปมัดจำแล้ว</p>
             @endif
         </div>
     </div>
@@ -274,29 +346,70 @@
 
 {{-- ===== Payment Summary Strip ===== --}}
 <div class="grid grid-cols-3 gap-2.5 mb-5">
-    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-3 py-3 text-center">
-        <p class="text-[10px] font-semibold text-emerald-600 mb-0.5 uppercase tracking-wide">ชำระแล้ว</p>
-        <p class="text-sm font-bold text-emerald-700 tabular-nums leading-tight">฿{{ number_format($totalPaid, 0) }}</p>
+    <div class="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
+        <div class="w-7 h-7 bg-emerald-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
+            <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">ชำระแล้ว</p>
+        <p class="text-sm font-bold text-emerald-700 tabular-nums mt-0.5">฿{{ number_format($totalPaid, 0) }}</p>
     </div>
-    <div class="bg-amber-50 border border-amber-200 rounded-2xl px-3 py-3 text-center">
-        <p class="text-[10px] font-semibold text-amber-600 mb-0.5 uppercase tracking-wide">รอตรวจสอบ</p>
-        <p class="text-sm font-bold text-amber-700 tabular-nums leading-tight">฿{{ number_format($totalVerif, 0) }}</p>
+    <div class="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
+        <div class="w-7 h-7 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
+            <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">รอตรวจสอบ</p>
+        <p class="text-sm font-bold text-amber-700 tabular-nums mt-0.5">฿{{ number_format($totalVerif, 0) }}</p>
     </div>
-    <div class="bg-red-50 border border-red-200 rounded-2xl px-3 py-3 text-center">
-        <p class="text-[10px] font-semibold text-red-600 mb-0.5 uppercase tracking-wide">ยังไม่ชำระ</p>
-        <p class="text-sm font-bold text-red-700 tabular-nums leading-tight">฿{{ number_format($totalPending, 0) }}</p>
+    <div class="bg-gradient-to-br from-red-50 to-rose-50 border border-red-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
+        <div class="w-7 h-7 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
+            <svg class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-[10px] font-semibold text-red-600 uppercase tracking-wide">ยังไม่ชำระ</p>
+        <p class="text-sm font-bold text-red-700 tabular-nums mt-0.5">฿{{ number_format($totalPending, 0) }}</p>
     </div>
 </div>
 
-{{-- ===== Deposit Deadline Alert ===== --}}
+{{-- ===== Deposit Deadline Countdown ===== --}}
 @if($cdDeadlineIso)
-<div class="bg-gradient-to-r from-sky-500 to-blue-600 rounded-2xl px-4 py-3 mb-5 flex items-center gap-3 shadow-md shadow-blue-500/20">
-    <div class="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0">
-        <span class="text-lg leading-none">⏰</span>
+<div class="rounded-2xl overflow-hidden mb-5 shadow-md shadow-blue-500/20" id="cd-wrapper">
+    <div class="cd-banner" id="cd-banner">
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+            <div class="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0">
+                <span class="text-lg leading-none">⏰</span>
+            </div>
+            <div class="min-w-0">
+                <p class="text-xs font-bold text-white leading-tight">{{ $cdBannerTitle }}</p>
+                <p class="text-[10px] mt-0.5" style="color:rgba(255,255,255,0.7)" id="cd-status-text">กำลังนับถอยหลัง...</p>
+            </div>
+        </div>
+        <div class="cd-units flex-shrink-0">
+            <div class="cd-unit">
+                <span class="cd-unit-num" id="cd-h">--</span>
+                <span class="cd-unit-lbl">ชม.</span>
+            </div>
+            <span class="cd-sep">:</span>
+            <div class="cd-unit">
+                <span class="cd-unit-num" id="cd-m">--</span>
+                <span class="cd-unit-lbl">นาที</span>
+            </div>
+            <span class="cd-sep">:</span>
+            <div class="cd-unit">
+                <span class="cd-unit-num" id="cd-s">--</span>
+                <span class="cd-unit-lbl">วิ.</span>
+            </div>
+        </div>
     </div>
-    <div>
-        <p class="text-xs font-bold text-white">{{ $cdBannerTitle }}</p>
-        <p class="text-[10px] text-blue-100 mt-0.5" id="cdDateLabel">ครบกำหนด {{ $cdDeadlineTh }}</p>
+    <div class="cd-bottom">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" style="opacity:.7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        ครบกำหนด {{ $cdDeadlineTh }}
     </div>
 </div>
 @endif
@@ -304,27 +417,43 @@
 {{-- ===== Payment Account Info ===== --}}
 @if(($hasPendingCompany && $company) || ($hasPendingInvestor && $owner))
 <div x-data="{ showAccount: false }" class="mb-5">
-    <button @click="showAccount = !showAccount" type="button" class="w-full flex items-center justify-between bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4 hover:bg-brand-50 hover:border-brand-200 transition-all duration-200 active:scale-[0.99]">
-        <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 bg-brand-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+    {{-- Toggle button --}}
+    <button @click="showAccount = !showAccount" type="button"
+            class="w-full flex items-center justify-between bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3.5 transition-all duration-200 active:scale-[0.99]"
+            :class="showAccount ? 'rounded-b-none border-b-0 shadow-none' : ''">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#f0f9eb">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:#468432">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                 </svg>
             </div>
             <div class="text-left">
-                <h2 class="text-sm font-bold text-gray-800">บัญชีรับชำระเงิน</h2>
-                <p class="text-[10px] text-gray-500 mt-0.5">กดเพื่อดูข้อมูลบัญชี (เผื่อตัวแทนต้องการตรวจสอบ)</p>
+                <p class="text-sm font-bold text-gray-800">บัญชีรับชำระเงิน</p>
+                <p class="text-[10px] text-gray-400 mt-0.5">
+                    @if($hasPendingCompany && $hasPendingInvestor)
+                        {{ $companyName }} · {{ $investorName }}
+                    @elseif($hasPendingCompany)
+                        {{ $companyName }}
+                    @else
+                        {{ $investorName }}
+                    @endif
+                </p>
             </div>
         </div>
-        <div class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center transition-colors" :class="{'bg-brand-100': showAccount}">
-            <svg class="w-4 h-4 text-gray-500 transform transition-transform" :class="{'rotate-180': showAccount, 'text-brand-600': showAccount}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+             :class="showAccount ? 'bg-gray-100' : 'bg-gray-50'">
+            <svg class="w-4 h-4 text-gray-400 transition-transform duration-200" :class="{'rotate-180': showAccount}"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
         </div>
     </button>
 
-    <div x-show="showAccount" x-collapse class="mt-3">
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    {{-- Expanded panel --}}
+    <div x-show="showAccount" x-collapse>
+        <div class="bg-white rounded-b-2xl border border-t-0 border-gray-200 overflow-hidden">
+
             {{-- Company account --}}
             @if($hasPendingCompany && $company)
             @php
@@ -334,55 +463,42 @@
                 if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && !$isRentToInvestor)->isNotEmpty())
                     $companyLabels->push('ค่าเช่า');
             @endphp
-            <div class="px-5 py-4 {{ ($hasPendingInvestor && $owner) ? 'border-b border-gray-100' : '' }}">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                        </svg>
-                        {{ $companyName }}
-                    </span>
-                    <span class="text-xs text-gray-400">{{ $companyLabels->join(' · ') }}</span>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                        @if($companyBankName)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ธนาคาร</span>
-                            <span class="text-xs font-semibold text-gray-800">{{ $companyBankName }}</span>
-                        </div>
-                        @endif
-                        @if($companyBankAcct)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">เลขบัญชี</span>
-                            <span class="text-xs font-bold text-gray-900 font-mono tracking-wide">{{ $companyBankAcct }}</span>
-                        </div>
-                        @endif
-                        @if($companyBankAcctName)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ชื่อบัญชี</span>
-                            <span class="text-xs font-semibold text-gray-800">{{ $companyBankAcctName }}</span>
-                        </div>
-                        @endif
-                        @if($companyBankBranch)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">สาขา</span>
-                            <span class="text-xs text-gray-600">{{ $companyBankBranch }}</span>
-                        </div>
-                        @endif
-                        @if(!$companyBankName && !$companyBankAcct)
-                            <p class="text-xs text-gray-400 italic">ยังไม่ได้ตั้งค่าบัญชีธนาคาร</p>
+            <div class="flex items-stretch gap-0 {{ ($hasPendingInvestor && $owner) ? 'border-b border-gray-100' : '' }}">
+                {{-- Green left accent --}}
+                <div class="w-1 flex-shrink-0" style="background: linear-gradient(180deg, #52a038, #38692a)"></div>
+                <div class="flex-1 px-4 py-4">
+                    {{-- Header --}}
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-[10px] font-bold uppercase tracking-wide" style="color:#468432">🏢 {{ $companyName }}</span>
+                        @if($companyLabels->isNotEmpty())
+                            <span class="text-[10px] text-gray-400">· {{ $companyLabels->join(' / ') }}</span>
                         @endif
                     </div>
-                    @if($companyQrUrl)
-                    <div class="flex flex-col items-center">
-                        <p class="text-[11px] text-gray-400 mb-2 font-medium">QR Code</p>
-                        <img src="{{ $companyQrUrl }}" alt="QR {{ $companyName }}"
-                             class="w-32 h-32 object-contain rounded-xl border border-gray-200 shadow-sm cursor-zoom-in"
-                             onclick="this.requestFullscreen?.()" loading="lazy">
+                    {{-- Info + QR --}}
+                    <div class="flex items-start gap-4">
+                        <div class="flex-1 min-w-0 space-y-1.5">
+                            @if($companyBankName)
+                            <p class="text-[11px] text-gray-500">{{ $companyBankName }}@if($companyBankBranch) · <span class="text-gray-400">สาขา{{ $companyBankBranch }}</span>@endif</p>
+                            @endif
+                            @if($companyBankAcct)
+                            <p class="text-base font-bold text-gray-900 font-mono tracking-widest">{{ $companyBankAcct }}</p>
+                            @endif
+                            @if($companyBankAcctName)
+                            <p class="text-xs font-semibold text-gray-600">{{ $companyBankAcctName }}</p>
+                            @endif
+                            @if(!$companyBankName && !$companyBankAcct)
+                                <p class="text-xs text-gray-400 italic">ยังไม่ได้ตั้งค่าบัญชีธนาคาร</p>
+                            @endif
+                        </div>
+                        @if($companyQrUrl)
+                        <div class="flex-shrink-0">
+                            <img src="{{ $companyQrUrl }}" alt="QR {{ $companyName }}"
+                                 class="w-20 h-20 object-contain rounded-xl border border-gray-200 shadow-sm cursor-zoom-in"
+                                 onclick="this.requestFullscreen?.()" loading="lazy">
+                            <p class="text-[10px] text-gray-400 text-center mt-1">QR Code</p>
+                        </div>
+                        @endif
                     </div>
-                    @endif
                 </div>
             </div>
             @endif
@@ -396,58 +512,46 @@
                 if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && $isRentToInvestor)->isNotEmpty())
                     $investorLabels->push('ค่าเช่า');
             @endphp
-            <div class="px-5 py-4">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                        </svg>
-                        {{ $investorName }}
-                    </span>
-                    <span class="text-xs text-gray-400">{{ $investorLabels->join(' · ') }}</span>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                        @if($investorBankName)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ธนาคาร</span>
-                            <span class="text-xs font-semibold text-gray-800">{{ $investorBankName }}</span>
-                        </div>
-                        @endif
-                        @if($investorBankAcct)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">เลขบัญชี</span>
-                            <span class="text-xs font-bold text-gray-900 font-mono tracking-wide">{{ $investorBankAcct }}</span>
-                        </div>
-                        @endif
-                        @if($investorBankAcctName)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">ชื่อบัญชี</span>
-                            <span class="text-xs font-semibold text-gray-800">{{ $investorBankAcctName }}</span>
-                        </div>
-                        @endif
-                        @if($investorBankBranch)
-                        <div class="flex items-start gap-2">
-                            <span class="text-[11px] text-gray-400 w-16 flex-shrink-0 pt-0.5">สาขา</span>
-                            <span class="text-xs text-gray-600">{{ $investorBankBranch }}</span>
-                        </div>
-                        @endif
-                        @if(!$investorBankName && !$investorBankAcct)
-                            <p class="text-xs text-gray-400 italic">นักลงทุนยังไม่ได้ตั้งค่าบัญชีธนาคาร</p>
+            <div class="flex items-stretch gap-0">
+                {{-- Blue left accent --}}
+                <div class="w-1 flex-shrink-0" style="background: linear-gradient(180deg, #60a5fa, #2563eb)"></div>
+                <div class="flex-1 px-4 py-4">
+                    {{-- Header --}}
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-[10px] font-bold uppercase tracking-wide text-blue-600">👤 {{ $investorName }}</span>
+                        @if($investorLabels->isNotEmpty())
+                            <span class="text-[10px] text-gray-400">· {{ $investorLabels->join(' / ') }}</span>
                         @endif
                     </div>
-                    @if($investorQrUrl)
-                    <div class="flex flex-col items-center">
-                        <p class="text-[11px] text-gray-400 mb-2 font-medium">QR Code</p>
-                        <img src="{{ $investorQrUrl }}" alt="QR {{ $investorName }}"
-                             class="w-32 h-32 object-contain rounded-xl border border-gray-200 shadow-sm cursor-zoom-in"
-                             onclick="this.requestFullscreen?.()" loading="lazy">
+                    {{-- Info + QR --}}
+                    <div class="flex items-start gap-4">
+                        <div class="flex-1 min-w-0 space-y-1.5">
+                            @if($investorBankName)
+                            <p class="text-[11px] text-gray-500">{{ $investorBankName }}@if($investorBankBranch) · <span class="text-gray-400">สาขา{{ $investorBankBranch }}</span>@endif</p>
+                            @endif
+                            @if($investorBankAcct)
+                            <p class="text-base font-bold text-gray-900 font-mono tracking-widest">{{ $investorBankAcct }}</p>
+                            @endif
+                            @if($investorBankAcctName)
+                            <p class="text-xs font-semibold text-gray-600">{{ $investorBankAcctName }}</p>
+                            @endif
+                            @if(!$investorBankName && !$investorBankAcct)
+                                <p class="text-xs text-gray-400 italic">นักลงทุนยังไม่ได้ตั้งค่าบัญชีธนาคาร</p>
+                            @endif
+                        </div>
+                        @if($investorQrUrl)
+                        <div class="flex-shrink-0">
+                            <img src="{{ $investorQrUrl }}" alt="QR {{ $investorName }}"
+                                 class="w-20 h-20 object-contain rounded-xl border border-gray-200 shadow-sm cursor-zoom-in"
+                                 onclick="this.requestFullscreen?.()" loading="lazy">
+                            <p class="text-[10px] text-gray-400 text-center mt-1">QR Code</p>
+                        </div>
+                        @endif
                     </div>
-                    @endif
                 </div>
             </div>
             @endif
+
         </div>
     </div>
 </div>
@@ -470,15 +574,25 @@
         <div class="flex flex-col items-end gap-1">
             <p class="text-[10px] text-violet-500 font-semibold">มัดจำงวด 2 + ค่าเช่าเดือน 1</p>
             <div class="flex items-center gap-1.5">
+                @if($canCombinePayment)
                 <button type="button" id="main-combo-btn-join" onclick="selectComboMode('join')"
                         class="main-combo-btn text-[11px] font-bold px-2.5 py-1.5 rounded-lg border-2 transition-all border-violet-500 bg-violet-50 text-violet-700">
                     รวม 1 แถว
                 </button>
+                @else
+                <button type="button" id="main-combo-btn-join" disabled title="มัดจำงวด 2 โอนคนละบัญชีกับค่าเช่า ต้องแนบสลิปแยก"
+                        class="main-combo-btn text-[11px] font-bold px-2.5 py-1.5 rounded-lg border-2 transition-all border-gray-200 text-gray-300 cursor-not-allowed opacity-50">
+                    รวม 1 แถว
+                </button>
+                @endif
                 <button type="button" id="main-combo-btn-sep" onclick="selectComboMode('sep')"
                         class="main-combo-btn text-[11px] font-bold px-2.5 py-1.5 rounded-lg border-2 transition-all border-gray-200 text-gray-400">
                     แยก 2 แถว
                 </button>
             </div>
+            @if(!$canCombinePayment)
+            <p class="text-[10px] text-amber-600 mt-0.5">มัดจำงวด 2 โอนคนละบัญชีกับค่าเช่า — ต้องแนบสลิปแยก 2 รายการ</p>
+            @endif
         </div>
         @else
         <span class="text-xs font-semibold text-white bg-brand-600 px-2.5 py-1 rounded-full tabular-nums">
@@ -532,29 +646,31 @@
     {{-- ─── Desktop Table ─── --}}
     <div class="hidden md:block overflow-x-auto">
         <table class="w-full text-sm">
-            <thead class="bg-gray-50 border-b border-gray-100">
-                <tr>
-                    <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">รายการ</th>
-                    <th class="text-right px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">ยอดชำระ</th>
-                    <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">ครบกำหนด</th>
-                    <th class="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">สถานะ</th>
-                    <th class="px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
+            <thead>
+                <tr style="background:#f8fafc; border-bottom:2px solid #f1f5f9">
+                    <th class="p-0 w-1"></th>
+                    <th class="text-left px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">รายการ</th>
+                    <th class="text-right px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ยอดชำระ</th>
+                    <th class="text-left px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ครบกำหนด</th>
+                    <th class="text-left px-4 py-3 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">สถานะ</th>
+                    <th class="px-4 py-3 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ดำเนินการ</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-50">
+            <tbody>
                 @foreach($displayRecords as $record)
                     @php
                         $meta = $recordMeta[$record->id] ?? [];
                         $colorMap = [
-                            'yellow' => ['badge' => 'text-yellow-700 bg-yellow-50 border-yellow-200', 'row' => ''],
-                            'blue'   => ['badge' => 'text-blue-700 bg-blue-50 border-blue-200',       'row' => 'bg-blue-50/30'],
-                            'green'  => ['badge' => 'text-emerald-700 bg-emerald-50 border-emerald-200', 'row' => ''],
-                            'red'    => ['badge' => 'text-red-700 bg-red-50 border-red-200',           'row' => 'bg-red-50/40'],
-                            'gray'   => ['badge' => 'text-gray-600 bg-gray-50 border-gray-200',        'row' => ''],
+                            'yellow' => ['badge' => 'text-yellow-700 bg-yellow-50 border-yellow-200', 'bar' => '#f59e0b', 'rowBg' => ''],
+                            'blue'   => ['badge' => 'text-blue-700 bg-blue-50 border-blue-200',       'bar' => '#60a5fa', 'rowBg' => 'background:rgba(219,234,254,0.25)'],
+                            'green'  => ['badge' => 'text-emerald-700 bg-emerald-50 border-emerald-200', 'bar' => '#4ade80', 'rowBg' => ''],
+                            'red'    => ['badge' => 'text-red-700 bg-red-50 border-red-200',           'bar' => '#f87171', 'rowBg' => 'background:rgba(254,226,226,0.35)'],
+                            'gray'   => ['badge' => 'text-gray-600 bg-gray-50 border-gray-200',        'bar' => '#cbd5e1', 'rowBg' => ''],
                         ];
                         $colorKey   = $record->getStatusColor();
                         $badgeClass = $colorMap[$colorKey]['badge'] ?? $colorMap['gray']['badge'];
-                        $rowClass   = $colorMap[$colorKey]['row']   ?? '';
+                        $barColor   = $colorMap[$colorKey]['bar']   ?? $colorMap['gray']['bar'];
+                        $rowBg      = $colorMap[$colorKey]['rowBg'] ?? '';
                         $recordInvoice = null;
                         if ($record->payment_type === 'monthly_rent' && $record->due_date) {
                             $recordInvoice = $invoiceByMonth[$record->due_date->format('Y-m')] ?? null;
@@ -564,7 +680,7 @@
                             $recordInvoice = $invoiceByServiceFeeType ?? null;
                         }
                         $hasInvoice = $recordInvoice !== null;
-                        if ($hasInvoice) { $rowClass = 'bg-brand-50/25'; }
+                        if ($hasInvoice) { $rowBg = 'background:rgba(242,251,234,0.55)'; $barColor = '#86efac'; }
                         $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                                       && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
                         $landTax    = (float) ($record->land_tax_amount   ?? 0);
@@ -596,54 +712,50 @@
                             default          => null,
                         };
                     @endphp
-                    <tr class="hover:bg-gray-50/80 transition-colors {{ $rowClass }}"
+                    <tr class="transition-colors hover:brightness-95"
+                        style="{{ $rowBg }}; border-bottom:1px solid rgba(241,245,249,0.8)"
                         data-billing-status="{{ $record->payment_status }}"
                         @if($meta['is_phase2_combo'] ?? false) data-phase2-row="1" @endif
-                        @if($meta['is_combo_month1'] ?? false) data-combomonth1-row="1" style="display:none;" @endif
+                        @if($meta['is_combo_month1'] ?? false) data-combomonth1-row="1" @endif
+                        @if($meta['is_combo_month1'] ?? false) x-data x-init="$el.style.display='none'" @endif
                     >
+                        {{-- Color indicator strip --}}
+                        <td class="p-0" style="width:3px; min-width:3px; background:{{ $barColor }}"></td>
 
                         {{-- Type --}}
-                        <td class="px-5 py-4">
+                        <td class="px-4 py-3.5">
                             <div class="flex items-center gap-1.5 flex-wrap mb-0.5">
                                 @if($meta['is_phase2_combo'] ?? false)
-                                    <p class="font-semibold text-gray-800"><span class="combo-join-label">{{ $displayLabel }}</span><span class="combo-sep-label" style="display:none;">{{ $meta['sep_display_label'] ?? $record->getTypeLabel() }}</span></p>
+                                    <p class="font-semibold text-gray-800 text-sm"><span class="combo-join-label">{{ $displayLabel }}</span><span class="combo-sep-label" style="display:none;">{{ $meta['sep_display_label'] ?? $record->getTypeLabel() }}</span></p>
                                 @else
-                                    <p class="font-semibold text-gray-800">{{ $displayLabel }}</p>
+                                    <p class="font-semibold text-gray-800 text-sm">{{ $displayLabel }}</p>
                                 @endif
                                 @if($meta['is_split_payment'] ?? false)
-                                    <span class="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
-                                        โอนแยก 2 บัญชี
-                                    </span>
+                                    <span class="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">โอนแยก 2 บัญชี</span>
                                 @endif
                                 @if($isProrated && $record->prorated_days)
-                                    <span class="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
-                                        {{ $record->prorated_days }}/{{ $record->prorated_total_days_in_month ?? '?' }} วัน
-                                    </span>
+                                    <span class="text-[10px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">{{ $record->prorated_days }}/{{ $record->prorated_total_days_in_month ?? '?' }} วัน</span>
                                 @endif
                             </div>
-                            {{-- Recipient badge --}}
                             <span class="inline-flex items-center text-[10px] font-semibold border px-1.5 py-0.5 rounded-md leading-none {{ $recRecipientBadge }}">
                                 {{ $recToInvestor ? '👤' : '🏢' }} {{ $recRecipient }}
                             </span>
-                            {{-- Record detail --}}
                             @if($rentPeriod)
-                                <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
+                                <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
                             @elseif($recordDetail)
-                                <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
+                                <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
                             @elseif($hasInvoice)
-                                <p class="text-[10px] text-brand-600 font-mono font-bold mt-1">{{ $recordInvoice->invoice_code }}</p>
+                                <p class="text-[10px] font-mono font-bold mt-1" style="color:#468432">{{ $recordInvoice->invoice_code }}</p>
                             @endif
                             @if($record->payment_code)
-                                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
+                                <p class="text-[10px] text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
                             @endif
                             @if($record->payment_status === 'pending_verification' && $record->paid_at)
                                 <div class="flex items-center gap-1 mt-1">
                                     <svg class="w-3 h-3 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
                                     </svg>
-                                    <p class="text-xs text-blue-500">
-                                        {{ $slipCount > 1 ? "{$slipCount} ไฟล์" : '1 ไฟล์' }} · {{ $record->paid_at->locale('th')->diffForHumans() }}
-                                    </p>
+                                    <p class="text-[10px] text-blue-500">{{ $slipCount > 1 ? "{$slipCount} ไฟล์" : '1 ไฟล์' }} · {{ $record->paid_at->locale('th')->diffForHumans() }}</p>
                                 </div>
                             @endif
                             @if($record->payment_status === 'failed' && $record->rejection_reason)
@@ -652,77 +764,68 @@
                         </td>
 
                         {{-- Amount --}}
-                        <td class="px-5 py-4 text-right">
+                        <td class="px-4 py-3.5 text-right">
                             @if($meta['is_phase2_combo'] ?? false)
-                                <p class="font-bold text-gray-900 text-base tabular-nums"><span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span></p>
-                                <p class="combo-join-note text-[10px] text-violet-600">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
+                                <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span></p>
+                                <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวม 2 รายการ</p>
                             @else
-                                <p class="font-bold text-gray-900 text-base tabular-nums">{{ number_format($displayAmount, 0) }}</p>
+                                <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ number_format($displayAmount, 0) }}</p>
                             @endif
-                            <p class="text-xs text-gray-400">บาท</p>
+                            <p class="text-[10px] text-gray-400 mt-0.5">บาท</p>
                             @if($hasBreakdown)
                                 <div class="mt-1.5 space-y-0.5 text-right">
-                                    @if($baseRent > 0)
-                                        <p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ number_format($baseRent, 0) }}</p>
-                                    @endif
-                                    @if($landTax > 0)
-                                        <p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>
-                                    @endif
-                                    @if($stampDuty > 0)
-                                        <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>
-                                    @endif
-                                    @if($whtAmount > 0)
-                                        <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>
-                                    @endif
+                                    @if($baseRent > 0)<p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ number_format($baseRent, 0) }}</p>@endif
+                                    @if($landTax > 0)<p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>@endif
+                                    @if($stampDuty > 0)<p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>@endif
+                                    @if($whtAmount > 0)<p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>@endif
                                 </div>
                             @endif
                         </td>
 
                         {{-- Due date --}}
-                        <td class="px-5 py-4">
+                        <td class="px-4 py-3.5">
                             @if($record->due_date)
-                                <p class="text-sm {{ $isOverdue ? 'text-red-600 font-bold' : 'text-gray-700' }}">
+                                <p class="text-sm font-semibold {{ $isOverdue ? 'text-red-600' : 'text-gray-700' }}">
                                     {{ $record->due_date->locale('th')->translatedFormat('d M Y') }}
                                 </p>
                                 @if($isOverdue)
-                                    <div class="flex items-center gap-1 mt-0.5">
-                                        <svg class="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <div class="flex items-center gap-1 mt-1">
+                                        <svg class="w-3 h-3 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                             <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                                         </svg>
-                                        <p class="text-xs text-red-500 font-semibold tabular-nums">เกิน {{ $record->due_date->diffInDays(now()) }} วัน</p>
+                                        <p class="text-[10px] text-red-500 font-semibold">เกิน {{ $record->due_date->diffInDays(now()) }} วัน</p>
                                     </div>
                                 @endif
                             @else
-                                <span class="text-gray-400">—</span>
+                                <span class="text-gray-300">—</span>
                             @endif
                         </td>
 
                         {{-- Status --}}
-                        <td class="px-5 py-4">
+                        <td class="px-4 py-3.5">
                             <div class="space-y-1.5">
                                 <span class="inline-flex items-center text-xs font-semibold border px-2.5 py-1 rounded-full {{ $badgeClass }}">
                                     {{ $record->getStatusLabel() }}
                                 </span>
                                 @if($hasInvoice)
-                                <div>
-                                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full">
-                                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                        </svg>
-                                        เปิดใบแจ้งหนี้แล้ว
-                                    </span>
-                                </div>
+                                <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full" style="color:#38692a; background:#f0f9eb; border:1px solid #c3ea8e">
+                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    มีใบแจ้งหนี้
+                                </span>
                                 @endif
                             </div>
                         </td>
 
                         {{-- Action --}}
-                        <td class="px-5 py-4 text-center">
+                        <td class="px-4 py-3.5 text-center">
                             <div class="inline-flex flex-col items-center gap-2">
                                 @if($canUpload)
                                     <button type="button"
                                             onclick="openSlipModalAuto({{ $record->id }})"
-                                            class="btn-upload-pulse inline-flex items-center gap-1.5 text-xs font-bold text-white btn-upload-pulse bg-brand-600 hover:bg-brand-700 active:scale-95 px-3.5 py-2 rounded-xl transition-all">
+                                            class="btn-upload-pulse inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3.5 py-2 rounded-xl transition-all"
+                                            style="background:#468432">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                                         </svg>
@@ -738,7 +841,7 @@
                                         </div>
                                         @foreach($recSlips as $si => $_)
                                         <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
-                                           class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600 transition-colors">
+                                           class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-gray-700 transition-colors">
                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                             </svg>
@@ -767,7 +870,7 @@
                                         </div>
                                         @if($slipCount > 0)
                                         <a href="{{ route('billing.slip.view', $record->id) }}" target="_blank"
-                                           class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600 transition-colors">
+                                           class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-gray-700 transition-colors">
                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                             </svg>
@@ -778,11 +881,12 @@
                                 @endif
                                 @if($hasInvoice)
                                 <a href="{{ route('invoices.print', $recordInvoice->id) }}" target="_blank"
-                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-3.5 py-2 rounded-xl transition-all shadow-sm whitespace-nowrap">
+                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                   style="background:#468432">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
                                     </svg>
-                                    ใบแจ้งหนี้ PDF
+                                    ใบแจ้งหนี้
                                 </a>
                                 @endif
                             </div>
@@ -1317,7 +1421,47 @@ function applyBillingTabFilter() {
 }
 </script>
 <script>
-/* Countdown removed for Agent View */
+// ─── Countdown Timer ───
+(function() {
+    const deadlineIso = @json($cdDeadlineIso ?? null);
+    if (!deadlineIso) return;
+
+    const deadline = new Date(deadlineIso).getTime();
+    const banner   = document.getElementById('cd-banner');
+    const hEl      = document.getElementById('cd-h');
+    const mEl      = document.getElementById('cd-m');
+    const sEl      = document.getElementById('cd-s');
+    const statusEl = document.getElementById('cd-status-text');
+    if (!banner || !hEl) return;
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function tick() {
+        const diff = deadline - Date.now();
+        if (diff <= 0) {
+            hEl.textContent = '00'; mEl.textContent = '00'; sEl.textContent = '00';
+            banner.classList.remove('warn', 'danger');
+            banner.classList.add('expired');
+            if (statusEl) statusEl.textContent = 'หมดเวลาชำระแล้ว';
+            return;
+        }
+        const totalSecs = Math.floor(diff / 1000);
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        hEl.textContent = pad(h);
+        mEl.textContent = pad(m);
+        sEl.textContent = pad(s);
+
+        banner.classList.remove('warn', 'danger', 'expired');
+        if      (diff < 30 * 60 * 1000)     { banner.classList.add('danger'); if (statusEl) statusEl.textContent = 'เหลือเวลาน้อยมาก!'; }
+        else if (diff < 2 * 60 * 60 * 1000) { banner.classList.add('warn');   if (statusEl) statusEl.textContent = 'ใกล้ครบกำหนดแล้ว'; }
+        else                                 {                                  if (statusEl) statusEl.textContent = 'กำลังนับถอยหลัง...'; }
+
+        setTimeout(tick, 1000);
+    }
+    tick();
+})();
 
     let currentRecordId = null;
     let currentIsPhase2Combo = false;
@@ -1498,7 +1642,8 @@ function applyBillingTabFilter() {
     // เริ่มต้นโหมด combo และ tab เมื่อโหลดหน้าเว็บ
     document.addEventListener('DOMContentLoaded', function() {
         if (document.getElementById('main-combo-btn-join')) {
-            selectComboMode('join');
+            const canCombine = @json($canCombinePayment ?? false);
+            selectComboMode(canCombine ? 'join' : 'sep');
         }
         switchBillingTab('pending');
     });

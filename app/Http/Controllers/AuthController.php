@@ -77,6 +77,7 @@ class AuthController extends Controller
             'agent_id'        => $agent->id,
             'agent_name'      => $fullName ?: $agent->agent_code,
             'agent_code'      => $agent->agent_code,
+            'agent_avatar'    => $agent->avatar,
         ]);
 
         RateLimiter::clear($throttleKey);

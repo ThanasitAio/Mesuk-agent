@@ -272,6 +272,7 @@ These rules prevent the AI from inventing changes outside the project's scope:
 8. **Do not add new middleware** without registering it in `bootstrap/app.php`
 9. **Do not generate seeders for production data** — seeders are for local development only
 10. **Do not change `vite.config.js`** without also updating any affected blade `@vite()` directives
+11. **Do not place absolute-positioned icons inside `<input>` fields** — adding a left icon requires `pl-10`+ on the input AND the icon must be absolutely positioned; mismatched values cause the icon to overlap the placeholder/typed text. If you need an icon next to an input, place it outside the input in a flex row, or omit it entirely. The password-toggle eye button on the right (`pr-11`) is the only accepted exception because it does not overlap text.
 
 ---
 
