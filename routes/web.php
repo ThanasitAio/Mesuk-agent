@@ -35,5 +35,7 @@ Route::middleware('auth.agent')->group(function () {
     Route::get('/properties/{property}', [PropertyBillingController::class, 'show'])->name('properties.show');
     Route::post('/billing/{record}/slip', [PropertyBillingController::class, 'uploadSlip'])->name('billing.slip.upload');
     Route::get('/billing/{record}/slip', [PropertyBillingController::class, 'viewSlip'])->name('billing.slip.view');
+    Route::delete('/billing/{record}/slip', [PropertyBillingController::class, 'cancelSlip'])->name('billing.slip.cancel');
     Route::post('/properties/{property}/toggle-prepay', [PropertyBillingController::class, 'togglePrePay'])->name('properties.togglePrePay');
+    Route::get('/invoices/{invoice}/print', [PropertyBillingController::class, 'printInvoice'])->name('invoices.print');
 });

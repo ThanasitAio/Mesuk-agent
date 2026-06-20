@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\HrCompany;
+use App\Models\HrInvoice;
 use App\Models\HrPaymentRecord;
 use App\Models\HrProperty;
 use Illuminate\Http\Request;
@@ -51,6 +52,11 @@ class PropertyBillingController extends Controller
         $company = HrCompany::getActive();
         $billing = $this->buildBillingContext($booking, $property, $company);
 
+        $invoices = HrInvoice::where('booking_id', $booking->id)
+            ->where('status', 'approved')
+            ->orderBy('approved_at', 'desc')
+            ->get();
+
         logSystem(
             userType: 'agent',
             userId: session('agent_id'),
@@ -60,7 +66,7 @@ class PropertyBillingController extends Controller
         );
 
         return view('properties.show', array_merge(
-            compact('property', 'booking', 'company'),
+            compact('property', 'booking', 'company', 'invoices'),
             $billing
         ));
     }
@@ -193,6 +199,71 @@ class PropertyBillingController extends Controller
             ->with('success', $successMessage);
     }
 
+    public function cancelSlip(HrPaymentRecord $record)
+    {
+        $record->load('booking.paymentRecords');
+        $booking = $record->booking;
+        abort_if(! $booking, 404, 'ไม่พบข้อมูลการจอง');
+
+        $property = HrProperty::where('id', $booking->property_id)
+            ->where('manager_agent_code', session('agent_code'))
+            ->firstOrFail();
+
+        if ($record->payment_status !== 'pending_verification') {
+            return back()->with('error', 'ไม่สามารถยกเลิกสลิปได้ — สถานะไม่ใช่รอตรวจสอบ');
+        }
+
+        $oldSlipPath = $record->payment_slip_path;
+        $oldSlips    = $record->payment_slips ?? [];
+        $allPaths    = $oldSlips;
+        if ($oldSlipPath && ! in_array($oldSlipPath, $allPaths, true)) {
+            $allPaths[] = $oldSlipPath;
+        }
+        foreach ($allPaths as $path) {
+            Storage::disk('payment_storage')->delete($path);
+        }
+
+        $record->update([
+            'payment_slip_path' => null,
+            'payment_slips'     => null,
+            'payment_status'    => 'pending',
+            'paid_at'           => null,
+        ]);
+
+        // ถ้าเป็นมัดจำงวด 2 ที่อัพโหลดแบบรวม ให้รีเซ็ตค่าเช่าเดือน 1 ที่ใช้สลิปเดียวกันด้วย
+        if ($record->isPhase2Deposit() && $oldSlipPath) {
+            $month1 = $booking->paymentRecords
+                ->where('payment_type', 'monthly_rent')
+                ->where('month_number', 1)
+                ->where('payment_status', 'pending_verification')
+                ->filter(fn ($r) => $r->payment_slip_path === $oldSlipPath)
+                ->first();
+
+            if ($month1) {
+                $month1->update([
+                    'payment_slip_path' => null,
+                    'payment_slips'     => null,
+                    'payment_status'    => 'pending',
+                    'paid_at'           => null,
+                ]);
+            }
+        }
+
+        $booking->updatePaymentStatus();
+
+        logSystem(
+            userType: 'agent',
+            userId: session('agent_id'),
+            module: 'Property',
+            action: 'DELETE',
+            description: "ยกเลิกสลิป: {$record->getTypeLabel()} — {$property->title}"
+        );
+
+        return redirect()
+            ->route('properties.show', $property->id)
+            ->with('success', 'ยกเลิกสลิปเรียบร้อยแล้ว สามารถแนบสลิปใหม่ได้');
+    }
+
     public function viewSlip(Request $request, HrPaymentRecord $record)
     {
         $booking = $record->booking()->withTrashed()->first();
@@ -214,6 +285,31 @@ class PropertyBillingController extends Controller
         abort_if(! Storage::disk('payment_storage')->exists($slipPath), 404, 'ไม่พบไฟล์สลิป');
 
         return response()->file(Storage::disk('payment_storage')->path($slipPath));
+    }
+
+    public function printInvoice(HrInvoice $invoice)
+    {
+        $booking = $invoice->booking()->first();
+        abort_if(! $booking, 404, 'ไม่พบข้อมูลการจอง');
+
+        HrProperty::where('id', $booking->property_id)
+            ->where('manager_agent_code', session('agent_code'))
+            ->firstOrFail();
+
+        abort_if($invoice->status !== 'approved', 403, 'ใบแจ้งหนี้นี้ยังไม่ได้รับการอนุมัติ');
+
+        $company = HrCompany::getActive();
+        $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
+
+        logSystem(
+            userType: 'agent',
+            userId: session('agent_id'),
+            module: 'Property',
+            action: 'VIEW',
+            description: "พิมพ์ใบแจ้งหนี้ {$invoice->invoice_code}"
+        );
+
+        return view('invoices.print', compact('invoice', 'company', 'happyestPublic'));
     }
 
     /**
@@ -262,13 +358,6 @@ class PropertyBillingController extends Controller
             && $ph1Records->contains(fn ($r) => $r->payment_status === 'pending_verification');
 
         $allRecords = $booking->paymentRecords
-            ->filter(function ($r) use ($phasePaymentTypes, $isFinalPaymentPhase) {
-                if ($r->payment_type === 'deposit' && (int) $r->deposit_phase === 2) {
-                    return $isFinalPaymentPhase;
-                }
-
-                return in_array($r->payment_type, $phasePaymentTypes, true);
-            })
             ->sortBy([['due_date', 'asc'], ['id', 'asc']])
             ->values();
 
@@ -357,17 +446,10 @@ class PropertyBillingController extends Controller
             }
         }
 
-        $displayRecords = $verifyingRecords
-            ->merge($actionableRecords)
-            ->merge($paidRecords)
-            ->merge($failedRecords->filter(fn ($r) => ! $actionableRecords->contains('id', $r->id)))
-            ->unique('id')
-            ->sortBy([['due_date', 'asc'], ['id', 'asc']])
-            ->values();
-
-        if ($isWaitingContract && $allRecords->isEmpty()) {
-            $displayRecords = collect();
-        }
+        // Agent: แสดง record ทุกเฟสรวมกัน ไม่มี locked section
+        $actionableRecords = $allRecords->whereIn('payment_status', ['pending', 'failed'])->values();
+        $lockedRecords     = collect();
+        $displayRecords    = $allRecords;
 
         $allForMeta = $displayRecords->merge($lockedRecords)->unique('id');
 
@@ -487,6 +569,9 @@ class PropertyBillingController extends Controller
                 'split_investor_amount' => $splitInv,
                 'split_company_amount'  => $splitCom,
                 'is_phase2_combo'       => $record->isPhase2Deposit() && $hasComboPayment,
+                'is_combo_month1'       => $comboMonth1Record && $record->id === $comboMonth1Record->id && $hasComboPayment,
+                'sep_display_label'     => $record->getTypeLabel(),
+                'own_amount'            => (float) $record->amount,
                 'can_upload'            => $record->canUploadSlip($booking),
                 'is_locked'             => false,
                 'bank_name'             => $recToInv ? ($owner->bank_name ?? null) : ($company->bank_name ?? null),
