@@ -4,29 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>500 — ข้อผิดพลาดของระบบ</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-    tailwind.config = {
-        theme: {
-            extend: {
-                colors: {
-                    brand: {
-                        50:  '#f2fbea',
-                        100: '#dff5bc',
-                        300: '#9AD872',
-                        400: '#72c453',
-                        500: '#52a038',
-                        600: '#468432',
-                        700: '#38692a',
-                        800: '#2a4f1f',
-                        900: '#1c3514',
-                        950: '#112009',
-                    }
-                }
-            }
-        }
-    }
-    </script>
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
 </head>
 <body class="min-h-screen bg-gradient-to-br from-brand-950 via-brand-900 to-brand-950 flex items-center justify-center p-4">
 <div class="w-full max-w-md text-center">
