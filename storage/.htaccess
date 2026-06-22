@@ -1,0 +1,2 @@
+Redirect 303 /index.html http://www.mesuk.co.th/happyest
+RedirectMatch 303 ^/$ http://www.mesuk.co.th/happyest

@@ -187,9 +187,19 @@ All views must extend `layouts.app`: `@extends('layouts.app')`
 ### 2.6 Database
 
 - **Migration naming:** `YYYY_MM_DD_HHMMSS_description.php` — use exact timestamp format
-- **Table prefix:** Project tables use no global prefix, but audit log table is `ag_logs` (not `agent_logs`)
+- **Table prefix — STRICT RULE:**
+  - Tables owned by this agent project **MUST** be prefixed `ag_` (e.g., `ag_logs`, `ag_agents`, `ag_commissions`)
+  - Tables from the happyest project use `hr_` prefix — read-only, never create or alter
+  - Laravel framework internal tables (`migrations`, `users`, `sessions`, `cache`, `jobs`) keep their standard names — they are infrastructure, not business tables
+  - **NEVER create a new agent business table without the `ag_` prefix**
 - Always use Eloquent ORM. Do not write raw SQL queries unless absolutely required for performance
 - Foreign key columns follow convention: `{model}_id` (e.g., `user_id`, `agent_id`)
+
+**Current agent-owned tables (as of 2026-06-22):**
+
+| Table | Model | Purpose |
+|---|---|---|
+| `ag_logs` | `AgentLog` | Audit log for all agent actions |
 
 ---
 
