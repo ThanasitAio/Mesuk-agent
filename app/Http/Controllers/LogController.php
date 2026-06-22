@@ -9,7 +9,8 @@ class LogController extends Controller
 {
     public function index(Request $request)
     {
-        $query = AgentLog::query();
+        $agentId = session('agent_id');
+        $query = AgentLog::where('user_id', $agentId)->where('user_type', 'agent');
 
         if ($module = $request->get('module')) {
             $query->where('module', $module);
@@ -36,8 +37,8 @@ class LogController extends Controller
         }
 
         $logs    = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
-        $modules = AgentLog::select('module')->whereNotNull('module')->distinct()->orderBy('module')->pluck('module');
-        $actions = AgentLog::select('action')->whereNotNull('action')->distinct()->orderBy('action')->pluck('action');
+        $modules = AgentLog::where('user_id', $agentId)->where('user_type', 'agent')->select('module')->whereNotNull('module')->distinct()->orderBy('module')->pluck('module');
+        $actions = AgentLog::where('user_id', $agentId)->where('user_type', 'agent')->select('action')->whereNotNull('action')->distinct()->orderBy('action')->pluck('action');
 
         return view('logs.index', compact('logs', 'modules', 'actions'));
     }
