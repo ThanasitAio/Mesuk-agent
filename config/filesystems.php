@@ -55,7 +55,7 @@ return [
          */
         'payment_storage' => [
             'driver' => 'local',
-            'root'   => env('HAPPYEST_STORAGE_PATH', realpath(base_path('../happyest/storage/app')) ?: storage_path('app/private')),
+            'root'   => env('HAPPYEST_STORAGE_PATH', base_path('../happyest/storage/app/private')),
             'throw'  => false,
             'report' => false,
         ],

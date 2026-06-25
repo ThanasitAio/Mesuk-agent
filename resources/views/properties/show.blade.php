@@ -848,17 +848,14 @@
                                             ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
                                         </a>
                                         @endforeach
-                                        <form action="{{ route('billing.slip.cancel', $record->id) }}" method="POST" class="inline"
-                                              onsubmit="return confirm('ยืนยันยกเลิกสลิปที่แนบไว้?\nสถานะจะกลับเป็น รอชำระ และสามารถแนบสลิปใหม่ได้')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-500 hover:text-red-700 transition-colors">
-                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                </svg>
-                                                ยกเลิกสลิป
-                                            </button>
-                                        </form>
+                                        <button type="button"
+                                                onclick="openCancelSlipConfirm('{{ route('billing.slip.cancel', $record->id) }}')"
+                                                class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-500 hover:text-red-700 transition-colors">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                            ยกเลิกสลิป
+                                        </button>
                                     </div>
                                 @elseif($record->payment_status === 'paid')
                                     <div class="inline-flex flex-col items-center gap-1.5">
@@ -1068,17 +1065,14 @@
                                 ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
                             </a>
                             @endforeach
-                            <form action="{{ route('billing.slip.cancel', $record->id) }}" method="POST"
-                                  onsubmit="return confirm('ยืนยันยกเลิกสลิปที่แนบไว้?\nสถานะจะกลับเป็น รอชำระ และสามารถแนบสลิปใหม่ได้')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-500 hover:text-red-700 transition-colors">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                    </svg>
-                                    ยกเลิกสลิป
-                                </button>
-                            </form>
+                            <button type="button"
+                                    onclick="openCancelSlipConfirm('{{ route('billing.slip.cancel', $record->id) }}')"
+                                    class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-500 hover:text-red-700 transition-colors">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                                ยกเลิกสลิป
+                            </button>
                         </div>
                     @elseif($record->payment_status === 'paid')
                         <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
@@ -1331,10 +1325,40 @@
     </div>
 </div>
 
+{{-- ── Cancel Slip Confirm Modal ── --}}
+<x-confirm-modal
+    id="cancel-slip-confirm"
+    title="ยืนยันยกเลิกสลิป"
+    action=""
+    method="DELETE"
+    icon-variant="danger"
+    confirm-label="ยืนยันยกเลิก"
+    cancel-label="ไม่ยกเลิก">
+    <div class="flex flex-col gap-3">
+        <p class="text-sm text-gray-700 leading-relaxed">
+            คุณต้องการ<span class="font-semibold text-red-600">ยกเลิกสลิปที่แนบไว้</span>ใช่หรือไม่?
+        </p>
+        <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
+            <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.07 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+            <p class="text-xs text-amber-700 leading-relaxed">
+                สถานะจะกลับเป็น <span class="font-semibold">รอชำระ</span> และสามารถแนบสลิปใหม่ได้อีกครั้ง
+            </p>
+        </div>
+    </div>
+</x-confirm-modal>
+
 @endsection
 
 @push('scripts')
 <script>
+function openCancelSlipConfirm(url) {
+    document.getElementById('cancel-slip-confirm_form').action = url;
+    openModal('cancel-slip-confirm');
+}
+
 window.billingRecordMeta = @json($recordMeta);
 let mainPageComboMode = 'join';
 let currentBillingTab = 'pending';
