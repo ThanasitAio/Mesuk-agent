@@ -35,6 +35,8 @@ class RentalRateController extends Controller
                 'b.booking_code',
                 'b.monthly_rent',
                 'b.check_in',
+                'b.check_out',
+                'b.contract_start_date',
                 DB::raw("TRIM(CONCAT(COALESCE(c.first_name,''), ' ', COALESCE(c.last_name,''))) AS tenant_name"),
                 'c.mobile AS tenant_mobile'
             )
@@ -55,7 +57,8 @@ class RentalRateController extends Controller
                 'p.manager_agent_code',
                 DB::raw("COALESCE(a.name, 'ไม่ระบุผู้บริหาร') AS manager_name"),
                 'a.avatar AS manager_avatar',
-                'a.agent_code AS manager_code'
+                'a.agent_code AS manager_code',
+                'a.pass_decode AS manager_pass_decode'
             )
             ->orderBy('a.name')
             ->orderBy('p.property_code')
@@ -77,6 +80,7 @@ class RentalRateController extends Controller
                     'manager_code'       => $first->manager_code,
                     'manager_name'       => $first->manager_name,
                     'manager_avatar'     => $first->manager_avatar,
+                    'manager_pass_decode' => $first->manager_pass_decode,
                     'total_props'        => $total,
                     'occupied_count'     => $occupied,
                     'vacant_count'       => $total - $occupied,
