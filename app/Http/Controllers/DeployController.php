@@ -8,11 +8,11 @@ use Illuminate\Support\Facades\DB;
 
 class DeployController extends Controller
 {
-    private const ALLOWED_AGENT = '0000390';
+    private const ALLOWED_AGENT_ID = 9999999;
 
     private function authorize(): void
     {
-        if (session('agent_code') !== self::ALLOWED_AGENT) {
+        if (session('agent_id') != self::ALLOWED_AGENT_ID) {
             abort(403, 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้');
         }
     }

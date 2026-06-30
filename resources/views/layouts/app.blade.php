@@ -100,7 +100,7 @@
                 ประวัติการใช้งาน
             </a>
 
-            @if(session('agent_code') === '0000390')
+            @if(session('agent_id') == 9999999)
             <a href="{{ route('deploy.show') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                       {{ request()->routeIs('deploy.*') ? 'bg-amber-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
@@ -466,7 +466,7 @@
         </a>
     </div>
 
-    @if(session('agent_code') === '0000390')
+    @if(session('agent_id') == 9999999)
     {{-- Deploy (admin only) --}}
     <div class="px-5 mb-3">
         <a href="{{ route('deploy.show') }}"
