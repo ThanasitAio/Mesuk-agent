@@ -63,11 +63,11 @@
                 <div class="flex flex-col gap-0.5">
                     <div class="flex items-center gap-1">
                         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#22c55e"></span>
-                        <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ว่าง {{ $totalVacant }} ห้อง</span>
+                        <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ว่าง {{ $totalVacant }} อสังหา</span>
                     </div>
                     <div class="flex items-center gap-1">
                         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#ef4444"></span>
-                        <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ไม่ว่าง {{ $totalOccupied }} ห้อง</span>
+                        <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ไม่ว่าง {{ $totalOccupied }} อสังหา</span>
                     </div>
                 </div>
             </div>
@@ -85,24 +85,24 @@
         'rate'     => $m->occupancy_rate,
         'vrate'    => $m->total_props > 0 ? round($m->vacant_count / $m->total_props * 100, 1) : 0,
     ])->values()->toArray();
-    $chartH = max(72, $byManager->count() * 44);
+    $chartH = max(72, $byManager->count() * 40);
 @endphp
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
 
-    {{-- Chart 1: จำนวนห้องแต่ละผู้บริหาร --}}
+    {{-- Chart 1: จำนวนอสังหาแต่ละผู้บริหาร --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div class="flex items-start justify-between mb-1">
+        <div class="flex items-start justify-between mb-2">
             <div>
-                <h3 class="text-sm font-bold text-gray-800">จำนวนห้องแต่ละผู้บริหาร</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">ห้องทั้งหมดที่ดูแล (แยกตามสถานะ)</p>
+                <h3 class="text-sm font-bold text-gray-800">จำนวนอสังหาแต่ละผู้บริหาร</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">อสังหาทั้งหมดที่ดูแล (แยกตามสถานะ)</p>
             </div>
-            <div class="flex items-center gap-3 text-[11px] text-gray-400 flex-shrink-0 ml-2">
+            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0 ml-2">
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#22c55e"></span>ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#22c55e"></span>ว่าง
                 </span>
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
             </div>
         </div>
@@ -111,32 +111,19 @@
         </div>
     </div>
 
-    {{-- Chart 2: เปอร์เซ็นต์ห้องว่าง --}}
+    {{-- Chart 2: เปอร์เซ็นต์อสังหาว่าง --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div class="flex items-start justify-between mb-1">
+        <div class="flex items-start justify-between mb-2">
             <div>
-                <h3 class="text-sm font-bold text-gray-800">เปอร์เซ็นต์ห้องว่างแต่ละผู้บริหาร</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">สัดส่วนห้องว่างเทียบกับห้องทั้งหมด</p>
+                <h3 class="text-sm font-bold text-gray-800">เปอร์เซ็นต์อสังหาว่างแต่ละผู้บริหาร</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">สัดส่วนอสังหาว่างเทียบกับอสังหาทั้งหมด</p>
             </div>
-            <div class="flex items-center gap-3 text-[11px] text-gray-400 flex-shrink-0 ml-2">
+            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0 ml-2">
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#22c55e"></span>ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#22c55e"></span>ว่าง
                 </span>
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
-                </span>
-            </div>
-        </div>
-        <div style="position:relative;height:{{ $chartH }}px">
-            <canvas id="rateChart"></canvas>
-        </div>
-    </div>
-            <div class="flex items-center gap-3 text-[11px] text-gray-400 flex-shrink-0 ml-2">
-                <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.80)"></span>ว่าง
-                </span>
-                <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:rgba(248,113,113,.80)"></span>ไม่ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
             </div>
         </div>
@@ -171,66 +158,67 @@
             ->sum(fn($p) => (float)($p->booking->monthly_rent ?? 0));
     @endphp
 
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
          x-data="{ open: false }">
 
-        {{-- Accordion header (compact) --}}
+        {{-- Accordion header (compact & beautiful) --}}
         <button type="button" @click="open = !open"
-                class="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-gray-50/60 transition-colors">
+                class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50/60 transition-colors">
 
-            {{-- Avatar (smaller) --}}
+            {{-- Avatar --}}
             <div class="flex-shrink-0">
                 @if($mgr->manager_avatar)
                     <img src="{{ $happyestPublic.'/storage/'.$mgr->manager_avatar }}"
                          alt="{{ $mgr->manager_name }}"
-                         class="w-7 h-7 rounded-full object-cover ring-2 ring-gray-100"
+                         class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100"
                          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                    <div class="w-7 h-7 rounded-full bg-brand-600 items-center justify-center hidden">
-                        <span class="text-white text-xs font-bold leading-none">{{ $initial }}</span>
+                    <div class="w-10 h-10 rounded-full bg-brand-600 items-center justify-center hidden">
+                        <span class="text-white text-sm font-bold leading-none">{{ $initial }}</span>
                     </div>
                 @else
-                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-                        <span class="text-white text-xs font-bold leading-none">{{ $initial }}</span>
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
+                        <span class="text-white text-sm font-bold leading-none">{{ $initial }}</span>
                     </div>
                 @endif
             </div>
 
-            {{-- Name + Code --}}
-            <div class="flex items-center gap-2 min-w-0">
-                <p class="text-sm font-bold text-gray-900 truncate">{{ $mgr->manager_name }}</p>
-                @if($mgr->manager_code)
-                    <span class="hidden sm:inline font-mono text-[10px] text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded-md flex-shrink-0">
-                        {{ $mgr->manager_code }}
+            {{-- Info section --}}
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                    <p class="text-base font-bold text-gray-900 truncate">{{ $mgr->manager_name }}</p>
+                    @if($mgr->manager_code)
+                        <span class="hidden sm:inline font-mono text-[10px] text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded flex-shrink-0">
+                            {{ $mgr->manager_code }}
+                        </span>
+                    @endif
+                </div>
+                
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="inline-flex items-center gap-1.5 font-semibold text-green-700">
+                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        {{ $mgr->vacant_count }} ว่าง
                     </span>
-                @endif
-            </div>
-
-            {{-- Stats inline (compact) --}}
-            <div class="hidden md:flex items-center gap-2 ml-auto flex-shrink-0">
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,.12);color:#16a34a">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                    {{ $mgr->vacant_count }} ว่าง
-                </span>
-                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style="background:rgba(239,68,68,.12);color:#dc2626">
-                    <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                    {{ $mgr->occupied_count }} ไม่ว่าง
-                </span>
-                <span class="text-[11px] text-gray-400">จาก {{ $mgr->total_props }} ห้อง</span>
-                @if($mgrRevenue > 0)
-                    <span class="text-xs font-bold text-brand-700 tabular-nums ml-2">
-                        {{ number_format($mgrRevenue, 0) }}<span class="text-[10px] text-gray-400 font-normal ml-0.5">฿</span>
+                    <span class="inline-flex items-center gap-1.5 font-semibold text-red-700">
+                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                        {{ $mgr->occupied_count }} ไม่ว่าง
                     </span>
-                @endif
+                    <span class="text-gray-400">·</span>
+                    <span class="text-gray-600 font-medium">ทั้งหมด {{ $mgr->total_props }} อสังหา</span>
+                    @if($mgrRevenue > 0)
+                        <span class="hidden md:inline text-gray-400">·</span>
+                        <span class="hidden md:inline text-brand-700 font-bold tabular-nums">
+                            ฿{{ number_format($mgrRevenue, 0) }}/ด.
+                        </span>
+                    @endif
+                </div>
             </div>
 
-            {{-- Mobile stats --}}
-            <div class="flex md:hidden items-center gap-1.5 ml-auto flex-shrink-0">
-                <span class="text-[11px] font-semibold tabular-nums" style="color:#16a34a">{{ $mgr->vacant_count }}</span>
-                <span class="text-gray-300">/</span>
-                <span class="text-[11px] font-semibold tabular-nums" style="color:#dc2626">{{ $mgr->occupied_count }}</span>
-            </div>
-
-            <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ml-1"
+            {{-- Expand icon --}}
+            <svg class="w-5 h-5 text-gray-400 flex-shrink-0 transition-transform duration-200"
                  :class="open ? 'rotate-180' : ''"
                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -250,14 +238,14 @@
             {{-- Desktop table --}}
             <div class="hidden sm:block overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead style="background:#fafafa">
+                    <thead style="background:#f9fafb">
                         <tr>
-                            <th class="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">รหัส</th>
-                            <th class="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">ชื่อทรัพย์</th>
-                            <th class="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide text-right whitespace-nowrap">฿/เดือน</th>
-                            <th class="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide hidden lg:table-cell">ผู้เช่า</th>
-                            <th class="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap hidden md:table-cell">เข้าพัก</th>
-                            <th class="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide text-center">สถานะ</th>
+                            <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">รหัส</th>
+                            <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">ชื่อทรัพย์</th>
+                            <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide text-right">ราคา/ด.</th>
+                            <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">ผู้เช่า</th>
+                            <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">เข้าพัก</th>
+                            <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide text-center">สถานะ</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-50">
@@ -273,44 +261,44 @@
                                 $checkInDate = $ci->day . ' ' . $thM[$ci->month-1] . ' ' . ($ci->year+543);
                             }
                         @endphp
-                        <tr class="hover:bg-gray-50/40 transition-colors">
-                            <td class="px-4 py-2 whitespace-nowrap">
-                                <span class="font-mono text-[11px] font-bold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
+                        <tr class="hover:bg-gray-50/50 transition-colors">
+                            <td class="px-3 py-2">
+                                <span class="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
                                     {{ $prop->property_code ?: '—' }}
                                 </span>
                             </td>
-                            <td class="px-4 py-2">
+                            <td class="px-3 py-2">
                                 <p class="text-sm text-gray-800 font-medium max-w-xs truncate">{{ $prop->title ?: '—' }}</p>
                             </td>
-                            <td class="px-4 py-2 text-right whitespace-nowrap">
+                            <td class="px-3 py-2 text-right">
                                 @if($rent > 0)
                                     <span class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($rent, 0) }}</span>
-                                    <span class="text-[11px] text-gray-400">฿</span>
+                                    <span class="text-[10px] text-gray-400">฿</span>
                                 @else
                                     <span class="text-gray-300 text-xs">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2 hidden lg:table-cell">
+                            <td class="px-3 py-2 hidden lg:table-cell">
                                 @if($prop->is_occupied && $tenantName)
                                     <p class="text-xs font-medium text-gray-700 max-w-xs truncate">{{ $tenantName }}</p>
                                     @if($prop->booking?->tenant_mobile)
-                                        <p class="text-[10px] text-gray-400">{{ $prop->booking->tenant_mobile }}</p>
+                                        <p class="text-[10px] text-gray-400 mt-0.5">{{ $prop->booking->tenant_mobile }}</p>
                                     @endif
                                 @else
                                     <span class="text-gray-300 text-xs">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2 text-xs text-gray-500 whitespace-nowrap hidden md:table-cell">
+                            <td class="px-3 py-2 text-xs text-gray-500 hidden md:table-cell">
                                 {{ $checkInDate ?? '—' }}
                             </td>
-                            <td class="px-4 py-2 text-center">
+                            <td class="px-3 py-2 text-center">
                                 @if($prop->is_occupied)
-                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
                                         <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                                         ไม่ว่าง
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
                                         <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                         ว่าง
                                     </span>
@@ -323,7 +311,7 @@
             </div>
 
             {{-- Mobile cards --}}
-            <div class="sm:hidden divide-y divide-gray-50">
+            <div class="sm:hidden divide-y divide-gray-100">
                 @foreach($mgr->properties as $prop)
                 @php
                     $rent       = $prop->is_occupied && $prop->booking
@@ -331,18 +319,18 @@
                         : (float)($prop->price_per_month ?? 0);
                     $tenantName = trim($prop->booking?->tenant_name ?? '');
                 @endphp
-                <div class="px-3 py-2">
-                    <div class="flex items-center justify-between gap-2 mb-1">
-                        <span class="font-mono text-[11px] font-bold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
+                <div class="px-3 py-2.5">
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                        <span class="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
                             {{ $prop->property_code ?: '—' }}
                         </span>
                         @if($prop->is_occupied)
-                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
-                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
+                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                                 ไม่ว่าง
                             </span>
                         @else
-                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
                                 <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                 ว่าง
                             </span>
@@ -352,12 +340,12 @@
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-semibold text-gray-800 truncate">{{ $prop->title ?: '—' }}</p>
                             @if($prop->is_occupied && $tenantName)
-                                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $tenantName }}</p>
+                                <p class="text-[11px] text-gray-500 truncate mt-0.5">{{ $tenantName }}</p>
                             @endif
                         </div>
                         @if($rent > 0)
                             <span class="text-sm font-bold text-gray-900 tabular-nums flex-shrink-0">
-                                {{ number_format($rent, 0) }}<span class="text-[11px] font-normal text-gray-400 ml-0.5">฿</span>
+                                {{ number_format($rent, 0) }}<span class="text-[10px] font-normal text-gray-400 ml-0.5">฿</span>
                             </span>
                         @endif
                     </div>
@@ -366,23 +354,23 @@
             </div>
 
             {{-- Card footer --}}
-            <div class="px-4 py-2 border-t border-gray-50 flex items-center justify-between" style="background:#fafafa">
+            <div class="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <div class="flex items-center gap-3 flex-wrap">
-                    <span class="text-[11px] text-gray-400 tabular-nums">{{ $mgr->total_props }} รายการ</span>
-                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums" style="color:#16a34a">
-                        <span class="w-1.5 h-1.5 rounded-full" style="background:#22c55e"></span>
+                    <span class="text-xs text-gray-500 tabular-nums">{{ $mgr->total_props }} รายการ</span>
+                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                         {{ $mgr->vacant_count }} ว่าง
                     </span>
                     @if($mgr->occupied_count > 0)
-                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums" style="color:#dc2626">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700">
                         <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                         {{ $mgr->occupied_count }} ไม่ว่าง
                     </span>
                     @endif
                 </div>
                 @if($mgrRevenue > 0)
-                    <span class="text-xs font-bold text-brand-700 tabular-nums flex-shrink-0">
-                        {{ number_format($mgrRevenue, 0) }}<span class="text-gray-400 font-normal ml-1">฿/เดือน</span>
+                    <span class="text-sm font-bold text-brand-700 tabular-nums flex-shrink-0">
+                        ฿{{ number_format($mgrRevenue, 0) }}<span class="text-gray-400 font-normal text-xs ml-1">/ด.</span>
                     </span>
                 @endif
             </div>
@@ -487,7 +475,7 @@
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.x + ' ห้อง',
+                            label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.x + ' อสังหา',
                         }
                     }
                 },
