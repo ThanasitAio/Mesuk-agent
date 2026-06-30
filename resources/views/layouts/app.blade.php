@@ -78,7 +78,7 @@
                 อสังหาริมทรัพย์
             </a>
 
-            @if(session('agent_id') == 9999999)
+            @if(session('agent_code') == '9999999')
             <a href="{{ route('rental-rates.index') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                       {{ request()->routeIs('rental-rates.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
@@ -100,7 +100,7 @@
                 ประวัติการใช้งาน
             </a>
 
-            @if(session('agent_id') == 9999999)
+            @if(session('agent_code') == '9999999')
             <a href="{{ route('deploy.show') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                       {{ request()->routeIs('deploy.*') ? 'bg-amber-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
@@ -419,8 +419,8 @@
     @php
         $extraMenus = [];
         
-        // เฉพาะ agent_id = 9999999 เท่านั้นที่เห็นเมนูอัตราเช่า
-        if (session('agent_id') == 9999999) {
+        // เฉพาะ agent_code = 9999999 เท่านั้นที่เห็นเมนูอัตราเช่า
+        if (session('agent_code') == '9999999') {
             $extraMenus[] = [
                 'route'   => 'rental-rates.index',
                 'pattern' => 'rental-rates.*',
@@ -466,7 +466,7 @@
         </a>
     </div>
 
-    @if(session('agent_id') == 9999999)
+    @if(session('agent_code') == '9999999')
     {{-- Deploy (admin only) --}}
     <div class="px-5 mb-3">
         <a href="{{ route('deploy.show') }}"
