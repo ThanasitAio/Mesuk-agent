@@ -51,7 +51,6 @@ class RentalRateController extends Controller
                 'p.property_code',
                 'p.title',
                 'p.price_per_month',
-                'p.province',
                 'p.district',
                 'p.manager_agent_code',
                 DB::raw("COALESCE(a.name, 'ไม่ระบุผู้บริหาร') AS manager_name"),

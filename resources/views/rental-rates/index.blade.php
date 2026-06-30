@@ -36,13 +36,13 @@
                         <p class="text-2xl font-black text-white tabular-nums leading-none">{{ $totalProps }}</p>
                         <p class="text-[10px] mt-1" style="color:rgba(255,255,255,.38)">ทรัพย์ทั้งหมด</p>
                     </div>
-                    <div class="rounded-xl p-3 text-center" style="background:rgba(74,222,128,.13)">
-                        <p class="text-2xl font-black tabular-nums leading-none" style="color:#4ade80">{{ $totalVacant }}</p>
-                        <p class="text-[10px] mt-1" style="color:rgba(74,222,128,.60)">ว่าง</p>
+                    <div class="rounded-xl p-3 text-center" style="background:rgba(34,197,94,.13)">
+                        <p class="text-2xl font-black tabular-nums leading-none" style="color:#22c55e">{{ $totalVacant }}</p>
+                        <p class="text-[10px] mt-1" style="color:rgba(34,197,94,.70)">ว่าง</p>
                     </div>
-                    <div class="rounded-xl p-3 text-center" style="background:rgba(248,113,113,.13)">
-                        <p class="text-2xl font-black tabular-nums leading-none" style="color:#f87171">{{ $totalOccupied }}</p>
-                        <p class="text-[10px] mt-1" style="color:rgba(248,113,113,.60)">ไม่ว่าง</p>
+                    <div class="rounded-xl p-3 text-center" style="background:rgba(239,68,68,.13)">
+                        <p class="text-2xl font-black tabular-nums leading-none" style="color:#ef4444">{{ $totalOccupied }}</p>
+                        <p class="text-[10px] mt-1" style="color:rgba(239,68,68,.70)">ไม่ว่าง</p>
                     </div>
                     <div class="rounded-xl p-3 text-center" style="background:rgba(255,255,255,.07)">
                         <p class="text-2xl font-black text-white tabular-nums leading-none">{{ $byManager->count() }}</p>
@@ -56,17 +56,17 @@
                 <div class="relative" style="width:78px;height:78px">
                     <canvas id="heroDonut" width="78" height="78"></canvas>
                     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span class="text-[17px] font-black tabular-nums leading-none" style="color:#4ade80">{{ $vacancyRate }}%</span>
+                        <span class="text-[17px] font-black tabular-nums leading-none" style="color:#22c55e">{{ $vacancyRate }}%</span>
                         <span class="text-[8px] mt-0.5" style="color:rgba(255,255,255,.38)">ว่าง</span>
                     </div>
                 </div>
                 <div class="flex flex-col gap-0.5">
                     <div class="flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#4ade80"></span>
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#22c55e"></span>
                         <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ว่าง {{ $totalVacant }} ห้อง</span>
                     </div>
                     <div class="flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#f87171"></span>
+                        <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#ef4444"></span>
                         <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ไม่ว่าง {{ $totalOccupied }} ห้อง</span>
                     </div>
                 </div>
@@ -90,19 +90,19 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
 
-    {{-- Chart 1: จำนวนทรัพย์ (absolute count) --}}
+    {{-- Chart 1: จำนวนห้องแต่ละผู้บริหาร --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div class="flex items-start justify-between mb-1">
             <div>
-                <h3 class="text-sm font-bold text-gray-800">จำนวนทรัพย์ต่อผู้บริหาร</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">จำนวนห้องจริง (ว่าง + ไม่ว่าง)</p>
+                <h3 class="text-sm font-bold text-gray-800">จำนวนห้องแต่ละผู้บริหาร</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">ห้องทั้งหมดที่ดูแล (แยกตามสถานะ)</p>
             </div>
             <div class="flex items-center gap-3 text-[11px] text-gray-400 flex-shrink-0 ml-2">
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.80)"></span>ว่าง
+                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#22c55e"></span>ว่าง
                 </span>
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:rgba(248,113,113,.80)"></span>ไม่ว่าง
+                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
             </div>
         </div>
@@ -111,13 +111,26 @@
         </div>
     </div>
 
-    {{-- Chart 2: สัดส่วน % ว่าง vs ไม่ว่าง (normalized 100%) --}}
+    {{-- Chart 2: เปอร์เซ็นต์ห้องว่าง --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div class="flex items-start justify-between mb-1">
             <div>
-                <h3 class="text-sm font-bold text-gray-800">สัดส่วนว่าง / ไม่ว่าง</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">เปอร์เซ็นต์ต่อผู้บริหาร (รวม 100%)</p>
+                <h3 class="text-sm font-bold text-gray-800">เปอร์เซ็นต์ห้องว่างแต่ละผู้บริหาร</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">สัดส่วนห้องว่างเทียบกับห้องทั้งหมด</p>
             </div>
+            <div class="flex items-center gap-3 text-[11px] text-gray-400 flex-shrink-0 ml-2">
+                <span class="flex items-center gap-1">
+                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#22c55e"></span>ว่าง
+                </span>
+                <span class="flex items-center gap-1">
+                    <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
+                </span>
+            </div>
+        </div>
+        <div style="position:relative;height:{{ $chartH }}px">
+            <canvas id="rateChart"></canvas>
+        </div>
+    </div>
             <div class="flex items-center gap-3 text-[11px] text-gray-400 flex-shrink-0 ml-2">
                 <span class="flex items-center gap-1">
                     <span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:rgba(74,222,128,.80)"></span>ว่าง
@@ -161,74 +174,63 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
          x-data="{ open: false }">
 
-        {{-- Accordion header --}}
+        {{-- Accordion header (compact) --}}
         <button type="button" @click="open = !open"
-                class="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-gray-50/60 transition-colors">
+                class="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-gray-50/60 transition-colors">
 
-            {{-- Avatar --}}
+            {{-- Avatar (smaller) --}}
             <div class="flex-shrink-0">
                 @if($mgr->manager_avatar)
                     <img src="{{ $happyestPublic.'/storage/'.$mgr->manager_avatar }}"
                          alt="{{ $mgr->manager_name }}"
-                         class="w-9 h-9 rounded-full object-cover ring-2 ring-gray-100"
+                         class="w-7 h-7 rounded-full object-cover ring-2 ring-gray-100"
                          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                    <div class="w-9 h-9 rounded-full bg-brand-600 items-center justify-center hidden">
-                        <span class="text-white text-sm font-bold leading-none">{{ $initial }}</span>
+                    <div class="w-7 h-7 rounded-full bg-brand-600 items-center justify-center hidden">
+                        <span class="text-white text-xs font-bold leading-none">{{ $initial }}</span>
                     </div>
                 @else
-                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
-                        <span class="text-white text-sm font-bold leading-none">{{ $initial }}</span>
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+                        <span class="text-white text-xs font-bold leading-none">{{ $initial }}</span>
                     </div>
                 @endif
             </div>
 
-            {{-- Name + compact progress bar --}}
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1">
-                    <p class="text-sm font-bold text-gray-900 truncate">{{ $mgr->manager_name }}</p>
-                    @if($mgr->manager_code)
-                        <span class="hidden sm:inline font-mono text-[10px] text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded-md flex-shrink-0">
-                            {{ $mgr->manager_code }}
-                        </span>
-                    @endif
-                </div>
-                <div class="flex items-center gap-2">
-                    {{-- Bar: red = ไม่ว่าง, green = ว่าง --}}
-                    <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
-                        @if($rate > 0)
-                            <div class="h-full rounded-l-full" style="width:{{ $rate }}%;background:#f87171"></div>
-                        @endif
-                        @if($vRate > 0)
-                            <div class="h-full {{ $rate > 0 ? '' : 'rounded-l-full' }} rounded-r-full" style="width:{{ $vRate }}%;background:#4ade80"></div>
-                        @endif
-                    </div>
-                    <span class="text-[11px] tabular-nums flex-shrink-0 font-semibold" style="color:#16a34a">
-                        ว่าง {{ $mgr->vacant_count }}/{{ $mgr->total_props }}
+            {{-- Name + Code --}}
+            <div class="flex items-center gap-2 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">{{ $mgr->manager_name }}</p>
+                @if($mgr->manager_code)
+                    <span class="hidden sm:inline font-mono text-[10px] text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded-md flex-shrink-0">
+                        {{ $mgr->manager_code }}
                     </span>
-                </div>
-            </div>
-
-            {{-- Desktop quick stats --}}
-            <div class="hidden md:flex items-center gap-3 flex-shrink-0 text-right">
-                <div>
-                    <div class="flex items-center gap-1.5 justify-end">
-                        <span class="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0"></span>
-                        <span class="text-[11px] text-gray-500 tabular-nums">{{ $mgr->vacant_count }} ว่าง</span>
-                        <span class="text-gray-300 text-[10px]">·</span>
-                        <span class="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0"></span>
-                        <span class="text-[11px] text-gray-500 tabular-nums">{{ $mgr->occupied_count }} ไม่ว่าง</span>
-                    </div>
-                    <p class="text-[10px] text-gray-400 mt-0.5">จาก {{ $mgr->total_props }} ทรัพย์</p>
-                </div>
-                @if($mgrRevenue > 0)
-                    <div class="pl-3" style="border-left:1px solid #f0f0f0">
-                        <p class="text-xs font-bold text-brand-700 tabular-nums leading-none">{{ number_format($mgrRevenue, 0) }}</p>
-                        <p class="text-[10px] text-gray-400 mt-0.5">฿/เดือน</p>
-                    </div>
                 @endif
             </div>
 
-            <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200"
+            {{-- Stats inline (compact) --}}
+            <div class="hidden md:flex items-center gap-2 ml-auto flex-shrink-0">
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style="background:rgba(34,197,94,.12);color:#16a34a">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                    {{ $mgr->vacant_count }} ว่าง
+                </span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style="background:rgba(239,68,68,.12);color:#dc2626">
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                    {{ $mgr->occupied_count }} ไม่ว่าง
+                </span>
+                <span class="text-[11px] text-gray-400">จาก {{ $mgr->total_props }} ห้อง</span>
+                @if($mgrRevenue > 0)
+                    <span class="text-xs font-bold text-brand-700 tabular-nums ml-2">
+                        {{ number_format($mgrRevenue, 0) }}<span class="text-[10px] text-gray-400 font-normal ml-0.5">฿</span>
+                    </span>
+                @endif
+            </div>
+
+            {{-- Mobile stats --}}
+            <div class="flex md:hidden items-center gap-1.5 ml-auto flex-shrink-0">
+                <span class="text-[11px] font-semibold tabular-nums" style="color:#16a34a">{{ $mgr->vacant_count }}</span>
+                <span class="text-gray-300">/</span>
+                <span class="text-[11px] font-semibold tabular-nums" style="color:#dc2626">{{ $mgr->occupied_count }}</span>
+            </div>
+
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ml-1"
                  :class="open ? 'rotate-180' : ''"
                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -308,8 +310,8 @@
                                         ไม่ว่าง
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                         ว่าง
                                     </span>
                                 @endif
@@ -340,8 +342,8 @@
                                 ไม่ว่าง
                             </span>
                         @else
-                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                 ว่าง
                             </span>
                         @endif
@@ -368,7 +370,7 @@
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="text-[11px] text-gray-400 tabular-nums">{{ $mgr->total_props }} รายการ</span>
                     <span class="inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums" style="color:#16a34a">
-                        <span class="w-1.5 h-1.5 rounded-full" style="background:#4ade80"></span>
+                        <span class="w-1.5 h-1.5 rounded-full" style="background:#22c55e"></span>
                         {{ $mgr->vacant_count }} ว่าง
                     </span>
                     @if($mgr->occupied_count > 0)
@@ -427,7 +429,7 @@
     const countLabel = makeLabelPlugin('', 22);
     const pctLabel   = makeLabelPlugin('%', 18);
 
-    // Hero donut
+    // Hero donut: green=ว่าง, red=ไม่ว่าง
     const heroCtx = document.getElementById('heroDonut');
     if (heroCtx) {
         new Chart(heroCtx, {
@@ -435,7 +437,7 @@
             data: {
                 datasets: [{
                     data: [{{ $totalVacant }}, {{ max(0, $totalOccupied) }}],
-                    backgroundColor: ['rgba(74,222,128,.90)', 'rgba(248,113,113,.70)'],
+                    backgroundColor: ['#22c55e', '#ef4444'], // green-500, red-500
                     borderWidth: 0,
                     borderRadius: 6,
                     spacing: 2,
@@ -453,7 +455,7 @@
     const raw = @json($chartData);
     const labels = raw.map(r => r.name.length > 16 ? r.name.slice(0, 15) + '…' : r.name);
 
-    // Chart 1: Stacked count bar (absolute numbers)
+    // Chart 1: Stacked count bar (green=ว่าง, red=ไม่ว่าง)
     const mgrCtx = document.getElementById('managerChart');
     if (mgrCtx) {
         new Chart(mgrCtx, {
@@ -464,14 +466,14 @@
                     {
                         label: 'ว่าง',
                         data: raw.map(r => r.vacant),
-                        backgroundColor: 'rgba(74,222,128,.80)',
+                        backgroundColor: '#22c55e', // green-500
                         borderRadius: 3,
                         borderSkipped: false,
                     },
                     {
                         label: 'ไม่ว่าง',
                         data: raw.map(r => r.occupied),
-                        backgroundColor: 'rgba(248,113,113,.80)',
+                        backgroundColor: '#ef4444', // red-500
                         borderRadius: 3,
                         borderSkipped: false,
                     }
@@ -498,7 +500,7 @@
         });
     }
 
-    // Chart 2: Proportional stacked bar (% ว่าง + % ไม่ว่าง = 100%)
+    // Chart 2: Proportional stacked bar (green=ว่าง, red=ไม่ว่าง)
     const rateCtx = document.getElementById('rateChart');
     if (rateCtx) {
         new Chart(rateCtx, {
@@ -509,14 +511,14 @@
                     {
                         label: 'ว่าง',
                         data: raw.map(r => r.vrate),
-                        backgroundColor: 'rgba(74,222,128,.80)',
+                        backgroundColor: '#22c55e', // green-500
                         borderRadius: 3,
                         borderSkipped: false,
                     },
                     {
                         label: 'ไม่ว่าง',
                         data: raw.map(r => r.rate),
-                        backgroundColor: 'rgba(248,113,113,.80)',
+                        backgroundColor: '#ef4444', // red-500
                         borderRadius: 3,
                         borderSkipped: false,
                     }
