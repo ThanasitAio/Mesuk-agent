@@ -28,21 +28,24 @@ class AuthController extends Controller
             'password'   => 'required|string',
         ]);
 
+        // Normalize: strip leading zeros then re-pad to 7 digits so "390" matches "0000390"
+        $agentCode = str_pad(ltrim($request->agent_code, '0') ?: '0', 7, '0', STR_PAD_LEFT);
+
         // CRIT-2: Rate limit — 5 attempts per minute per IP + agent_code
-        $throttleKey = 'login.' . $request->ip() . '.' . strtolower($request->agent_code);
+        $throttleKey = 'login.' . $request->ip() . '.' . $agentCode;
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
 
             logSystem('agent', null, 'Auth', 'LOGIN_RATE_LIMITED',
-                'Rate limited login attempt for agent_code: ' . $request->agent_code);
+                'Rate limited login attempt for agent_code: ' . $agentCode);
 
             return back()
                 ->withInput($request->only('agent_code'))
                 ->with('error', 'พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอ ' . $seconds . ' วินาทีแล้วลองใหม่');
         }
 
-        $agent = HrAgent::where('agent_code', $request->agent_code)->first();
+        $agent = HrAgent::where('agent_code', $agentCode)->first();
 
         if (!$agent || $agent->pass_decode !== $request->password) {
             RateLimiter::hit($throttleKey);

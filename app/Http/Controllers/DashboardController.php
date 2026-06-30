@@ -158,6 +158,47 @@ class DashboardController extends Controller
             $bookingStatusColors[] = $cfg['color'];
         }
 
+        // ── Property occupancy overview ──────────────────────────────────────────
+        $occupiedPropIds = array_flip(
+            DB::table('hr_bookings')
+                ->whereNull('deleted_at')
+                ->where('status', 'checked_in')
+                ->pluck('property_id')
+                ->all()
+        );
+
+        $publishedPropsData = DB::table('hr_properties as p')
+            ->leftJoin('hr_agents as a', 'p.manager_agent_code', '=', 'a.agent_code')
+            ->whereNull('p.deleted_at')
+            ->where('p.status', 'published')
+            ->select('p.id', 'p.manager_agent_code',
+                DB::raw("COALESCE(a.name, 'ไม่ระบุ') AS manager_name"),
+                'a.avatar AS manager_avatar')
+            ->get();
+
+        $totalPublishedProps = $publishedPropsData->count();
+        $occupiedPropsCount  = $publishedPropsData->filter(fn($p) => isset($occupiedPropIds[$p->id]))->count();
+        $vacantPropsCount    = $totalPublishedProps - $occupiedPropsCount;
+
+        $managerPerfStats = $publishedPropsData
+            ->groupBy('manager_agent_code')
+            ->map(function ($props) use ($occupiedPropIds) {
+                $first    = $props->first();
+                $total    = $props->count();
+                $occupied = $props->filter(fn($p) => isset($occupiedPropIds[$p->id]))->count();
+                return (object) [
+                    'manager_name'   => $first->manager_name,
+                    'manager_avatar' => $first->manager_avatar,
+                    'total_props'    => $total,
+                    'occupied_count' => $occupied,
+                    'vacant_count'   => $total - $occupied,
+                    'occupancy_rate' => $total > 0 ? round($occupied / $total * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('total_props')
+            ->values()
+            ->take(6);
+
         return view('dashboard.index', compact(
             'totalBookings',
             'totalCustomers',
@@ -174,7 +215,11 @@ class DashboardController extends Controller
             'bookingStatusColors',
             'recentSlips',
             'recentCustomers',
-            'upcomingDues'
+            'upcomingDues',
+            'totalPublishedProps',
+            'occupiedPropsCount',
+            'vacantPropsCount',
+            'managerPerfStats'
         ));
     }
 }

@@ -7,6 +7,7 @@ use App\Http\Controllers\DeployController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyBillingController;
+use App\Http\Controllers\RentalRateController;
 
 // Redirect root to dashboard
 Route::get('/', function () {
@@ -40,6 +41,9 @@ Route::middleware('auth.agent')->group(function () {
     Route::delete('/billing/{record}/slip', [PropertyBillingController::class, 'cancelSlip'])->name('billing.slip.cancel');
     Route::post('/properties/{property}/toggle-prepay', [PropertyBillingController::class, 'togglePrePay'])->name('properties.togglePrePay');
     Route::get('/invoices/{invoice}/print', [PropertyBillingController::class, 'printInvoice'])->name('invoices.print');
+
+    // Rental Rate Overview
+    Route::get('/rental-rates', [RentalRateController::class, 'index'])->name('rental-rates.index');
 
     // Deploy / System (เฉพาะ agent_code 0000390)
     Route::get('/deploy', [DeployController::class, 'show'])->name('deploy.show');
