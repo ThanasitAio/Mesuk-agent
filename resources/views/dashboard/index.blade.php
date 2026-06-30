@@ -357,10 +357,10 @@
                 $initial  = mb_strtoupper(mb_substr($fullName, 0, 1));
 
                 $statusMap = [
-                    'checked_in'        => ['label' => 'เช่าอยู่',     'bg' => 'bg-emerald-50', 'text' => 'text-emerald-700'],
-                    'confirmed'         => ['label' => 'ยืนยันแล้ว',   'bg' => 'bg-emerald-50', 'text' => 'text-emerald-700'],
-                    'deposit_confirmed' => ['label' => 'ยืนยันมัดจำ',  'bg' => 'bg-blue-50',    'text' => 'text-blue-700'],
-                    'pending'           => ['label' => 'รอยืนยัน',     'bg' => 'bg-amber-50',   'text' => 'text-amber-700'],
+                    'checked_in'        => ['label' => 'ไม่ว่าง',      'bg' => 'bg-red-50',     'text' => 'text-red-700'],
+                    'confirmed'         => ['label' => 'ยืนยันแล้ว',   'bg' => 'bg-red-50',     'text' => 'text-red-700'],
+                    'deposit_confirmed' => ['label' => 'โครงการในอนาคต', 'bg' => 'bg-blue-50',    'text' => 'text-blue-700'],
+                    'pending'           => ['label' => 'จองแล้ว',      'bg' => 'bg-yellow-50',  'text' => 'text-yellow-700'],
                     'checked_out'       => ['label' => 'ออกแล้ว',      'bg' => 'bg-gray-50',    'text' => 'text-gray-500'],
                     'completed'         => ['label' => 'เสร็จสิ้น',    'bg' => 'bg-gray-50',    'text' => 'text-gray-500'],
                     'cancelled'         => ['label' => 'ยกเลิก',       'bg' => 'bg-red-50',     'text' => 'text-red-600'],

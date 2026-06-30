@@ -269,7 +269,7 @@
                         @if($bookingStatus === 'checked_in')
                             <span class="status-badge inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap">
                                 <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                                เช่าอยู่
+                                ไม่ว่าง
                             </span>
                         @elseif($bookingStatus === 'confirmed')
                             <span class="status-badge inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap">
