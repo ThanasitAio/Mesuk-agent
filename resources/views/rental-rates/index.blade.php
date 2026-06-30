@@ -521,33 +521,109 @@
     Chart.defaults.font.family = "Sarabun, 'Noto Sans Thai', sans-serif";
     Chart.defaults.font.size   = 12;
 
-    // Inline plugin: draw value labels on bar segments
-    function makeLabelPlugin(suffix, minPx) {
-        return {
-            id: 'barLabel' + (suffix || '_n'),
-            afterDatasetsDraw(chart) {
-                const ctx = chart.ctx;
-                const zero = chart.scales.x.getPixelForValue(0);
-                chart.data.datasets.forEach((ds, di) => {
-                    chart.getDatasetMeta(di).data.forEach((bar, i) => {
-                        const val = ds.data[i];
-                        if (!val || val <= 0) return;
-                        if (Math.abs(bar.x - zero) < (minPx || 20)) return;
-                        const c = bar.getCenterPoint();
-                        ctx.save();
-                        ctx.font = 'bold 11px Sarabun, sans-serif';
+    // Plugin: แสดงตัวเลขบนแต่ละส่วนของ stacked bar
+    const stackedBarLabelPlugin = {
+        id: 'stackedBarLabel',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+            
+            ctx.save();
+            ctx.font = 'bold 11px Sarabun, sans-serif';
+            ctx.textBaseline = 'middle';
+            
+            // วนลูปแต่ละแถว (แต่ละผู้บริหาร)
+            chart.data.labels.forEach((label, index) => {
+                let stackX = xAxis.getPixelForValue(0); // เริ่มจาก 0
+                
+                // วนลูปแต่ละ dataset (ว่าง, ไม่ว่าง)
+                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    if (!meta.visible) return;
+                    
+                    const bar = meta.data[index];
+                    const value = dataset.data[index];
+                    
+                    if (!value || value <= 0) return;
+                    
+                    // คำนวณความกว้างของส่วนนี้
+                    const barWidth = xAxis.getPixelForValue(value) - xAxis.getPixelForValue(0);
+                    const centerX = stackX + barWidth / 2;
+                    const centerY = bar.y;
+                    
+                    // ตรวจสอบว่าพื้นที่พอแสดงตัวเลขไหม (ต้องกว้างอย่างน้อย 25px)
+                    if (Math.abs(barWidth) >= 25) {
+                        // แสดงในแถบ
                         ctx.fillStyle = 'rgba(255,255,255,0.95)';
                         ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(suffix ? val + suffix : val, c.x, c.y);
+                        ctx.fillText(value, centerX, centerY);
+                    } else if (Math.abs(barWidth) >= 12) {
+                        // แถบเล็กแต่ยังพอแสดงได้ - ใช้ฟอนต์เล็กลง
+                        ctx.save();
+                        ctx.font = 'bold 9px Sarabun, sans-serif';
+                        ctx.fillStyle = 'rgba(255,255,255,0.90)';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(value, centerX, centerY);
                         ctx.restore();
-                    });
+                    }
+                    // ถ้าแถบเล็กกว่า 12px ไม่แสดงตัวเลข
+                    
+                    stackX += barWidth; // เลื่อนตำแหน่งไปส่วนถัดไป
                 });
-            }
-        };
-    }
-    const countLabel = makeLabelPlugin('', 22);
-    const pctLabel   = makeLabelPlugin('%', 18);
+            });
+            
+            ctx.restore();
+        }
+    };
+
+    // Plugin สำหรับกราฟเปอร์เซ็นต์
+    const percentBarLabelPlugin = {
+        id: 'percentBarLabel',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            
+            ctx.save();
+            ctx.font = 'bold 11px Sarabun, sans-serif';
+            ctx.textBaseline = 'middle';
+            
+            chart.data.labels.forEach((label, index) => {
+                let stackX = xAxis.getPixelForValue(0);
+                
+                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    if (!meta.visible) return;
+                    
+                    const bar = meta.data[index];
+                    const value = dataset.data[index];
+                    
+                    if (!value || value <= 0) return;
+                    
+                    const barWidth = xAxis.getPixelForValue(value) - xAxis.getPixelForValue(0);
+                    const centerX = stackX + barWidth / 2;
+                    const centerY = bar.y;
+                    
+                    if (Math.abs(barWidth) >= 30) {
+                        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(value + '%', centerX, centerY);
+                    } else if (Math.abs(barWidth) >= 15) {
+                        ctx.save();
+                        ctx.font = 'bold 9px Sarabun, sans-serif';
+                        ctx.fillStyle = 'rgba(255,255,255,0.90)';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(value + '%', centerX, centerY);
+                        ctx.restore();
+                    }
+                    
+                    stackX += barWidth;
+                });
+            });
+            
+            ctx.restore();
+        }
+    };
 
     // Hero donut: green=ว่าง, red=ไม่ว่าง
     const heroCtx = document.getElementById('heroDonut');
@@ -639,7 +715,7 @@
                     }
                 }
             },
-            plugins: [countLabel]
+            plugins: [stackedBarLabelPlugin]
         });
     }
 
@@ -710,7 +786,7 @@
                     }
                 }
             },
-            plugins: [pctLabel]
+            plugins: [percentBarLabelPlugin]
         });
     }
     @endif
