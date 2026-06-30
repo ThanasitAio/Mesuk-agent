@@ -246,17 +246,13 @@
                     @endif
                 </div>
                 
-                <div class="flex items-center gap-3 text-xs">
+                <div class="flex items-center gap-3 text-xs flex-wrap">
                     <span class="inline-flex items-center gap-1.5 font-semibold text-green-700">
-                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
+                        <span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
                         {{ $mgr->vacant_count }} ว่าง
                     </span>
                     <span class="inline-flex items-center gap-1.5 font-semibold text-red-700">
-                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                        </svg>
+                        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>
                         {{ $mgr->occupied_count }} ไม่ว่าง
                     </span>
                     <span class="text-gray-400">·</span>
@@ -378,12 +374,12 @@
                             </td>
                             <td class="px-3 py-2 text-center">
                                 @if($prop->is_occupied)
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full transition-all duration-200 hover:shadow-md">
                                         <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                                         ไม่ว่าง
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full transition-all duration-200 hover:shadow-md">
                                         <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                         ว่าง
                                     </span>
@@ -432,12 +428,12 @@
                             {{ $prop->property_code ?: '—' }}
                         </span>
                         @if($prop->is_occupied)
-                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full transition-all duration-200">
                                 <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                                 ไม่ว่าง
                             </span>
                         @else
-                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full transition-all duration-200">
                                 <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                                 ว่าง
                             </span>
