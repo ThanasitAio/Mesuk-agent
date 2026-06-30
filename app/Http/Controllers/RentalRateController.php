@@ -8,8 +8,8 @@ class RentalRateController extends Controller
 {
     public function index()
     {
-        // เฉพาะ agent_id = 9999999 เท่านั้นที่เข้าถึงได้
-        if (session('agent_id') != 9999999) {
+        // เฉพาะ agent_code = 9999999 เท่านั้นที่เข้าถึงได้
+        if (session('agent_code') != '9999999') {
             return redirect()->route('dashboard')
                 ->with('error', 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้');
         }
