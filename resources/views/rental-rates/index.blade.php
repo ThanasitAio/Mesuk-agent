@@ -326,7 +326,7 @@
                             if ($prop->booking?->contract_start_date && $prop->booking?->check_out) {
                                 $start = \Carbon\Carbon::parse($prop->booking->contract_start_date);
                                 $end = \Carbon\Carbon::parse($prop->booking->check_out);
-                                $monthCount = $start->diffInMonths($end);
+                                $monthCount = (int) round($start->diffInMonths($end));
                             }
                         @endphp
                         <tr class="hover:bg-gray-50/50 transition-colors">
@@ -419,7 +419,7 @@
                     if ($prop->booking?->contract_start_date && $prop->booking?->check_out) {
                         $start = \Carbon\Carbon::parse($prop->booking->contract_start_date);
                         $end = \Carbon\Carbon::parse($prop->booking->check_out);
-                        $monthCount = $start->diffInMonths($end);
+                        $monthCount = (int) round($start->diffInMonths($end));
                     }
                 @endphp
                 <div class="px-3 py-3">
