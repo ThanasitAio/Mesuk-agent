@@ -22,7 +22,9 @@ class HrBooking extends Model
     protected $casts = [
         'check_in'                  => 'date',
         'check_out'                 => 'date',
+        'actual_move_in_date'       => 'date',
         'contract_start_date'       => 'date',
+        'rental_months'             => 'integer',
         'paid_at'                   => 'datetime',
         'allow_pay_before_contract' => 'boolean',
         'land_tax_to_investor'      => 'boolean',
@@ -65,6 +67,11 @@ class HrBooking extends Model
         return $this->hasMany(HrPaymentRecord::class, 'booking_id')
             ->whereNull('deleted_at')
             ->orderBy('id');
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(HrInvoice::class, 'booking_id')->whereNull('deleted_at');
     }
 
     public function isContractSent(): bool
