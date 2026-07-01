@@ -105,12 +105,16 @@
     $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
     $totalAll  = $withContract->count() + $withoutContract->count();
     $totalRent = $withContract->sum(fn($p) => (float) ($p->activeBooking?->monthly_rent ?? 0));
+    $totalSlipNeeded = $withContract->filter(fn($p) =>
+        ($p->activeBooking?->paymentRecords ?? collect())->whereIn('payment_status', ['pending', 'failed'])->isNotEmpty()
+    )->count();
 @endphp
 
 <div x-data="{
     search: '',
     filter: 'all',
-    matchRow(type, text) {
+    matchRow(type, text, slipNeeded) {
+        if (this.filter === 'slip_needed') return type === 'active' && slipNeeded;
         if (this.filter !== 'all' && this.filter !== type) return false;
         if (!this.search.trim()) return true;
         return text.toLowerCase().includes(this.search.toLowerCase().trim());
@@ -138,6 +142,27 @@
     <p class="text-sm text-gray-500">รายรับค่าเช่า/เดือน (รวม)</p>
     <p class="text-base font-bold text-gray-800 tabular-nums">{{ number_format($totalRent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
 </x-card>
+@endif
+
+{{-- ===== Slip Alert Banner ===== --}}
+@if($totalSlipNeeded > 0)
+<div class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5 cursor-pointer"
+     @click="filter = 'slip_needed'"
+     role="button"
+     tabindex="0">
+    <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+        </svg>
+    </div>
+    <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-amber-700">รอแนบสลิป <span class="font-bold">{{ $totalSlipNeeded }} ห้อง</span></p>
+        <p class="text-xs text-amber-500 mt-0.5">แตะเพื่อกรองดูเฉพาะห้องที่ยังไม่แนบสลิป</p>
+    </div>
+    <svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+</div>
 @endif
 
 {{-- ===== Search + Filter ===== --}}
@@ -174,6 +199,14 @@
         <button @click="filter = 'vacant'"
                 :class="filter === 'vacant' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ว่าง</button>
+        @if($totalSlipNeeded > 0)
+        <button @click="filter = 'slip_needed'"
+                :class="filter === 'slip_needed' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1">
+            รอสลิป
+            <span class="text-[10px] font-bold bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none">{{ $totalSlipNeeded }}</span>
+        </button>
+        @endif
     </div>
 </div>
 
@@ -211,6 +244,11 @@
                     $tenantInitial = $tenant ? mb_strtoupper(mb_substr($tenant->full_name ?? '?', 0, 1)) : '?';
                     $checkIn = $booking?->check_in;
 
+                    $records = $booking?->paymentRecords ?? collect();
+                    $slipNeeded = $records->whereIn('payment_status', ['pending', 'failed'])->isNotEmpty();
+                    $slipPendingVerify = !$slipNeeded && $records->where('payment_status', 'pending_verification')->isNotEmpty();
+                    $lastSlipAt = $records->whereNotNull('paid_at')->sortByDesc('paid_at')->first()?->paid_at;
+
                     $searchText = strtolower(
                         ($property->title ?? '') . ' ' .
                         ($property->property_code ?? '') . ' ' .
@@ -218,7 +256,7 @@
                         ($tenant?->mobile ?? '')
                     );
                 @endphp
-                <tr x-show="matchRow('active', @js($searchText))"
+                <tr x-show="matchRow('active', @js($searchText), @js($slipNeeded))"
                     class="property-row hover:bg-gray-50 transition-colors cursor-pointer group"
                     onclick="window.location='{{ route('properties.show', $property->id) }}'"
                     role="button"
@@ -292,6 +330,32 @@
                                 มีสัญญา
                             </span>
                         @endif
+
+                        {{-- Slip status --}}
+                        <div class="mt-1.5">
+                            @if($slipNeeded)
+                                <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600">
+                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                                    </svg>
+                                    รอแนบสลิป
+                                </span>
+                            @elseif($slipPendingVerify)
+                                <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-500">
+                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    รอตรวจสอบ@if($lastSlipAt) <span class="font-normal text-blue-400">· {{ $lastSlipAt->locale('th')->translatedFormat('j M') }}</span>@endif
+                                </span>
+                            @elseif($lastSlipAt)
+                                <span class="inline-flex items-center gap-1 text-[10px] text-gray-400">
+                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    ล่าสุด {{ $lastSlipAt->locale('th')->translatedFormat('j M Y') }}
+                                </span>
+                            @endif
+                        </div>
                     </td>
 
                     {{-- Rent --}}
@@ -323,7 +387,7 @@
                 @php
                     $searchText = strtolower(($property->title ?? '') . ' ' . ($property->property_code ?? ''));
                 @endphp
-                <tr x-show="matchRow('vacant', @js($searchText))"
+                <tr x-show="matchRow('vacant', @js($searchText), false)"
                     class="property-row hover:bg-gray-50/60 transition-colors opacity-75">
 
                     {{-- Property --}}

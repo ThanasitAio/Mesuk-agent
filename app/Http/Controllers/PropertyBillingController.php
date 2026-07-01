@@ -17,7 +17,7 @@ class PropertyBillingController extends Controller
         $agentCode = session('agent_code');
 
         $properties = HrProperty::where('manager_agent_code', $agentCode)
-            ->with(['activeBooking.customer', 'primaryImageMedia'])
+            ->with(['activeBooking.customer', 'activeBooking.paymentRecords', 'primaryImageMedia'])
             ->get();
 
         $withContract    = $properties->filter(fn ($p) => $p->activeBooking !== null)->values();
