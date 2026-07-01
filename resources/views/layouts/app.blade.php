@@ -280,9 +280,59 @@
         </main>
 
         {{-- Footer (desktop only) --}}
-        <footer class="hidden lg:flex flex-shrink-0 items-center justify-center gap-2 text-xs text-gray-400 py-3 border-t border-gray-100">
-            <img src="{{ asset('images/logo-icon.svg') }}" alt="Mesuk" class="w-4 h-4 opacity-50">
-            Mesuk &copy; {{ date('Y') }}
+        <footer class="hidden lg:block flex-shrink-0 border-t border-gray-100"
+                style="background: linear-gradient(135deg, #f8faf7 0%, #f0f9eb 100%);">
+            <div class="px-6 py-3 flex items-center justify-between gap-6">
+
+                {{-- Branding --}}
+                <div class="flex items-center gap-2.5 flex-shrink-0">
+                    <div class="w-7 h-7 rounded-lg bg-brand-700 flex items-center justify-center shadow-sm">
+                        <img src="{{ asset('images/logo-icon.svg') }}" alt="" class="w-4 h-4 brightness-0 invert">
+                    </div>
+                    <div class="leading-none">
+                        <p class="text-xs font-bold text-gray-600">Mesuk Agent System</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">&copy; {{ date('Y') }} Happy Realestate. All rights reserved.</p>
+                    </div>
+                </div>
+
+                {{-- Quick Nav --}}
+                <nav class="flex items-center gap-5">
+                    <a href="{{ route('dashboard') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('dashboard') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        ภาพรวม
+                    </a>
+                    <a href="{{ route('properties.index') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('properties.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        อสังหาริมทรัพย์
+                    </a>
+                    <a href="{{ route('rental-rates.index') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('rental-rates.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        อัตราเช่า
+                    </a>
+                    <a href="{{ route('logs.index') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('logs.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        ประวัติ
+                    </a>
+                    <a href="{{ route('profile') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('profile*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        โปรไฟล์
+                    </a>
+                </nav>
+
+                {{-- Agent Badge --}}
+                <div class="flex items-center gap-2 bg-white/80 border border-brand-100 rounded-xl px-3 py-1.5 flex-shrink-0 shadow-sm">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
+                    <span class="font-mono text-xs font-bold text-brand-700">{{ session('agent_code', '') }}</span>
+                    <span class="text-gray-200 text-sm leading-none select-none">|</span>
+                    <span class="text-xs text-gray-500 truncate max-w-[140px]">{{ session('agent_name', 'ผู้ใช้') }}</span>
+                </div>
+
+            </div>
         </footer>
     </div>
 </div>

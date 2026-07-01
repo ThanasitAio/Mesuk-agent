@@ -158,46 +158,73 @@ class DashboardController extends Controller
             $bookingStatusColors[] = $cfg['color'];
         }
 
-        // ── Property occupancy overview ──────────────────────────────────────────
-        $occupiedPropIds = array_flip(
+        // ── Manager agents for this agent's booked properties ────────────────────
+        $agentPropIds = DB::table('hr_bookings')
+            ->where('agent_id', $agentId)
+            ->whereNull('deleted_at')
+            ->whereNotNull('property_id')
+            ->pluck('property_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        $activePropIds = array_flip(
             DB::table('hr_bookings')
+                ->where('agent_id', $agentId)
                 ->whereNull('deleted_at')
                 ->where('status', 'checked_in')
+                ->whereNotNull('property_id')
                 ->pluck('property_id')
+                ->unique()
                 ->all()
         );
 
-        $publishedPropsData = DB::table('hr_properties as p')
-            ->leftJoin('hr_agents as a', 'p.manager_agent_code', '=', 'a.agent_code')
-            ->whereNull('p.deleted_at')
-            ->where('p.status', 'published')
-            ->select('p.id', 'p.manager_agent_code',
-                DB::raw("COALESCE(a.name, 'ไม่ระบุ') AS manager_name"),
-                'a.avatar AS manager_avatar')
-            ->get();
+        $bookingCountPerProp = collect();
+        if (!empty($agentPropIds)) {
+            $bookingCountPerProp = DB::table('hr_bookings')
+                ->whereIn('id', $bookingIds)
+                ->whereNotNull('property_id')
+                ->selectRaw('property_id, COUNT(*) as cnt')
+                ->groupBy('property_id')
+                ->get()
+                ->keyBy('property_id');
+        }
 
-        $totalPublishedProps = $publishedPropsData->count();
-        $occupiedPropsCount  = $publishedPropsData->filter(fn($p) => isset($occupiedPropIds[$p->id]))->count();
-        $vacantPropsCount    = $totalPublishedProps - $occupiedPropsCount;
+        $managerPropsRaw = collect();
+        if (!empty($agentPropIds)) {
+            $managerPropsRaw = DB::table('hr_properties as p')
+                ->join('hr_agents as a', 'p.manager_agent_code', '=', 'a.agent_code')
+                ->whereIn('p.id', $agentPropIds)
+                ->whereNull('p.deleted_at')
+                ->whereNotNull('p.manager_agent_code')
+                ->select(
+                    'p.id as property_id', 'p.title', 'p.property_code',
+                    'p.status as prop_status', 'p.price_per_month', 'p.manager_agent_code',
+                    'a.agent_code', 'a.name as manager_name', 'a.avatar as manager_avatar',
+                    'a.phone as manager_phone', 'a.email as manager_email', 'a.line_id as manager_line'
+                )
+                ->get();
+        }
 
-        $managerPerfStats = $publishedPropsData
+        $managerStats = $managerPropsRaw
             ->groupBy('manager_agent_code')
-            ->map(function ($props) use ($occupiedPropIds) {
-                $first    = $props->first();
-                $total    = $props->count();
-                $occupied = $props->filter(fn($p) => isset($occupiedPropIds[$p->id]))->count();
+            ->map(function ($props) use ($activePropIds, $bookingCountPerProp) {
+                $first = $props->first();
                 return (object) [
-                    'manager_name'   => $first->manager_name,
-                    'manager_avatar' => $first->manager_avatar,
-                    'total_props'    => $total,
-                    'occupied_count' => $occupied,
-                    'vacant_count'   => $total - $occupied,
-                    'occupancy_rate' => $total > 0 ? round($occupied / $total * 100, 1) : 0,
+                    'agent_code'     => $first->agent_code,
+                    'name'           => $first->manager_name ?? 'ไม่ระบุ',
+                    'avatar'         => $first->manager_avatar,
+                    'phone'          => $first->manager_phone,
+                    'email'          => $first->manager_email,
+                    'line_id'        => $first->manager_line,
+                    'total_props'    => $props->count(),
+                    'active_count'   => $props->filter(fn($p) => isset($activePropIds[$p->property_id]))->count(),
+                    'total_bookings' => $props->sum(fn($p) => (int) ($bookingCountPerProp->get($p->property_id)?->cnt ?? 0)),
+                    'properties'     => $props,
                 ];
             })
             ->sortByDesc('total_props')
-            ->values()
-            ->take(6);
+            ->values();
 
         return view('dashboard.index', compact(
             'totalBookings',
@@ -216,10 +243,7 @@ class DashboardController extends Controller
             'recentSlips',
             'recentCustomers',
             'upcomingDues',
-            'totalPublishedProps',
-            'occupiedPropsCount',
-            'vacantPropsCount',
-            'managerPerfStats'
+            'managerStats'
         ));
     }
 }

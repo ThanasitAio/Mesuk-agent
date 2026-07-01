@@ -644,134 +644,157 @@
 </div>
 @endif
 
-{{-- ── ภาพรวมอสังหาริมทรัพย์ & ผู้บริหารโครงการ ────────────────────────── --}}
-@if($totalPublishedProps > 0)
-<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-5">
+{{-- ── ผู้บริหารโครงการ ─────────────────────────────────────────────────────── --}}
+@if($managerStats->isNotEmpty())
+<div class="mt-5">
 
-    {{-- Header --}}
-    <div class="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-            <div class="w-9 h-9 rounded-xl bg-sky-600 bg-gradient-to-br from-sky-500 to-blue-700
-                        flex items-center justify-center shadow-sm">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                </svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-bold text-gray-800">ภาพรวมอสังหาริมทรัพย์</h3>
-                <p class="text-xs text-gray-400">ประสิทธิภาพผู้บริหารโครงการ</p>
-            </div>
-        </div>
-        <a href="{{ route('rental-rates.index') }}"
-           class="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-100
-                  hover:bg-sky-100 transition-colors px-3 py-1.5 rounded-xl">
-            ดูรายละเอียด
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    <div class="flex items-center gap-3 mb-4">
+        <div class="w-9 h-9 rounded-xl bg-sky-600 bg-gradient-to-br from-sky-500 to-blue-700
+                    flex items-center justify-center shadow-sm flex-shrink-0">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
-        </a>
+        </div>
+        <div class="flex-1 min-w-0">
+            <h2 class="text-sm font-bold text-gray-800 leading-tight">ผู้บริหารโครงการ</h2>
+            <p class="text-xs text-gray-400 mt-0.5">เจ้าหน้าที่รับผิดชอบทรัพย์สินในพอร์ตโฟลิโอของคุณ</p>
+        </div>
+        <span class="flex-shrink-0 text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-100 px-2.5 py-1 rounded-full">
+            {{ $managerStats->count() }} คน
+        </span>
     </div>
 
-    {{-- Overall Stats Row --}}
-    @php
-        $overallOccRate = $totalPublishedProps > 0
-            ? round($occupiedPropsCount / $totalPublishedProps * 100, 1) : 0;
-        $occBarCls = $overallOccRate >= 80 ? 'bg-emerald-500' : ($overallOccRate >= 60 ? 'bg-amber-500' : 'bg-red-500');
-        $occRateCls = $overallOccRate >= 80 ? 'text-emerald-700 bg-emerald-50' : ($overallOccRate >= 60 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50');
-    @endphp
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        @foreach($managerStats as $mgr)
+        @php
+            $mInitial = mb_strtoupper(mb_substr($mgr->name, 0, 1));
+        @endphp
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
-    <div class="px-5 pt-4 pb-3">
-        {{-- 3 mini stats --}}
-        <div class="grid grid-cols-3 gap-3 mb-4">
-            <div class="bg-gray-50 rounded-xl p-3 text-center">
-                <p class="text-xl font-black text-gray-900 tabular-nums leading-none">{{ $totalPublishedProps }}</p>
-                <p class="text-[11px] text-gray-400 mt-1 font-medium">ทั้งหมด</p>
-            </div>
-            <div class="bg-emerald-50 rounded-xl p-3 text-center">
-                <p class="text-xl font-black text-emerald-700 tabular-nums leading-none">{{ $occupiedPropsCount }}</p>
-                <p class="text-[11px] text-emerald-500 mt-1 font-medium">ถูกเช่า</p>
-            </div>
-            <div class="bg-amber-50 rounded-xl p-3 text-center">
-                <p class="text-xl font-black text-amber-700 tabular-nums leading-none">{{ $vacantPropsCount }}</p>
-                <p class="text-[11px] text-amber-500 mt-1 font-medium">ว่าง</p>
-            </div>
-        </div>
+            {{-- Manager Profile Header --}}
+            <div class="p-5 flex items-start gap-4"
+                 style="background: linear-gradient(135deg, #f0f9eb 0%, #fff 65%);">
 
-        {{-- Occupancy progress bar --}}
-        <div class="flex items-center gap-3">
-            <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div class="h-full {{ $occBarCls }} rounded-full" style="width:{{ $overallOccRate }}%"></div>
-            </div>
-            <span class="text-xs font-bold {{ $occRateCls }} px-2 py-0.5 rounded-lg flex-shrink-0 tabular-nums">
-                {{ $overallOccRate }}%
-            </span>
-        </div>
-        <p class="text-[11px] text-gray-400 mt-1.5">อัตราการเช่าโดยรวม (ทุกโครงการ)</p>
-    </div>
-
-    {{-- Manager Performance List --}}
-    @if($managerPerfStats->isNotEmpty())
-    <div class="border-t border-gray-50">
-        <div class="px-5 py-2.5 flex items-center justify-between">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">ประสิทธิภาพผู้บริหาร</p>
-            <span class="text-xs text-gray-400">{{ $managerPerfStats->count() }} คน</span>
-        </div>
-        <div class="divide-y divide-gray-50">
-            @foreach($managerPerfStats as $mgr)
-            @php
-                $r = $mgr->occupancy_rate;
-                $mBarCls  = $r >= 80 ? 'bg-emerald-500' : ($r >= 60 ? 'bg-amber-500' : 'bg-red-500');
-                $mRateCls = $r >= 80 ? 'text-emerald-700 bg-emerald-50' : ($r >= 60 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50');
-                $mInitial = mb_strtoupper(mb_substr($mgr->manager_name, 0, 1));
-            @endphp
-            <div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors">
                 {{-- Avatar --}}
-                @php $happyestPublicDash = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/'); @endphp
-                @if($mgr->manager_avatar)
-                    <img src="{{ $happyestPublicDash . '/storage/' . $mgr->manager_avatar }}"
-                         alt="{{ $mgr->manager_name }}"
-                         class="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-100"
+                @if($mgr->avatar)
+                    <img src="{{ $happyestPublic . '/storage/' . $mgr->avatar }}"
+                         alt="{{ $mgr->name }}"
+                         class="w-16 h-16 rounded-2xl object-cover flex-shrink-0 ring-2 ring-brand-100 shadow-sm"
                          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                    <div class="w-8 h-8 rounded-full bg-brand-600 items-center justify-center flex-shrink-0 hidden">
-                        <span class="text-white text-xs font-bold">{{ $mInitial }}</span>
+                    <div class="w-16 h-16 rounded-2xl bg-brand-600 items-center justify-center flex-shrink-0 shadow-sm hidden">
+                        <span class="text-white text-2xl font-black">{{ $mInitial }}</span>
                     </div>
                 @else
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700
-                                flex items-center justify-center flex-shrink-0">
-                        <span class="text-white text-xs font-bold leading-none">{{ $mInitial }}</span>
+                    <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700
+                                flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span class="text-white text-2xl font-black leading-none">{{ $mInitial }}</span>
                     </div>
                 @endif
 
-                {{-- Name + Bar --}}
+                {{-- Info --}}
                 <div class="flex-1 min-w-0">
-                    <p class="text-xs font-semibold text-gray-800 truncate mb-1">{{ $mgr->manager_name }}</p>
-                    <div class="flex items-center gap-2">
-                        <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div class="h-full {{ $mBarCls }} rounded-full" style="width:{{ $r }}%"></div>
-                        </div>
-                        <span class="text-[10px] font-bold {{ $mRateCls }} px-1.5 py-0.5 rounded-md flex-shrink-0 tabular-nums">
-                            {{ $r }}%
+                    <p class="text-base font-black text-gray-900 leading-tight truncate">{{ $mgr->name }}</p>
+                    @if($mgr->agent_code)
+                        <span class="inline-flex items-center mt-1.5 font-mono text-xs font-bold
+                                     text-brand-700 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-lg">
+                            {{ $mgr->agent_code }}
                         </span>
+                    @endif
+
+                    <div class="mt-2.5 space-y-1.5">
+                        @if($mgr->phone)
+                        <div class="flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                            </svg>
+                            <span class="text-xs text-gray-700 font-semibold">{{ $mgr->phone }}</span>
+                        </div>
+                        @endif
+                        @if($mgr->email)
+                        <div class="flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                            <span class="text-xs text-gray-700 font-semibold truncate">{{ $mgr->email }}</span>
+                        </div>
+                        @endif
+                        @if($mgr->line_id)
+                        <div class="flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                            <span class="text-xs text-gray-700 font-semibold">Line: {{ $mgr->line_id }}</span>
+                        </div>
+                        @endif
                     </div>
                 </div>
+            </div>
 
-                {{-- Mini stats --}}
-                <div class="flex-shrink-0 text-right">
-                    <p class="text-xs font-bold text-gray-900 tabular-nums">{{ $mgr->occupied_count }}<span class="text-gray-400 font-normal">/{{ $mgr->total_props }}</span></p>
-                    <p class="text-[10px] text-gray-400 mt-0.5">ถูกเช่า</p>
+            {{-- Stats Strip --}}
+            <div class="grid grid-cols-3 divide-x divide-gray-50 border-t border-gray-50">
+                <div class="py-3.5 text-center">
+                    <p class="text-xl font-black text-gray-900 tabular-nums leading-none">{{ $mgr->total_props }}</p>
+                    <p class="text-[11px] text-gray-400 mt-1 font-medium">ทรัพย์ทั้งหมด</p>
+                </div>
+                <div class="py-3.5 text-center">
+                    <p class="text-xl font-black text-emerald-600 tabular-nums leading-none">{{ $mgr->active_count }}</p>
+                    <p class="text-[11px] text-emerald-500 mt-1 font-medium">กำลังเช่า</p>
+                </div>
+                <div class="py-3.5 text-center">
+                    <p class="text-xl font-black text-brand-700 tabular-nums leading-none">{{ $mgr->total_bookings }}</p>
+                    <p class="text-[11px] text-brand-500 mt-1 font-medium">การจองทั้งหมด</p>
                 </div>
             </div>
-            @endforeach
-        </div>
-    </div>
-    @endif
 
-    <div class="px-5 py-3 border-t border-gray-50 text-center">
-        <a href="{{ route('rental-rates.index') }}"
-           class="text-xs font-semibold text-sky-600 hover:text-sky-700 transition-colors">
-            ดูข้อมูลทั้งหมดและรายละเอียดอสังหา →
-        </a>
+            {{-- Properties List --}}
+            <div class="border-t border-gray-50">
+                <p class="px-5 pt-3 pb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">รายการทรัพย์สิน</p>
+                <div class="divide-y divide-gray-50 pb-2">
+                    @foreach($mgr->properties->take(8) as $prop)
+                    @php
+                        $propStatusMap = [
+                            'published' => ['label' => 'เผยแพร่',  'text' => 'text-emerald-700', 'bg' => 'bg-emerald-50'],
+                            'draft'     => ['label' => 'ฉบับร่าง', 'text' => 'text-gray-500',    'bg' => 'bg-gray-100'],
+                            'archived'  => ['label' => 'เก็บถาวร', 'text' => 'text-gray-400',    'bg' => 'bg-gray-50'],
+                        ];
+                        $pSt = $propStatusMap[$prop->prop_status] ?? ['label' => $prop->prop_status, 'text' => 'text-gray-500', 'bg' => 'bg-gray-50'];
+                        $isActive = isset($activePropIds[$prop->property_id]);
+                    @endphp
+                    <div class="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50/60 transition-colors">
+                        <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 {{ $isActive ? 'bg-emerald-400' : 'bg-gray-200' }}"></div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-semibold text-gray-800 truncate leading-snug">{{ $prop->title ?? '—' }}</p>
+                            @if($prop->property_code)
+                            <span class="font-mono text-[10px] text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">{{ $prop->property_code }}</span>
+                            @endif
+                        </div>
+                        <div class="flex-shrink-0 text-right">
+                            <span class="text-[10px] font-semibold {{ $pSt['text'] }} {{ $pSt['bg'] }} px-2 py-0.5 rounded-full whitespace-nowrap">
+                                {{ $pSt['label'] }}
+                            </span>
+                            @if($prop->price_per_month)
+                            <p class="text-xs font-bold text-gray-700 tabular-nums mt-0.5">
+                                {{ number_format((float)$prop->price_per_month, 0) }}<span class="font-normal text-gray-400">฿</span>
+                            </p>
+                            @endif
+                        </div>
+                    </div>
+                    @endforeach
+
+                    @if($mgr->properties->count() > 8)
+                    <div class="px-5 py-2.5 text-center">
+                        <span class="text-xs text-gray-400">+ อีก {{ $mgr->properties->count() - 8 }} ทรัพย์</span>
+                    </div>
+                    @endif
+                </div>
+            </div>
+
+        </div>
+        @endforeach
     </div>
 </div>
 @endif
