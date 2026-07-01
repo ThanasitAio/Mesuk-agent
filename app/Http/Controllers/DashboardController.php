@@ -8,12 +8,24 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $agentId = session('agent_id');
+        $agentCode = session('agent_code');
+        $agentId   = session('agent_id');
 
-        $bookingIds = DB::table('hr_bookings')
-            ->where('agent_id', $agentId)
+        // Properties managed by this agent
+        $managedPropIds = DB::table('hr_properties')
+            ->where('manager_agent_code', $agentCode)
             ->whereNull('deleted_at')
-            ->pluck('id');
+            ->pluck('id')
+            ->all();
+
+        // Bookings for those properties
+        $bookingIds = collect();
+        if (!empty($managedPropIds)) {
+            $bookingIds = DB::table('hr_bookings')
+                ->whereIn('property_id', $managedPropIds)
+                ->whereNull('deleted_at')
+                ->pluck('id');
+        }
 
         $totalBookings = $bookingIds->count();
 
@@ -131,7 +143,7 @@ class DashboardController extends Controller
 
         // Booking status breakdown (3rd chart)
         $bookingStatusData = DB::table('hr_bookings')
-            ->where('agent_id', $agentId)
+            ->whereIn('property_id', $managedPropIds)
             ->whereNull('deleted_at')
             ->selectRaw('status, COUNT(*) as cnt')
             ->groupBy('status')
@@ -142,7 +154,7 @@ class DashboardController extends Controller
             'pending'           => ['label' => 'รอยืนยัน',    'color' => '#F59E0B'],
             'deposit_confirmed' => ['label' => 'ยืนยันมัดจำ', 'color' => '#3B82F6'],
             'confirmed'         => ['label' => 'ยืนยันแล้ว',  'color' => '#8B5CF6'],
-            'checked_in'        => ['label' => 'เช่าอยู่',    'color' => '#22C55E'],
+            'checked_in'        => ['label' => 'ไม่ว่าง',     'color' => '#EF4444'],
             'checked_out'       => ['label' => 'ออกแล้ว',     'color' => '#94A3B8'],
             'completed'         => ['label' => 'เสร็จสิ้น',   'color' => '#10B981'],
             'cancelled'         => ['label' => 'ยกเลิก',      'color' => '#EF4444'],
@@ -157,74 +169,6 @@ class DashboardController extends Controller
             $bookingStatusCounts[] = $cnt;
             $bookingStatusColors[] = $cfg['color'];
         }
-
-        // ── Manager agents for this agent's booked properties ────────────────────
-        $agentPropIds = DB::table('hr_bookings')
-            ->where('agent_id', $agentId)
-            ->whereNull('deleted_at')
-            ->whereNotNull('property_id')
-            ->pluck('property_id')
-            ->unique()
-            ->values()
-            ->all();
-
-        $activePropIds = array_flip(
-            DB::table('hr_bookings')
-                ->where('agent_id', $agentId)
-                ->whereNull('deleted_at')
-                ->where('status', 'checked_in')
-                ->whereNotNull('property_id')
-                ->pluck('property_id')
-                ->unique()
-                ->all()
-        );
-
-        $bookingCountPerProp = collect();
-        if (!empty($agentPropIds)) {
-            $bookingCountPerProp = DB::table('hr_bookings')
-                ->whereIn('id', $bookingIds)
-                ->whereNotNull('property_id')
-                ->selectRaw('property_id, COUNT(*) as cnt')
-                ->groupBy('property_id')
-                ->get()
-                ->keyBy('property_id');
-        }
-
-        $managerPropsRaw = collect();
-        if (!empty($agentPropIds)) {
-            $managerPropsRaw = DB::table('hr_properties as p')
-                ->join('hr_agents as a', 'p.manager_agent_code', '=', 'a.agent_code')
-                ->whereIn('p.id', $agentPropIds)
-                ->whereNull('p.deleted_at')
-                ->whereNotNull('p.manager_agent_code')
-                ->select(
-                    'p.id as property_id', 'p.title', 'p.property_code',
-                    'p.status as prop_status', 'p.price_per_month', 'p.manager_agent_code',
-                    'a.agent_code', 'a.name as manager_name', 'a.avatar as manager_avatar',
-                    'a.phone as manager_phone', 'a.email as manager_email', 'a.line_id as manager_line'
-                )
-                ->get();
-        }
-
-        $managerStats = $managerPropsRaw
-            ->groupBy('manager_agent_code')
-            ->map(function ($props) use ($activePropIds, $bookingCountPerProp) {
-                $first = $props->first();
-                return (object) [
-                    'agent_code'     => $first->agent_code,
-                    'name'           => $first->manager_name ?? 'ไม่ระบุ',
-                    'avatar'         => $first->manager_avatar,
-                    'phone'          => $first->manager_phone,
-                    'email'          => $first->manager_email,
-                    'line_id'        => $first->manager_line,
-                    'total_props'    => $props->count(),
-                    'active_count'   => $props->filter(fn($p) => isset($activePropIds[$p->property_id]))->count(),
-                    'total_bookings' => $props->sum(fn($p) => (int) ($bookingCountPerProp->get($p->property_id)?->cnt ?? 0)),
-                    'properties'     => $props,
-                ];
-            })
-            ->sortByDesc('total_props')
-            ->values();
 
         return view('dashboard.index', compact(
             'totalBookings',
@@ -242,8 +186,7 @@ class DashboardController extends Controller
             'bookingStatusColors',
             'recentSlips',
             'recentCustomers',
-            'upcomingDues',
-            'managerStats'
+            'upcomingDues'
         ));
     }
 }
