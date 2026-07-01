@@ -1280,7 +1280,7 @@
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
-                        เพิ่มไฟล์ (<span x-text="5 - files.length"></span> ไฟล์ที่เหลือ)
+                        เพิ่มไฟล์ (<span x-text="5 - files.length"></span> ไฟล์ที่เหลือ )
                     </button>
                 </div>
             </div>
