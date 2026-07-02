@@ -492,12 +492,12 @@
 {{-- ============================================================ --}}
 <x-table>
     <x-slot:head>
-        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">ทรัพย์สิน</th>
-        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">ผู้เช่า</th>
-        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">สถานะ / การชำระ</th>
-        <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">ค่าเช่า/เดือน</th>
-        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">ข้อมูลสัญญา</th>
-        <th class="px-4 py-3 w-10"></th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">ทรัพย์สิน</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">ผู้เช่า</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">สถานะ / การชำระ</th>
+        <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 hidden md:table-cell">ค่าเช่า/เดือน</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 hidden lg:table-cell">ข้อมูลสัญญา</th>
+        <th class="px-5 py-3.5 w-10"></th>
     </x-slot:head>
 
     @foreach($contractRows as $row)
@@ -509,32 +509,16 @@
         @keypress.enter="window.location='{{ route('properties.show', $row->property->id) }}'">
 
         {{-- Col 1: ทรัพย์สิน --}}
-        <td class="px-4 py-3">
-            <div class="flex items-center gap-3">
-                <div class="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 relative">
-                    @if($row->imageUrl)
-                    <img src="{{ $row->imageUrl }}" alt="{{ $row->property->title }}"
-                         class="w-full h-full object-cover"
-                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                    @endif
-                    <div class="w-full h-full items-center justify-center absolute inset-0 {{ $row->imageUrl ? 'hidden' : 'flex' }}">
-                        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="min-w-0">
-                    <p class="font-semibold text-gray-800 truncate group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '—' }}</p>
-                    @if($row->property->property_code)
-                    <p class="text-[11px] text-gray-400 font-mono">{{ $row->property->property_code }}</p>
-                    @endif
-                </div>
-            </div>
+        <td class="px-5 py-3.5 align-top">
+            <p class="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '—' }}</p>
+            @if($row->property->property_code)
+            <p class="text-[11px] text-gray-400 font-mono mt-0.5">{{ $row->property->property_code }}</p>
+            @endif
         </td>
 
         {{-- Col 2: ผู้เช่า --}}
-        <td class="px-4 py-3">
-            <div class="flex items-center gap-2">
+        <td class="px-5 py-3.5 align-top">
+            <div class="flex items-center gap-2.5">
                 @if($row->tenantPhotoUrl)
                     <img src="{{ $row->tenantPhotoUrl }}" alt="{{ $row->tenant->full_name }}"
                          class="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-200">
@@ -546,19 +530,19 @@
                 <div class="min-w-0">
                     <p class="text-sm font-semibold text-gray-700 truncate">{{ $row->tenant?->full_name ?? '(ไม่ระบุ)' }}</p>
                     @if($row->tenant?->mobile)
-                    <p class="text-[11px] text-gray-400">{{ $row->tenant->mobile }}</p>
+                    <p class="text-[11px] text-gray-400 mt-0.5">{{ $row->tenant->mobile }}</p>
                     @endif
                 </div>
             </div>
         </td>
 
         {{-- Col 3: สถานะ + การชำระ --}}
-        <td class="px-4 py-3 align-top">
+        <td class="px-5 py-3.5 align-top">
             <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full whitespace-nowrap">
                 <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
             </span>
 
-            <div class="mt-1.5 space-y-0.5">
+            <div class="mt-2 space-y-1">
                 @if($row->slipNeeded)
                     <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600">
                         <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -592,8 +576,8 @@
             </div>
         </td>
 
-        {{-- Col 4: ค่าเช่า (lg+) --}}
-        <td class="px-4 py-3 text-right tabular-nums hidden lg:table-cell align-top">
+        {{-- Col 4: ค่าเช่า (md+) --}}
+        <td class="px-5 py-3.5 text-right tabular-nums hidden md:table-cell align-top">
             @if($row->booking)
                 <span class="font-bold text-gray-800">{{ number_format($row->booking->monthly_rent, 0) }}</span>
                 <span class="text-xs text-gray-400">฿</span>
@@ -602,29 +586,29 @@
             @endif
         </td>
 
-        {{-- Col 5: ข้อมูลสัญญา (xl+) --}}
-        <td class="px-4 py-3 hidden xl:table-cell align-top">
-            <div class="space-y-0.5 text-[11px]">
+        {{-- Col 5: ข้อมูลสัญญา (lg+) --}}
+        <td class="px-5 py-3.5 hidden lg:table-cell align-top">
+            <div class="space-y-1 text-[11px]">
                 @if($row->actualMoveIn)
-                <div class="flex gap-1.5 text-gray-500">
-                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">เข้าอยู่จริง</span>
+                <div class="flex gap-2 text-gray-500">
+                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">เข้าอยู่จริง</span>
                     <span>{{ $row->actualMoveIn->locale('th')->translatedFormat('j M Y') }}</span>
                 </div>
                 @endif
                 @if($row->contractStart)
-                <div class="flex gap-1.5 text-gray-500">
-                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">ตามสัญญา</span>
+                <div class="flex gap-2 text-gray-500">
+                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">ตามสัญญา</span>
                     <span>{{ $row->contractStart->locale('th')->translatedFormat('j M Y') }}</span>
                 </div>
                 @elseif($row->checkIn && !$row->actualMoveIn)
-                <div class="flex gap-1.5 text-gray-500">
-                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">เริ่มเช่า</span>
+                <div class="flex gap-2 text-gray-500">
+                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">เริ่มเช่า</span>
                     <span>{{ $row->checkIn->locale('th')->translatedFormat('j M Y') }}</span>
                 </div>
                 @endif
                 @if($row->contractEnd)
-                <div class="flex gap-1.5 text-gray-500">
-                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">สิ้นสุด</span>
+                <div class="flex gap-2 text-gray-500">
+                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">สิ้นสุด</span>
                     <span>{{ $row->contractEnd->locale('th')->translatedFormat('j M Y') }}</span>
                 </div>
                 @endif
@@ -638,7 +622,7 @@
         </td>
 
         {{-- Action --}}
-        <td class="px-4 py-3 align-top">
+        <td class="px-5 py-3.5 align-top">
             <svg class="w-4 h-4 text-gray-300 group-hover:text-brand-500 transition-colors mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
             </svg>
@@ -650,38 +634,22 @@
     <tr x-show="matchRow('vacant', @js($row->searchText), false, false)"
         class="property-row hover:bg-gray-50/60 opacity-75">
 
-        <td class="px-4 py-3">
-            <div class="flex items-center gap-3">
-                <div class="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 relative">
-                    @if($row->imageUrl)
-                    <img src="{{ $row->imageUrl }}" alt="{{ $row->property->title }}"
-                         class="w-full h-full object-cover"
-                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                    @endif
-                    <div class="w-full h-full items-center justify-center absolute inset-0 {{ $row->imageUrl ? 'hidden' : 'flex' }}">
-                        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="min-w-0">
-                    <p class="font-medium text-gray-600 truncate leading-snug">{{ $row->property->title ?? '—' }}</p>
-                    @if($row->property->property_code)
-                    <p class="text-[11px] text-gray-400 font-mono">{{ $row->property->property_code }}</p>
-                    @endif
-                </div>
-            </div>
+        <td class="px-5 py-3.5">
+            <p class="font-medium text-gray-600 leading-snug">{{ $row->property->title ?? '—' }}</p>
+            @if($row->property->property_code)
+            <p class="text-[11px] text-gray-400 font-mono mt-0.5">{{ $row->property->property_code }}</p>
+            @endif
         </td>
 
-        <td class="px-4 py-3 text-sm text-gray-400">—</td>
+        <td class="px-5 py-3.5 text-sm text-gray-400">—</td>
 
-        <td class="px-4 py-3">
+        <td class="px-5 py-3.5">
             <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
                 <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>ว่าง
             </span>
         </td>
 
-        <td class="px-4 py-3 text-right tabular-nums hidden lg:table-cell">
+        <td class="px-5 py-3.5 text-right tabular-nums hidden md:table-cell">
             @if($row->property->price_per_month)
                 <span class="text-gray-500">{{ number_format($row->property->price_per_month, 0) }}</span>
                 <span class="text-xs text-gray-400">฿</span>
@@ -690,9 +658,9 @@
             @endif
         </td>
 
-        <td class="px-4 py-3 hidden xl:table-cell text-gray-400">—</td>
+        <td class="px-5 py-3.5 hidden lg:table-cell text-gray-400">—</td>
 
-        <td class="px-4 py-3"></td>
+        <td class="px-5 py-3.5"></td>
     </tr>
     @endforeach
 </x-table>
