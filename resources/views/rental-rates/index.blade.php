@@ -130,22 +130,23 @@
         'code'     => $m->manager_code,
         'occupied' => $m->occupied_count,
         'vacant'   => $m->vacant_count,
+        'total'    => $m->total_props,
         'rate'     => $m->occupancy_rate,
         'vrate'    => $m->total_props > 0 ? round($m->vacant_count / $m->total_props * 100, 1) : 0,
-    ])->values()->toArray();
-    $chartH = max(72, $byManager->count() * 40);
+    ])->values();
+    $maxTotalProps = max(1, $byManager->max('total_props'));
 @endphp
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
 
     {{-- Chart 1: จำนวนอสังหาแต่ละผู้บริหาร --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 animate-fade-in">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2 mb-3 sm:mb-2">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2 mb-4">
             <div>
                 <h3 class="text-sm font-bold text-gray-800">จำนวนอสังหาแต่ละผู้บริหาร</h3>
                 <p class="text-[11px] text-gray-400 mt-0.5">อสังหาทั้งหมดที่ดูแล (แยกตามสถานะ)</p>
             </div>
-            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0">
+            <div class="flex items-center gap-3 text-[10px] text-gray-400 flex-shrink-0">
                 <span class="flex items-center gap-1">
                     <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
@@ -154,19 +155,32 @@
                 </span>
             </div>
         </div>
-        <div style="position:relative;height:{{ $chartH }}px">
-            <canvas id="managerChart"></canvas>
+        <div class="space-y-3">
+            @foreach($chartData as $row)
+            <div>
+                <div class="flex items-end justify-between gap-2 mb-1">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-semibold text-gray-700 truncate" title="{{ $row['name'] }}">{{ $row['name'] }}</p>
+                    </div>
+                    <span class="text-xs font-bold text-gray-900 tabular-nums flex-shrink-0">{{ $row['total'] }}</span>
+                </div>
+                <div class="flex h-2.5 rounded-full overflow-hidden bg-gray-100">
+                    <div class="h-full" style="width:{{ $maxTotalProps > 0 ? round($row['occupied'] / $maxTotalProps * 100, 2) : 0 }}%;background:#ef4444"></div>
+                    <div class="h-full" style="width:{{ $maxTotalProps > 0 ? round($row['vacant'] / $maxTotalProps * 100, 2) : 0 }}%;background:#22c55e"></div>
+                </div>
+            </div>
+            @endforeach
         </div>
     </div>
 
     {{-- Chart 2: เปอร์เซ็นต์อสังหาว่าง --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 animate-fade-in" style="animation-delay: 0.1s">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2 mb-3 sm:mb-2">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2 mb-4">
             <div>
                 <h3 class="text-sm font-bold text-gray-800">เปอร์เซ็นต์อสังหาว่างแต่ละผู้บริหาร</h3>
                 <p class="text-[11px] text-gray-400 mt-0.5">สัดส่วนอสังหาว่างเทียบกับอสังหาทั้งหมด</p>
             </div>
-            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0">
+            <div class="flex items-center gap-3 text-[10px] text-gray-400 flex-shrink-0">
                 <span class="flex items-center gap-1">
                     <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
@@ -175,8 +189,21 @@
                 </span>
             </div>
         </div>
-        <div style="position:relative;height:{{ $chartH }}px">
-            <canvas id="rateChart"></canvas>
+        <div class="space-y-3">
+            @foreach($chartData as $row)
+            <div>
+                <div class="flex items-end justify-between gap-2 mb-1">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-semibold text-gray-700 truncate" title="{{ $row['name'] }}">{{ $row['name'] }}</p>
+                    </div>
+                    <span class="text-xs font-bold tabular-nums flex-shrink-0" style="color:#22c55e">{{ $row['vrate'] }}%</span>
+                </div>
+                <div class="flex h-2.5 rounded-full overflow-hidden bg-gray-100">
+                    <div class="h-full" style="width:{{ $row['rate'] }}%;background:#ef4444"></div>
+                    <div class="h-full" style="width:{{ $row['vrate'] }}%;background:#22c55e"></div>
+                </div>
+            </div>
+            @endforeach
         </div>
     </div>
 </div>
@@ -551,110 +578,6 @@
     Chart.defaults.font.family = "Sarabun, 'Noto Sans Thai', sans-serif";
     Chart.defaults.font.size   = 12;
 
-    // Plugin: แสดงตัวเลขบนแต่ละส่วนของ stacked bar
-    const stackedBarLabelPlugin = {
-        id: 'stackedBarLabel',
-        afterDatasetsDraw(chart) {
-            const ctx = chart.ctx;
-            const xAxis = chart.scales.x;
-            const yAxis = chart.scales.y;
-            
-            ctx.save();
-            ctx.font = 'bold 11px Sarabun, sans-serif';
-            ctx.textBaseline = 'middle';
-            
-            // วนลูปแต่ละแถว (แต่ละผู้บริหาร)
-            chart.data.labels.forEach((label, index) => {
-                let stackX = xAxis.getPixelForValue(0); // เริ่มจาก 0
-                
-                // วนลูปแต่ละ dataset (ว่าง, ไม่ว่าง)
-                chart.data.datasets.forEach((dataset, datasetIndex) => {
-                    const meta = chart.getDatasetMeta(datasetIndex);
-                    if (!meta.visible) return;
-                    
-                    const bar = meta.data[index];
-                    const value = dataset.data[index];
-                    
-                    if (!value || value <= 0) return;
-                    
-                    // คำนวณความกว้างของส่วนนี้
-                    const barWidth = xAxis.getPixelForValue(value) - xAxis.getPixelForValue(0);
-                    const centerX = stackX + barWidth / 2;
-                    const centerY = bar.y;
-                    
-                    // ตรวจสอบว่าพื้นที่พอแสดงตัวเลขไหม (ต้องกว้างอย่างน้อย 25px)
-                    if (Math.abs(barWidth) >= 25) {
-                        // แสดงในแถบ
-                        ctx.fillStyle = 'rgba(255,255,255,0.95)';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(value, centerX, centerY);
-                    } else if (Math.abs(barWidth) >= 12) {
-                        // แถบเล็กแต่ยังพอแสดงได้ - ใช้ฟอนต์เล็กลง
-                        ctx.save();
-                        ctx.font = 'bold 9px Sarabun, sans-serif';
-                        ctx.fillStyle = 'rgba(255,255,255,0.90)';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(value, centerX, centerY);
-                        ctx.restore();
-                    }
-                    // ถ้าแถบเล็กกว่า 12px ไม่แสดงตัวเลข
-                    
-                    stackX += barWidth; // เลื่อนตำแหน่งไปส่วนถัดไป
-                });
-            });
-            
-            ctx.restore();
-        }
-    };
-
-    // Plugin สำหรับกราฟเปอร์เซ็นต์
-    const percentBarLabelPlugin = {
-        id: 'percentBarLabel',
-        afterDatasetsDraw(chart) {
-            const ctx = chart.ctx;
-            const xAxis = chart.scales.x;
-            
-            ctx.save();
-            ctx.font = 'bold 11px Sarabun, sans-serif';
-            ctx.textBaseline = 'middle';
-            
-            chart.data.labels.forEach((label, index) => {
-                let stackX = xAxis.getPixelForValue(0);
-                
-                chart.data.datasets.forEach((dataset, datasetIndex) => {
-                    const meta = chart.getDatasetMeta(datasetIndex);
-                    if (!meta.visible) return;
-                    
-                    const bar = meta.data[index];
-                    const value = dataset.data[index];
-                    
-                    if (!value || value <= 0) return;
-                    
-                    const barWidth = xAxis.getPixelForValue(value) - xAxis.getPixelForValue(0);
-                    const centerX = stackX + barWidth / 2;
-                    const centerY = bar.y;
-                    
-                    if (Math.abs(barWidth) >= 30) {
-                        ctx.fillStyle = 'rgba(255,255,255,0.95)';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(value + '%', centerX, centerY);
-                    } else if (Math.abs(barWidth) >= 15) {
-                        ctx.save();
-                        ctx.font = 'bold 9px Sarabun, sans-serif';
-                        ctx.fillStyle = 'rgba(255,255,255,0.90)';
-                        ctx.textAlign = 'center';
-                        ctx.fillText(value + '%', centerX, centerY);
-                        ctx.restore();
-                    }
-                    
-                    stackX += barWidth;
-                });
-            });
-            
-            ctx.restore();
-        }
-    };
-
     // Hero donut: green=ว่าง, red=ไม่ว่าง
     const heroCtx = document.getElementById('heroDonut');
     if (heroCtx) {
@@ -677,153 +600,6 @@
         });
     }
 
-    @if($byManager->count() > 0)
-    const raw = @json($chartData);
-    const isMobile = window.matchMedia('(max-width: 639px)').matches;
-    const maxNameLen = isMobile ? 10 : 20;
-    const labels = raw.map(r => {
-        const name = r.name.length > maxNameLen ? r.name.slice(0, maxNameLen - 1) + '…' : r.name;
-        const code = (!isMobile && r.code) ? ' (' + r.code + ')' : '';
-        return name + code;
-    });
-    const yTickFont = { size: isMobile ? 10 : 11, weight: '500' };
-    const yTickPadding = isMobile ? 6 : 8;
-
-    // Chart 1: Stacked count bar (green=ว่าง, red=ไม่ว่าง)
-    const mgrCtx = document.getElementById('managerChart');
-    if (mgrCtx) {
-        new Chart(mgrCtx, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'ไม่ว่าง',
-                        data: raw.map(r => r.occupied),
-                        backgroundColor: '#ef4444', // red-500
-                        borderRadius: 3,
-                        borderSkipped: false,
-                    },
-                    {
-                        label: 'ว่าง',
-                        data: raw.map(r => r.vacant),
-                        backgroundColor: '#22c55e', // green-500
-                        borderRadius: 3,
-                        borderSkipped: false,
-                    }
-                ]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(0,0,0,0.85)',
-                        padding: 12,
-                        titleFont: { size: 13, weight: 'bold' },
-                        bodyFont: { size: 12 },
-                        cornerRadius: 8,
-                        callbacks: {
-                            title: ctx => {
-                                const idx = ctx[0].dataIndex;
-                                return raw[idx].name + (raw[idx].code ? ' (' + raw[idx].code + ')' : '');
-                            },
-                            label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.x + ' อสังหา',
-                        }
-                    }
-                },
-                scales: {
-                    x: { stacked: true, grid: { display: false }, border: { display: false }, ticks: { display: false } },
-                    y: { 
-                        stacked: true, 
-                        grid: { display: false }, 
-                        border: { display: false }, 
-                        ticks: {
-                            color: '#374151',
-                            font: yTickFont,
-                            padding: yTickPadding,
-                            autoSkip: false
-                        }
-                    }
-                }
-            },
-            plugins: [stackedBarLabelPlugin]
-        });
-    }
-
-    // Chart 2: Proportional stacked bar (green=ว่าง, red=ไม่ว่าง)
-    const rateCtx = document.getElementById('rateChart');
-    if (rateCtx) {
-        new Chart(rateCtx, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        label: 'ไม่ว่าง',
-                        data: raw.map(r => r.rate),
-                        backgroundColor: '#ef4444', // red-500
-                        borderRadius: 3,
-                        borderSkipped: false,
-                    },
-                    {
-                        label: 'ว่าง',
-                        data: raw.map(r => r.vrate),
-                        backgroundColor: '#22c55e', // green-500
-                        borderRadius: 3,
-                        borderSkipped: false,
-                    }
-                ]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(0,0,0,0.85)',
-                        padding: 12,
-                        titleFont: { size: 13, weight: 'bold' },
-                        bodyFont: { size: 12 },
-                        cornerRadius: 8,
-                        callbacks: {
-                            title: ctx => {
-                                const idx = ctx[0].dataIndex;
-                                return raw[idx].name + (raw[idx].code ? ' (' + raw[idx].code + ')' : '');
-                            },
-                            label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.parsed.x + '%',
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        stacked: true,
-                        min: 0,
-                        max: 100,
-                        grid: { display: false },
-                        border: { display: false },
-                        ticks: { display: false }
-                    },
-                    y: {
-                        stacked: true,
-                        grid: { display: false },
-                        border: { display: false },
-                        ticks: {
-                            color: '#374151',
-                            font: yTickFont,
-                            padding: yTickPadding,
-                            autoSkip: false
-                        }
-                    }
-                }
-            },
-            plugins: [percentBarLabelPlugin]
-        });
-    }
-    @endif
 })();
 </script>
 @endpush
