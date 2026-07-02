@@ -151,12 +151,23 @@
         </svg>
     </a>
     <div class="min-w-0 flex-1">
-        <h1 class="text-base font-bold text-gray-900 truncate">{{ $property->title }}</h1>
-        <div class="flex items-center gap-2 mt-0.5">
-            <span class="text-[11px] font-bold font-mono text-brand-600 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-md">{{ $property->property_code }}</span>
+        {{-- Mobile: รหัสอสังหาเด่นอยู่บน ชื่อเล็กไม่เด่นอยู่ล่าง --}}
+        <div class="md:hidden">
+            <h1 class="text-lg font-bold font-mono text-brand-600 truncate leading-tight">{{ $property->property_code }}</h1>
+            <p class="text-xs text-gray-400 truncate mt-0.5">{{ $property->title }}</p>
             @if($property->property_type ?? false)
                 <span class="text-[11px] text-gray-400">{{ $property->property_type }}</span>
             @endif
+        </div>
+        {{-- Desktop: เหมือนเดิม --}}
+        <div class="hidden md:block">
+            <h1 class="text-base font-bold text-gray-900 truncate">{{ $property->title }}</h1>
+            <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-[11px] font-bold font-mono text-brand-600 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-md">{{ $property->property_code }}</span>
+                @if($property->property_type ?? false)
+                    <span class="text-[11px] text-gray-400">{{ $property->property_type }}</span>
+                @endif
+            </div>
         </div>
     </div>
 </div>
@@ -646,7 +657,7 @@
     </div>
 
     {{-- ─── Desktop Table ─── --}}
-    <div class="hidden md:block overflow-x-auto">
+    <div id="billing-desktop-table" class="hidden md:block overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
                 <tr style="background:#f8fafc; border-bottom:2px solid #f1f5f9">
@@ -897,7 +908,7 @@
     </div>
 
     {{-- ─── Mobile Cards ─── --}}
-    <div class="md:hidden p-3 space-y-2.5 bg-gray-50/40">
+    <div id="billing-mobile-cards" class="md:hidden p-3 space-y-2.5 bg-gray-50/40">
         @foreach($displayRecords as $record)
             @php
                 $meta = $recordMeta[$record->id] ?? [];
@@ -1387,11 +1398,11 @@ function toggleBillingExpand() {
     applyBillingTabFilter();
 }
 
-function applyBillingTabFilter() {
+function filterBillingGroup(containerSelector) {
     const pendingStatuses = ['pending', 'failed', 'pending_verification'];
-    const tabMatchedRows = [];
+    const matchedRows = [];
 
-    document.querySelectorAll('[data-billing-status]').forEach(row => {
+    document.querySelectorAll(containerSelector + ' [data-billing-status]').forEach(row => {
         const status = row.dataset.billingStatus;
         const isComboMonth1 = row.hasAttribute('data-combomonth1-row');
 
@@ -1403,20 +1414,31 @@ function applyBillingTabFilter() {
         if (isComboMonth1) {
             row.style.display = (mainPageComboMode === 'sep' && tabVisible) ? '' : 'none';
         } else {
-            if (tabVisible) tabMatchedRows.push(row);
+            if (tabVisible) matchedRows.push(row);
             else row.style.display = 'none';
         }
     });
 
-    const totalVisible = tabMatchedRows.length;
+    return matchedRows;
+}
+
+function applyBillingTabFilter() {
+    // ทั้ง desktop table และ mobile cards render รอบบิลเดียวกันคนละ markup —
+    // ต้องนับ/ตัด 5 รายการแรกแยกกันต่อกลุ่ม ไม่งั้นรวมกันเป็น 2 เท่าแล้วตัดผิดกลุ่ม
+    const desktopRows  = filterBillingGroup('#billing-desktop-table');
+    const mobileCards  = filterBillingGroup('#billing-mobile-cards');
+
+    const totalVisible = mobileCards.length;
     const needsTruncate = totalVisible > BILLING_VISIBLE_LIMIT;
 
-    tabMatchedRows.forEach((row, idx) => {
-        if (!billingExpanded && needsTruncate && idx >= BILLING_VISIBLE_LIMIT) {
-            row.style.display = 'none';
-        } else {
-            row.style.display = '';
-        }
+    [desktopRows, mobileCards].forEach(group => {
+        group.forEach((row, idx) => {
+            if (!billingExpanded && needsTruncate && idx >= BILLING_VISIBLE_LIMIT) {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
+            }
+        });
     });
 
     const showMoreBar = document.getElementById('billing-show-more-bar');
