@@ -96,6 +96,10 @@
             $tenantPhotoUrl = str_starts_with($av, 'http') ? $av : $happyestPublic . '/storage/' . $av;
         }
         $tenantInitial = $tenant ? mb_strtoupper(mb_substr($tenant->full_name ?? '?', 0, 1)) : '?';
+        $tenantFullName = $tenant?->full_name ?? '(ไม่ระบุ)';
+        $tenantNameShort = $tenant && mb_strlen($tenantFullName) > 10
+            ? mb_substr($tenantFullName, 0, 10) . '...'
+            : $tenantFullName;
 
         // Dates
         $checkIn       = $booking?->check_in;
@@ -149,6 +153,8 @@
             'tenant'            => $tenant,
             'tenantPhotoUrl'    => $tenantPhotoUrl,
             'tenantInitial'     => $tenantInitial,
+            'tenantFullName'    => $tenantFullName,
+            'tenantNameShort'   => $tenantNameShort,
             'imageUrl'          => $resolveImageUrl($property),
             'checkIn'           => $checkIn,
             'actualMoveIn'      => $actualMoveIn,
@@ -493,10 +499,10 @@
 <x-table>
     <x-slot:head>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">ทรัพย์สิน</th>
-        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">ผู้เช่า</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 md:w-32">ผู้เช่า</th>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">สถานะ / การชำระ</th>
         <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 hidden md:table-cell">ค่าเช่า/เดือน</th>
-        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 hidden lg:table-cell">ข้อมูลสัญญา</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 hidden lg:table-cell lg:w-72 xl:w-80">ข้อมูลสัญญา</th>
         <th class="px-5 py-3.5 w-10"></th>
     </x-slot:head>
 
@@ -510,9 +516,11 @@
 
         {{-- Col 1: ทรัพย์สิน --}}
         <td class="px-5 py-3.5 align-top">
-            <p class="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '—' }}</p>
             @if($row->property->property_code)
-            <p class="text-[11px] text-gray-400 font-mono mt-0.5">{{ $row->property->property_code }}</p>
+                <p class="font-mono font-bold text-sm text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->property_code }}</p>
+                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '—' }}</p>
+            @else
+                <p class="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '—' }}</p>
             @endif
         </td>
 
@@ -528,7 +536,7 @@
                     </div>
                 @endif
                 <div class="min-w-0">
-                    <p class="text-sm font-semibold text-gray-700 truncate">{{ $row->tenant?->full_name ?? '(ไม่ระบุ)' }}</p>
+                    <p class="text-sm font-semibold text-gray-700 whitespace-nowrap" title="{{ $row->tenantFullName }}">{{ $row->tenantNameShort }}</p>
                     @if($row->tenant?->mobile)
                     <p class="text-[11px] text-gray-400 mt-0.5">{{ $row->tenant->mobile }}</p>
                     @endif
@@ -588,32 +596,35 @@
 
         {{-- Col 5: ข้อมูลสัญญา (lg+) --}}
         <td class="px-5 py-3.5 hidden lg:table-cell align-top">
-            <div class="space-y-1 text-[11px]">
+            <div class="space-y-1.5 text-xs">
                 @if($row->actualMoveIn)
-                <div class="flex gap-2 text-gray-500">
-                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">เข้าอยู่จริง</span>
-                    <span>{{ $row->actualMoveIn->locale('th')->translatedFormat('j M Y') }}</span>
+                <div class="flex gap-3 text-gray-500">
+                    <span class="text-gray-400 w-24 flex-shrink-0 whitespace-nowrap">เข้าอยู่จริง</span>
+                    <span class="whitespace-nowrap">{{ $row->actualMoveIn->locale('th')->translatedFormat('j F Y') }}</span>
                 </div>
                 @endif
                 @if($row->contractStart)
-                <div class="flex gap-2 text-gray-500">
-                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">ตามสัญญา</span>
-                    <span>{{ $row->contractStart->locale('th')->translatedFormat('j M Y') }}</span>
+                <div class="flex gap-3 text-gray-500">
+                    <span class="text-gray-400 w-24 flex-shrink-0 whitespace-nowrap">ตามสัญญา</span>
+                    <span class="whitespace-nowrap">{{ $row->contractStart->locale('th')->translatedFormat('j F Y') }}</span>
                 </div>
                 @elseif($row->checkIn && !$row->actualMoveIn)
-                <div class="flex gap-2 text-gray-500">
-                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">เริ่มเช่า</span>
-                    <span>{{ $row->checkIn->locale('th')->translatedFormat('j M Y') }}</span>
+                <div class="flex gap-3 text-gray-500">
+                    <span class="text-gray-400 w-24 flex-shrink-0 whitespace-nowrap">เริ่มเช่า</span>
+                    <span class="whitespace-nowrap">{{ $row->checkIn->locale('th')->translatedFormat('j F Y') }}</span>
                 </div>
                 @endif
                 @if($row->contractEnd)
-                <div class="flex gap-2 text-gray-500">
-                    <span class="text-gray-400 w-20 flex-shrink-0 whitespace-nowrap">สิ้นสุด</span>
-                    <span>{{ $row->contractEnd->locale('th')->translatedFormat('j M Y') }}</span>
+                <div class="flex gap-3 text-gray-500">
+                    <span class="text-gray-400 w-24 flex-shrink-0 whitespace-nowrap">สิ้นสุด</span>
+                    <span class="whitespace-nowrap">{{ $row->contractEnd->locale('th')->translatedFormat('j F Y') }}</span>
                 </div>
                 @endif
                 @if($row->rentalMonths)
-                <div class="text-gray-400">{{ $row->rentalMonths }} เดือน</div>
+                <div class="flex gap-3 text-gray-400">
+                    <span class="w-24 flex-shrink-0 whitespace-nowrap">ระยะเวลาเช่า</span>
+                    <span>{{ $row->rentalMonths }} เดือน</span>
+                </div>
                 @endif
                 @if(!$row->actualMoveIn && !$row->contractStart && !$row->checkIn && !$row->contractEnd && !$row->rentalMonths)
                 <span class="text-gray-300">—</span>
@@ -635,9 +646,11 @@
         class="property-row hover:bg-gray-50/60 opacity-75">
 
         <td class="px-5 py-3.5">
-            <p class="font-medium text-gray-600 leading-snug">{{ $row->property->title ?? '—' }}</p>
             @if($row->property->property_code)
-            <p class="text-[11px] text-gray-400 font-mono mt-0.5">{{ $row->property->property_code }}</p>
+                <p class="font-mono font-bold text-sm text-gray-600 leading-snug">{{ $row->property->property_code }}</p>
+                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '—' }}</p>
+            @else
+                <p class="font-medium text-gray-600 leading-snug">{{ $row->property->title ?? '—' }}</p>
             @endif
         </td>
 
