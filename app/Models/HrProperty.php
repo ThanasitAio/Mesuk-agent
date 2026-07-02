@@ -23,6 +23,11 @@ class HrProperty extends Model
         return $this->belongsTo(HrCustomer::class, 'customer_id');
     }
 
+    public function propertyStatus()
+    {
+        return $this->belongsTo(HrPropertyStatus::class, 'property_status_id');
+    }
+
     /**
      * รูปภาพหลักของทรัพย์ (cover ก่อน ถ้าไม่มีให้ใช้รูปแรกตาม sort_order)
      */

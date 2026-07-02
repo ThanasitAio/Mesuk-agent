@@ -286,9 +286,6 @@
 
                 {{-- Branding --}}
                 <div class="flex items-center gap-2.5 flex-shrink-0">
-                    <div class="w-7 h-7 rounded-lg bg-brand-700 flex items-center justify-center shadow-sm">
-                        <img src="{{ asset('images/logo-icon.svg') }}" alt="" class="w-4 h-4 brightness-0 invert">
-                    </div>
                     <div class="leading-none">
                         <p class="text-xs font-bold text-gray-600">Mesuk Agent System</p>
                         <p class="text-[10px] text-gray-400 mt-0.5">&copy; {{ date('Y') }} Happy Realestate. All rights reserved.</p>

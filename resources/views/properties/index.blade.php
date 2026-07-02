@@ -31,14 +31,30 @@
     $happyestPublic  = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
     $totalAll        = $withContract->count() + $withoutContract->count();
     $totalRent       = $withContract->sum(fn($p) => (float) ($p->activeBooking?->monthly_rent ?? 0));
-    $totalSlipNeeded = $withContract->filter(fn($p) =>
-        $p->activeBooking?->status !== 'deposit_confirmed' &&
-        ($p->activeBooking?->paymentRecords ?? collect())->whereIn('payment_status', ['pending', 'failed'])->isNotEmpty()
-    )->count();
-    $totalSlipVerify = $withContract->filter(function ($p) {
+
+    $today = now()->startOfDay();
+
+    // เป็น "รอแนบสลิป" เฉพาะรายการที่ครบกำหนดชำระแล้ว (due_date <= วันนี้) ไม่ใช่ทุกรายการค้างจ่าย
+    $duePendingRecords = fn($recs) => $recs->whereIn('payment_status', ['pending', 'failed'])
+        ->filter(fn($r) => ! $r->due_date || $r->due_date->lte($today));
+
+    // แสดงรอแนบสลิปได้ก็ต่อเมื่ออสังหาสถานะไม่ว่าง (property_status_id ไม่ใช่ available)
+    $isPropertyVacant = fn($p) => optional($p->propertyStatus)->slug === 'available';
+
+    $totalSlipNeeded = $withContract->filter(function ($p) use ($isPropertyVacant, $duePendingRecords) {
+        $booking = $p->activeBooking;
+        if (! $booking || $booking->status === 'deposit_confirmed' || $isPropertyVacant($p)) {
+            return false;
+        }
+
+        return $duePendingRecords($booking->paymentRecords ?? collect())->isNotEmpty();
+    })->count();
+
+    $totalSlipVerify = $withContract->filter(function ($p) use ($duePendingRecords) {
         $recs = $p->activeBooking?->paymentRecords ?? collect();
+
         return $recs->where('payment_status', 'pending_verification')->isNotEmpty()
-            && $recs->whereIn('payment_status', ['pending', 'failed'])->isEmpty();
+            && $duePendingRecords($recs)->isEmpty();
     })->count();
 @endphp
 
@@ -211,16 +227,18 @@
                     $rentalMonths  = $booking?->rental_months ?? 0;
 
                     // Payment records
-                    $records          = $booking?->paymentRecords ?? collect();
-                    $hasPendingFailed = $records->whereIn('payment_status', ['pending', 'failed'])->isNotEmpty();
-                    $hasPendingVerify = $records->where('payment_status', 'pending_verification')->isNotEmpty();
+                    $records           = $booking?->paymentRecords ?? collect();
+                    $duePendingRecs    = $duePendingRecords($records);
+                    $hasPendingFailed  = $duePendingRecs->isNotEmpty();
+                    $hasPendingVerify  = $records->where('payment_status', 'pending_verification')->isNotEmpty();
+                    $isVacant          = $isPropertyVacant($property);
 
-                    $slipNeeded        = $bookingStatus !== 'deposit_confirmed' && $hasPendingFailed;
+                    $slipNeeded        = ! $isVacant && $bookingStatus !== 'deposit_confirmed' && $hasPendingFailed;
                     $slipPendingVerify = $hasPendingVerify && !$hasPendingFailed;
                     $lastSlipAt        = $records->whereNotNull('paid_at')->sortByDesc('paid_at')->first()?->paid_at;
 
-                    // First pending record + due date
-                    $firstPendingRec = $records->whereIn('payment_status', ['pending', 'failed'])->first();
+                    // First pending record ที่ครบกำหนดแล้ว + due date
+                    $firstPendingRec = $duePendingRecs->first();
                     $pendingDueDate  = $firstPendingRec?->due_date;
                     $dueDatePast = $pendingDueDate && $pendingDueDate->lt(now()->startOfDay());
                     $dueDateSoon = $pendingDueDate && !$dueDatePast && $pendingDueDate->diffInDays(now()->startOfDay()) <= 3;
