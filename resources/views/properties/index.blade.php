@@ -26,11 +26,14 @@
     $totalAll        = $withContract->count() + $withoutContract->count();
     $totalRent       = $withContract->sum(fn($p) => (float) ($p->activeBooking?->monthly_rent ?? 0));
 
-    $today = now()->startOfDay();
+    $today          = now()->startOfDay();
+    $currentMonthEnd = now()->endOfMonth();
 
-    // เป็น "รอแนบสลิป" เฉพาะรายการที่ครบกำหนดชำระแล้ว (due_date <= วันนี้) ไม่ใช่ทุกรายการค้างจ่าย
+    // เป็น "รอแนบสลิป" เฉพาะรายการที่ครบกำหนดชำระแล้ว หรืออยู่ในรอบเดือนปัจจุบัน
+    // (due_date <= สิ้นเดือนนี้) เพื่อให้ผู้บริหารเห็นรายการค่าเช่าเดือนปัจจุบันที่ถึงรอบ
+    // ตั้งแต่ต้นเดือน ไม่ใช่รอจนถึงวันครบกำหนดจริงถึงจะขึ้นเตือน — ไม่รวมรายการเดือนถัดไป
     $duePendingRecords = fn($recs) => $recs->whereIn('payment_status', ['pending', 'failed'])
-        ->filter(fn($r) => ! $r->due_date || $r->due_date->lte($today));
+        ->filter(fn($r) => ! $r->due_date || $r->due_date->lte($currentMonthEnd));
 
     // แสดงรอแนบสลิปได้ก็ต่อเมื่ออสังหาสถานะไม่ว่าง (property_status_id ไม่ใช่ available)
     $isPropertyVacant = fn($p) => optional($p->propertyStatus)->slug === 'available';
