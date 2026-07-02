@@ -267,8 +267,8 @@
         </svg>
     </div>
     <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold text-amber-700">ยังไม่แนบสลิป <span class="font-bold">{{ $totalSlipNeeded }} ห้อง</span></p>
-        <p class="text-xs text-amber-500 mt-0.5" x-text="filter === 'slip_needed' ? 'กำลังกรองอยู่ — แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูเฉพาะห้องที่ยังไม่แนบสลิป'"></p>
+        <p class="text-sm font-semibold text-amber-700">ยังไม่แนบสลิป <span class="font-bold">{{ $totalSlipNeeded }} อสังหา</span></p>
+        <p class="text-xs text-amber-500 mt-0.5" x-text="filter === 'slip_needed' ? 'กำลังกรองอยู่ — แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูเฉพาะอสังหาที่ยังไม่แนบสลิป'"></p>
     </div>
     <svg class="w-4 h-4 flex-shrink-0 transition-transform"
          :class="filter === 'slip_needed' ? 'rotate-90 text-amber-600' : 'text-amber-400'"
@@ -287,8 +287,8 @@
         </svg>
     </div>
     <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold text-blue-700">แนบสลิปแล้ว รอตรวจสอบ <span class="font-bold">{{ $totalSlipVerify }} ห้อง</span></p>
-        <p class="text-xs text-blue-400 mt-0.5" x-text="filter === 'slip_verify' ? 'กำลังกรองอยู่ — แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูห้องที่รอแอดมินตรวจสอบสลิป'"></p>
+        <p class="text-sm font-semibold text-blue-700">แนบสลิปแล้ว รอตรวจสอบ <span class="font-bold">{{ $totalSlipVerify }} อสังหา</span></p>
+        <p class="text-xs text-blue-400 mt-0.5" x-text="filter === 'slip_verify' ? 'กำลังกรองอยู่ — แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูอสังหาที่รอแอดมินตรวจสอบสลิป'"></p>
     </div>
     <svg class="w-4 h-4 flex-shrink-0 transition-transform"
          :class="filter === 'slip_verify' ? 'rotate-90 text-blue-600' : 'text-blue-400'"
