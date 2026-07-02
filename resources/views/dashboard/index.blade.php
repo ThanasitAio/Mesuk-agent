@@ -11,7 +11,7 @@
 @endphp
 
 {{-- ── Hero Header ─────────────────────────────────────────────────────────── --}}
-<div class="relative overflow-hidden rounded-2xl bg-brand-900 mb-6 p-5 lg:p-6"
+<div class="relative overflow-hidden rounded-2xl bg-brand-900 mb-6 p-4 sm:p-5 lg:p-6"
      style="background: linear-gradient(135deg, #1c3514 0%, #2a4f1f 45%, #1c3514 100%);">
 
     {{-- Shimmer sweep --}}
@@ -27,19 +27,19 @@
     <div class="hero-blob-3 pointer-events-none absolute -bottom-8 right-4 w-32 h-32 rounded-full bg-brand-800 opacity-40"></div>
 
     {{-- Top row --}}
-    <div class="relative flex items-start justify-between gap-4" style="z-index:2;">
-        <div class="hero-text-row">
+    <div class="relative flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4" style="z-index:2;">
+        <div class="hero-text-row min-w-0">
             <p class="text-xs font-medium mb-1" style="color: rgba(255,255,255,0.6)">
                 {{ now()->day . ' ' . $thM[now()->month - 1] . ' ' . (now()->year + 543) }}
             </p>
-            <h2 class="text-xl lg:text-2xl font-black text-white leading-tight">
+            <h2 class="text-xl lg:text-2xl font-black text-white leading-tight truncate">
                 สวัสดี, {{ session('agent_name') }} 👋
             </h2>
             <p class="text-sm mt-1.5" style="color: rgba(255,255,255,0.65)">
                 สรุปภาพรวมพอร์ตโฟลิโอและการชำระเงิน
             </p>
         </div>
-        <div class="hero-badge-row flex-shrink-0 flex flex-col items-end gap-2">
+        <div class="hero-badge-row flex-shrink-0 flex flex-row sm:flex-col flex-wrap items-center sm:items-end gap-2">
             {{-- Agent code badge --}}
             <span class="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold text-white"
                   style="background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.2); backdrop-filter:blur(8px);">
@@ -60,7 +60,7 @@
     </div>
 
     {{-- Quick stats strip --}}
-    <div class="hero-stats-row relative mt-5 pt-4 grid grid-cols-3 gap-3"
+    <div class="hero-stats-row relative mt-4 sm:mt-5 pt-4 grid grid-cols-3 gap-2 sm:gap-3"
          style="border-top:1px solid rgba(255,255,255,0.12); z-index:2;">
         <div class="text-center">
             <p class="text-2xl font-black text-white tabular-nums leading-none">{{ number_format($totalBookings) }}</p>
@@ -86,19 +86,19 @@
 </div>
 
 {{-- ── Stats Cards ──────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
 
     {{-- การจองทั้งหมด --}}
-    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div class="pointer-events-none absolute -top-4 -right-4 w-20 h-20 rounded-full bg-indigo-50 opacity-70"></div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3.5 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-indigo-50 opacity-70"></div>
         <div class="relative flex items-start justify-between gap-2">
             <div class="min-w-0">
-                <p class="text-xs text-gray-500 font-medium mb-1.5">การจองทั้งหมด</p>
-                <p class="text-2xl lg:text-3xl font-black text-gray-900 tabular-nums leading-none">
+                <p class="text-[11px] sm:text-xs text-gray-500 font-medium mb-1.5 truncate">การจองทั้งหมด</p>
+                <p class="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 tabular-nums leading-none">
                     {{ number_format($totalBookings) }}
                 </p>
             </div>
-            <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-indigo-500 bg-gradient-to-br from-indigo-400 to-indigo-600
+            <div class="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-indigo-500 bg-gradient-to-br from-indigo-400 to-indigo-600
                         flex items-center justify-center shadow-md shadow-indigo-200">
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -109,12 +109,12 @@
     </div>
 
     {{-- ยอดชำระแล้ว --}}
-    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div class="pointer-events-none absolute -top-4 -right-4 w-20 h-20 rounded-full bg-emerald-50 opacity-70"></div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3.5 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-50 opacity-70"></div>
         <div class="relative flex items-start justify-between gap-2">
             <div class="min-w-0">
-                <p class="text-xs text-gray-500 font-medium mb-1.5">ยอดชำระแล้ว</p>
-                <p class="text-2xl lg:text-3xl font-black text-gray-900 tabular-nums leading-none">
+                <p class="text-[11px] sm:text-xs text-gray-500 font-medium mb-1.5 truncate">ยอดชำระแล้ว</p>
+                <p class="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 tabular-nums leading-none">
                     @if($paidAmount >= 1000000)
                         {{ number_format($paidAmount / 1000000, 2) }}<span class="text-base font-semibold text-gray-400 ml-0.5">ล.</span>
                     @elseif($paidAmount >= 10000)
@@ -124,7 +124,7 @@
                     @endif
                 </p>
             </div>
-            <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-emerald-500 bg-gradient-to-br from-emerald-400 to-emerald-600
+            <div class="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-emerald-500 bg-gradient-to-br from-emerald-400 to-emerald-600
                         flex items-center justify-center shadow-md shadow-emerald-200">
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -135,13 +135,13 @@
     </div>
 
     {{-- รออนุมัติสลิป --}}
-    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div class="pointer-events-none absolute -top-4 -right-4 w-20 h-20 rounded-full bg-amber-50 opacity-70"></div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3.5 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-amber-50 opacity-70"></div>
         <div class="relative flex items-start justify-between gap-2">
             <div class="min-w-0">
-                <p class="text-xs text-gray-500 font-medium mb-1.5">รออนุมัติสลิป</p>
+                <p class="text-[11px] sm:text-xs text-gray-500 font-medium mb-1.5 truncate">รออนุมัติสลิป</p>
                 <div class="flex items-end gap-2 flex-wrap">
-                    <p class="text-2xl lg:text-3xl font-black text-gray-900 tabular-nums leading-none">
+                    <p class="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 tabular-nums leading-none">
                         {{ number_format($pendingVerificationCount) }}
                     </p>
                     @if($pendingVerificationCount > 0)
@@ -152,7 +152,7 @@
                     @endif
                 </div>
             </div>
-            <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-amber-500 bg-gradient-to-br from-amber-400 to-orange-500
+            <div class="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-amber-500 bg-gradient-to-br from-amber-400 to-orange-500
                         flex items-center justify-center shadow-md shadow-amber-200">
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -163,13 +163,13 @@
     </div>
 
     {{-- ค้างชำระ --}}
-    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border {{ $overdueCount > 0 ? 'border-red-100' : 'border-gray-100' }} p-4">
-        <div class="pointer-events-none absolute -top-4 -right-4 w-20 h-20 rounded-full bg-red-50 opacity-70"></div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border {{ $overdueCount > 0 ? 'border-red-100' : 'border-gray-100' }} p-3.5 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-red-50 opacity-70"></div>
         <div class="relative flex items-start justify-between gap-2">
             <div class="min-w-0">
-                <p class="text-xs text-gray-500 font-medium mb-1.5">ค้างชำระ</p>
+                <p class="text-[11px] sm:text-xs text-gray-500 font-medium mb-1.5 truncate">ค้างชำระ</p>
                 <div class="flex items-end gap-2 flex-wrap">
-                    <p class="text-2xl lg:text-3xl font-black tabular-nums leading-none {{ $overdueCount > 0 ? 'text-red-600' : 'text-gray-900' }}">
+                    <p class="text-xl sm:text-2xl lg:text-3xl font-black tabular-nums leading-none {{ $overdueCount > 0 ? 'text-red-600' : 'text-gray-900' }}">
                         {{ number_format($overdueCount) }}
                     </p>
                     @if($overdueCount > 0)
@@ -177,7 +177,7 @@
                     @endif
                 </div>
             </div>
-            <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-red-500 bg-gradient-to-br from-red-400 to-red-600
+            <div class="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-red-500 bg-gradient-to-br from-red-400 to-red-600
                         flex items-center justify-center shadow-md shadow-red-200">
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -190,10 +190,10 @@
 </div>
 
 {{-- ── Charts Row ───────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-5 lg:items-stretch">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5 lg:items-stretch">
 
     {{-- Bar Chart (2/3) --}}
-    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <div class="md:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
         <div class="flex items-start justify-between mb-4">
             <div>
                 <h3 class="text-sm font-bold text-gray-800">ยอดชำระรายเดือน</h3>
@@ -213,7 +213,7 @@
     </div>
 
         {{-- Donut 1: Payment Status --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 flex flex-col">
             <div class="flex items-start justify-between mb-3">
                 <div>
                     <h3 class="text-sm font-bold text-gray-800">สถานะการชำระ</h3>
@@ -255,7 +255,7 @@
         </div>
 
         {{-- Donut 2: Booking Status (NEW) --}}
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 flex flex-col">
             <div class="flex items-start justify-between mb-3">
                 <div>
                     <h3 class="text-sm font-bold text-gray-800">สถานะการจอง</h3>
@@ -308,25 +308,25 @@
 </div>
 
 {{-- ── Customers + Automation Row ──────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
 
     {{-- ลูกค้าล่าสุด --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
+        <div class="px-4 sm:px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
                 <div class="w-9 h-9 rounded-xl bg-brand-600 bg-gradient-to-br from-brand-500 to-brand-700
-                            flex items-center justify-center shadow-sm">
+                            flex items-center justify-center shadow-sm flex-shrink-0">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
                 </div>
-                <div>
-                    <h3 class="text-sm font-bold text-gray-800">ลูกค้าล่าสุด</h3>
-                    <p class="text-xs text-gray-400">ผู้เช่าในความรับผิดชอบ</p>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800 truncate">ลูกค้าล่าสุด</h3>
+                    <p class="text-xs text-gray-400 truncate">ผู้เช่าในความรับผิดชอบ</p>
                 </div>
             </div>
-            <span class="text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-100 px-2.5 py-1 rounded-full">
+            <span class="flex-shrink-0 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-100 px-2.5 py-1 rounded-full">
                 {{ $totalCustomers }} ราย
             </span>
         </div>
@@ -368,7 +368,7 @@
                 ];
                 $st = $statusMap[$customer->booking_status] ?? ['label' => $customer->booking_status, 'bg' => 'bg-gray-50', 'text' => 'text-gray-500'];
             @endphp
-            <div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors">
+            <div class="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-gray-50/60 transition-colors">
                 @if($photoUrl)
                     <img src="{{ $photoUrl }}" alt="{{ $fullName }}"
                          class="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-2 ring-gray-100"
@@ -411,22 +411,22 @@
 
     {{-- ออโตเมชั่น --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
+        <div class="px-4 sm:px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
                 <div class="w-9 h-9 rounded-xl bg-violet-600 bg-gradient-to-br from-violet-500 to-purple-700
-                            flex items-center justify-center shadow-sm">
+                            flex items-center justify-center shadow-sm flex-shrink-0">
                     <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M13 10V3L4 14h7v7l9-11h-7z"/>
                     </svg>
                 </div>
-                <div>
-                    <h3 class="text-sm font-bold text-gray-800">ออโตเมชั่น</h3>
-                    <p class="text-xs text-gray-400">รายการใกล้ถึงกำหนด 14 วัน</p>
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-gray-800 truncate">ออโตเมชั่น</h3>
+                    <p class="text-xs text-gray-400 truncate">รายการใกล้ถึงกำหนด 14 วัน</p>
                 </div>
             </div>
             @if($upcomingDues->count() > 0)
-                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-violet-700 bg-violet-50 border border-violet-100 px-2.5 py-1 rounded-full">
+                <span class="flex-shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-violet-700 bg-violet-50 border border-violet-100 px-2.5 py-1 rounded-full">
                     <span class="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse"></span>
                     {{ $upcomingDues->count() }} รายการ
                 </span>
@@ -447,7 +447,7 @@
         <div class="divide-y divide-gray-50">
 
             @if($overdueCount > 0)
-            <div class="flex items-center gap-3 px-5 py-3.5 bg-red-50/50">
+            <div class="flex items-center gap-3 px-4 sm:px-5 py-3.5 bg-red-50/50">
                 <div class="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
                     <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -492,7 +492,7 @@
                     $daysLabel  = $daysLeft . 'วัน';
                 }
             @endphp
-            <div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors">
+            <div class="flex items-center gap-3 px-4 sm:px-5 py-3 hover:bg-gray-50/60 transition-colors">
                 <span class="w-2 h-2 rounded-full flex-shrink-0 {{ $dotColor }}"></span>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -517,7 +517,7 @@
 
         </div>
 
-        <div class="px-5 py-3 border-t border-gray-50">
+        <div class="px-4 sm:px-5 py-3 border-t border-gray-50">
             <p class="text-[11px] text-gray-400 text-center">ระบบแสดงรายการที่ต้องดำเนินการภายใน 14 วัน</p>
         </div>
         @endif
@@ -529,21 +529,21 @@
 @if($recentSlips->count() > 0)
 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
-    <div class="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
+    <div class="px-4 sm:px-5 py-4 border-b border-gray-50 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
             <div class="w-9 h-9 rounded-xl bg-amber-500 bg-gradient-to-br from-amber-400 to-orange-500
-                        flex items-center justify-center shadow-sm">
+                        flex items-center justify-center shadow-sm flex-shrink-0">
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
                 </svg>
             </div>
-            <div>
-                <h3 class="text-sm font-bold text-gray-800">สลิปรออนุมัติ</h3>
-                <p class="text-xs text-gray-400">รายการที่ยังรอการยืนยัน</p>
+            <div class="min-w-0">
+                <h3 class="text-sm font-bold text-gray-800 truncate">สลิปรออนุมัติ</h3>
+                <p class="text-xs text-gray-400 truncate">รายการที่ยังรอการยืนยัน</p>
             </div>
         </div>
-        <div class="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-100 text-amber-700
+        <div class="flex-shrink-0 inline-flex items-center gap-1.5 bg-amber-50 border border-amber-100 text-amber-700
                     text-xs font-bold px-3 py-1.5 rounded-full">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
             {{ $pendingVerificationCount }} รายการ
