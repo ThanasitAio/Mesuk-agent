@@ -13,15 +13,9 @@
     animation: fadeIn 0.25s ease-out;
     transition: background-color 0.15s;
 }
-@keyframes shimmer {
-    0%   { background-position: -1000px 0; }
-    100% { background-position:  1000px 0; }
-}
-@media (min-width: 1024px) {
-    .overflow-x-auto::-webkit-scrollbar { height: 6px; }
-    .overflow-x-auto::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-    .overflow-x-auto::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
-}
+.overflow-x-auto::-webkit-scrollbar { height: 6px; }
+.overflow-x-auto::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+.overflow-x-auto::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
 </style>
 @endpush
 
@@ -56,6 +50,132 @@
         return $recs->where('payment_status', 'pending_verification')->isNotEmpty()
             && $duePendingRecords($recs)->isEmpty();
     })->count();
+
+    // ─── Badge color lookup (ใช้ร่วมกันทั้งการ์ดมือถือ และตารางเดสก์ท็อป) ───
+    $badgeClasses = [
+        'red'    => 'text-red-700 bg-red-50 border-red-200',
+        'blue'   => 'text-blue-700 bg-blue-50 border-blue-200',
+        'yellow' => 'text-yellow-700 bg-yellow-50 border-yellow-200',
+        'green'  => 'text-green-700 bg-green-50 border-green-200',
+        'gray'   => 'text-gray-600 bg-gray-50 border-gray-200',
+    ];
+    $dotClasses = [
+        'red' => 'bg-red-500', 'blue' => 'bg-blue-500', 'yellow' => 'bg-yellow-500',
+        'green' => 'bg-green-500', 'gray' => 'bg-gray-400',
+    ];
+    $statusMap = [
+        'checked_in'        => ['color' => 'red',    'label' => 'ไม่ว่าง',        'pulse' => true],
+        'confirmed'         => ['color' => 'red',    'label' => 'ยืนยันแล้ว',      'pulse' => false],
+        'deposit_confirmed' => ['color' => 'blue',   'label' => 'โครงการในอนาคต', 'pulse' => false],
+        'pending'           => ['color' => 'yellow', 'label' => 'จองแล้ว',        'pulse' => false],
+    ];
+
+    $resolveImageUrl = function ($property) use ($happyestPublic) {
+        $media = $property->primaryImageMedia;
+        if (! $media || ! $media->file_path) {
+            return null;
+        }
+
+        return str_starts_with($media->file_path, 'http')
+            ? $media->file_path
+            : $happyestPublic . '/storage/' . $media->file_path;
+    };
+
+    // ─── เตรียมข้อมูลแสดงผลล่วงหน้า (คำนวณครั้งเดียว ใช้ได้ทั้งการ์ดมือถือ/ตารางเดสก์ท็อป) ───
+    $contractRows = $withContract->map(function ($property) use ($happyestPublic, $duePendingRecords, $isPropertyVacant, $statusMap, $resolveImageUrl) {
+        $booking       = $property->activeBooking;
+        $tenant        = $booking?->customer;
+        $bookingStatus = $booking?->status ?? 'pending';
+
+        $tenantPhotoUrl = null;
+        if ($tenant?->photo) {
+            $ph = $tenant->photo;
+            $tenantPhotoUrl = str_starts_with($ph, 'http') ? $ph : $happyestPublic . '/storage/' . $ph;
+        } elseif ($tenant?->avatar && $tenant?->provider_id) {
+            $av = $tenant->avatar;
+            $tenantPhotoUrl = str_starts_with($av, 'http') ? $av : $happyestPublic . '/storage/' . $av;
+        }
+        $tenantInitial = $tenant ? mb_strtoupper(mb_substr($tenant->full_name ?? '?', 0, 1)) : '?';
+
+        // Dates
+        $checkIn       = $booking?->check_in;
+        $actualMoveIn  = $booking?->actual_move_in_date;
+        $contractStart = $booking?->contract_start_date;
+        $contractEnd   = $booking?->check_out;
+        $rentalMonths  = $booking?->rental_months ?? 0;
+
+        // Payment records
+        $records          = $booking?->paymentRecords ?? collect();
+        $duePendingRecs   = $duePendingRecords($records);
+        $hasPendingFailed = $duePendingRecs->isNotEmpty();
+        $hasPendingVerify = $records->where('payment_status', 'pending_verification')->isNotEmpty();
+        $isVacant         = $isPropertyVacant($property);
+
+        $slipNeeded        = ! $isVacant && $bookingStatus !== 'deposit_confirmed' && $hasPendingFailed;
+        $slipPendingVerify = $hasPendingVerify && ! $hasPendingFailed;
+        $lastSlipAt        = $records->whereNotNull('paid_at')->sortByDesc('paid_at')->first()?->paid_at;
+
+        // First pending record ที่ครบกำหนดแล้ว + due date
+        $firstPendingRec = $duePendingRecs->first();
+        $pendingDueDate  = $firstPendingRec?->due_date;
+        $dueDatePast = $pendingDueDate && $pendingDueDate->lt(now()->startOfDay());
+        $dueDateSoon = $pendingDueDate && ! $dueDatePast && $pendingDueDate->diffInDays(now()->startOfDay()) <= 3;
+        $dueDateClass = $dueDatePast ? 'text-red-500 font-semibold' : ($dueDateSoon ? 'text-amber-500 font-semibold' : 'text-gray-400');
+
+        // Slip label (เดือนที่ แทน รอบที่)
+        $pendingSlipLabel = null;
+        if ($slipNeeded && $firstPendingRec) {
+            $pendingSlipLabel = match ($firstPendingRec->payment_type) {
+                'monthly_rent'   => 'เดือนที่ ' . $firstPendingRec->month_number,
+                'deposit'        => 'มัดจำงวด ' . ($firstPendingRec->deposit_phase ?? 1),
+                'processing_fee' => 'ค่าดำเนินการ',
+                'late_fee'       => 'ค่าปรับเดือน ' . $firstPendingRec->month_number,
+                default          => null,
+            };
+        }
+
+        $searchText = strtolower(
+            ($property->title ?? '') . ' ' .
+            ($property->property_code ?? '') . ' ' .
+            ($tenant?->full_name ?? '') . ' ' .
+            ($tenant?->mobile ?? '')
+        );
+
+        $status = $statusMap[$bookingStatus] ?? ['color' => 'gray', 'label' => 'มีสัญญา', 'pulse' => false];
+
+        return (object) [
+            'property'          => $property,
+            'booking'           => $booking,
+            'tenant'            => $tenant,
+            'tenantPhotoUrl'    => $tenantPhotoUrl,
+            'tenantInitial'     => $tenantInitial,
+            'imageUrl'          => $resolveImageUrl($property),
+            'checkIn'           => $checkIn,
+            'actualMoveIn'      => $actualMoveIn,
+            'contractStart'     => $contractStart,
+            'contractEnd'       => $contractEnd,
+            'rentalMonths'      => $rentalMonths,
+            'slipNeeded'        => $slipNeeded,
+            'slipPendingVerify' => $slipPendingVerify,
+            'lastSlipAt'        => $lastSlipAt,
+            'pendingDueDate'    => $pendingDueDate,
+            'dueDatePast'       => $dueDatePast,
+            'dueDateClass'      => $dueDateClass,
+            'pendingSlipLabel'  => $pendingSlipLabel,
+            'searchText'        => $searchText,
+            'statusColor'       => $status['color'],
+            'statusLabel'       => $status['label'],
+            'statusPulse'       => $status['pulse'],
+        ];
+    });
+
+    $vacantRows = $withoutContract->map(function ($property) use ($resolveImageUrl) {
+        return (object) [
+            'property'   => $property,
+            'imageUrl'   => $resolveImageUrl($property),
+            'searchText' => strtolower(($property->title ?? '') . ' ' . ($property->property_code ?? '')),
+        ];
+    });
 @endphp
 
 <div x-data="{
@@ -70,26 +190,63 @@
     }
 }">
 
-{{-- ===== Summary Stats ===== --}}
-<div class="grid grid-cols-3 gap-3 mb-5">
-    <x-card class="p-4 flex flex-col gap-1 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-        <p class="text-2xl font-bold text-gray-800 tabular-nums leading-none">{{ $totalAll }}</p>
-        <p class="text-xs text-gray-400 font-medium">ทรัพย์ทั้งหมด</p>
-    </x-card>
-    <x-card class="p-4 flex flex-col gap-1 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-        <p class="text-2xl font-bold text-red-600 tabular-nums leading-none">{{ $withContract->count() }}</p>
-        <p class="text-xs text-red-500 font-medium">ไม่ว่าง</p>
-    </x-card>
-    <x-card class="p-4 flex flex-col gap-1 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-        <p class="text-2xl font-bold text-green-600 tabular-nums leading-none">{{ $withoutContract->count() }}</p>
-        <p class="text-xs text-green-500 font-medium">ว่าง</p>
-    </x-card>
+{{-- ===== Summary Stats (KPI cards) ===== --}}
+<div class="grid grid-cols-3 gap-2.5 sm:gap-3 mb-5">
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-50"></div>
+        <div class="relative flex items-start justify-between gap-1.5">
+            <div class="min-w-0">
+                <p class="text-xl sm:text-2xl font-black text-gray-900 tabular-nums leading-none">{{ $totalAll }}</p>
+                <p class="text-[10px] sm:text-xs text-gray-500 font-medium mt-1.5 leading-tight">ทรัพย์ทั้งหมด</p>
+            </div>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-gradient-to-br from-slate-500 to-slate-700 flex items-center justify-center shadow-md shadow-slate-200">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-red-50"></div>
+        <div class="relative flex items-start justify-between gap-1.5">
+            <div class="min-w-0">
+                <p class="text-xl sm:text-2xl font-black text-red-600 tabular-nums leading-none">{{ $withContract->count() }}</p>
+                <p class="text-[10px] sm:text-xs text-red-500 font-medium mt-1.5 leading-tight">ไม่ว่าง</p>
+            </div>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shadow-md shadow-red-200">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-50"></div>
+        <div class="relative flex items-start justify-between gap-1.5">
+            <div class="min-w-0">
+                <p class="text-xl sm:text-2xl font-black text-green-600 tabular-nums leading-none">{{ $withoutContract->count() }}</p>
+                <p class="text-[10px] sm:text-xs text-green-500 font-medium mt-1.5 leading-tight">ว่าง</p>
+            </div>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-200">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+        </div>
+    </div>
 </div>
 
 @if($totalRent > 0)
-<x-card class="flex items-center justify-between px-4 py-3 mb-5">
-    <p class="text-sm text-gray-500">รายรับค่าเช่า/เดือน (รวม)</p>
-    <p class="text-base font-bold text-gray-800 tabular-nums">{{ number_format($totalRent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
+<x-card class="flex items-center justify-between gap-3 px-4 py-3.5 mb-5">
+    <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+        </div>
+        <p class="text-sm text-gray-500 truncate">รายรับค่าเช่า/เดือน (รวม)</p>
+    </div>
+    <p class="text-base font-bold text-gray-800 tabular-nums flex-shrink-0">{{ number_format($totalRent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
 </x-card>
 @endif
 
@@ -97,7 +254,7 @@
 @if($totalSlipNeeded > 0)
 <button type="button"
         x-on:click="filter = (filter === 'slip_needed' ? 'all' : 'slip_needed')"
-        class="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 text-left">
+        class="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-3 text-left">
     <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
         <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
@@ -117,7 +274,7 @@
 @if($totalSlipVerify > 0)
 <button type="button"
         x-on:click="filter = (filter === 'slip_verify' ? 'all' : 'slip_verify')"
-        class="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-3 text-left">
+        class="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 mb-3 text-left">
     <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
         <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -140,8 +297,8 @@
 
 {{-- ===== Search + Filter ===== --}}
 @if($totalAll > 0)
-<div class="flex flex-col sm:flex-row gap-2.5 mb-4">
-    <div class="relative flex-1 border border-gray-300 rounded-xl bg-white transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500">
+<div class="flex flex-col gap-2.5 mb-4">
+    <div class="relative border border-gray-300 rounded-xl bg-white transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500">
         <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
@@ -157,7 +314,7 @@
             </svg>
         </button>
     </div>
-    <div class="flex gap-1 bg-gray-100 rounded-xl p-1 flex-shrink-0 self-start sm:self-auto overflow-x-auto">
+    <div class="flex flex-wrap gap-1.5 bg-gray-100 rounded-xl p-1.5">
         <button @click="filter = 'all'"
                 :class="filter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ทั้งหมด</button>
@@ -186,401 +343,359 @@
     </div>
 </div>
 
-{{-- ===== Unified Table ===== --}}
-<x-card class="overflow-hidden p-0">
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="border-b border-gray-100 bg-gray-50/80">
-                    <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">ทรัพย์สิน</th>
-                    <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden sm:table-cell">ผู้เช่า</th>
-                    <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden sm:table-cell">สถานะ / การชำระ</th>
-                    <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">ค่าเช่า/เดือน</th>
-                    <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">ข้อมูลสัญญา</th>
-                    <th class="px-4 py-3 w-10"></th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-50">
+{{-- ============================================================ --}}
+{{-- MOBILE CARDS (below md) --}}
+{{-- ============================================================ --}}
+<div class="md:hidden space-y-3">
 
-                {{-- ---- Active / With Contract rows ---- --}}
-                @foreach($withContract as $property)
-                @php
-                    $booking       = $property->activeBooking;
-                    $tenant        = $booking?->customer;
-                    $bookingStatus = $booking?->status ?? 'pending';
+    @foreach($contractRows as $row)
+    <a href="{{ route('properties.show', $row->property->id) }}"
+       x-show="matchRow('active', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
+       class="property-row block bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:bg-gray-50 transition-colors">
 
-                    $tenantPhotoUrl = null;
-                    if ($tenant?->photo) {
-                        $ph = $tenant->photo;
-                        $tenantPhotoUrl = str_starts_with($ph, 'http') ? $ph : $happyestPublic . '/storage/' . $ph;
-                    } elseif ($tenant?->avatar && $tenant?->provider_id) {
-                        $av = $tenant->avatar;
-                        $tenantPhotoUrl = str_starts_with($av, 'http') ? $av : $happyestPublic . '/storage/' . $av;
-                    }
-                    $tenantInitial = $tenant ? mb_strtoupper(mb_substr($tenant->full_name ?? '?', 0, 1)) : '?';
+        <div class="flex items-start gap-3">
+            {{-- Thumbnail --}}
+            <div class="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 relative">
+                @if($row->imageUrl)
+                <img src="{{ $row->imageUrl }}" alt="{{ $row->property->title }}"
+                     class="w-full h-full object-cover"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                @endif
+                <div class="w-full h-full items-center justify-center absolute inset-0 {{ $row->imageUrl ? 'hidden' : 'flex' }}">
+                    <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                </div>
+            </div>
 
-                    // Dates
-                    $checkIn       = $booking?->check_in;
-                    $actualMoveIn  = $booking?->actual_move_in_date;
-                    $contractStart = $booking?->contract_start_date;
-                    $contractEnd   = $booking?->check_out;
-                    $rentalMonths  = $booking?->rental_months ?? 0;
-
-                    // Payment records
-                    $records           = $booking?->paymentRecords ?? collect();
-                    $duePendingRecs    = $duePendingRecords($records);
-                    $hasPendingFailed  = $duePendingRecs->isNotEmpty();
-                    $hasPendingVerify  = $records->where('payment_status', 'pending_verification')->isNotEmpty();
-                    $isVacant          = $isPropertyVacant($property);
-
-                    $slipNeeded        = ! $isVacant && $bookingStatus !== 'deposit_confirmed' && $hasPendingFailed;
-                    $slipPendingVerify = $hasPendingVerify && !$hasPendingFailed;
-                    $lastSlipAt        = $records->whereNotNull('paid_at')->sortByDesc('paid_at')->first()?->paid_at;
-
-                    // First pending record ที่ครบกำหนดแล้ว + due date
-                    $firstPendingRec = $duePendingRecs->first();
-                    $pendingDueDate  = $firstPendingRec?->due_date;
-                    $dueDatePast = $pendingDueDate && $pendingDueDate->lt(now()->startOfDay());
-                    $dueDateSoon = $pendingDueDate && !$dueDatePast && $pendingDueDate->diffInDays(now()->startOfDay()) <= 3;
-                    $dueDateClass = $dueDatePast ? 'text-red-500 font-semibold' : ($dueDateSoon ? 'text-amber-500 font-semibold' : 'text-gray-400');
-
-                    // Slip label (เดือนที่ แทน รอบที่)
-                    $pendingSlipLabel = null;
-                    if ($slipNeeded && $firstPendingRec) {
-                        $pendingSlipLabel = match($firstPendingRec->payment_type) {
-                            'monthly_rent'   => 'เดือนที่ ' . $firstPendingRec->month_number,
-                            'deposit'        => 'มัดจำงวด ' . ($firstPendingRec->deposit_phase ?? 1),
-                            'processing_fee' => 'ค่าดำเนินการ',
-                            'late_fee'       => 'ค่าปรับเดือน ' . $firstPendingRec->month_number,
-                            default          => null,
-                        };
-                    }
-
-                    // Approved invoices
-                    $approvedInvoices = ($booking?->invoices ?? collect())->where('status', 'approved')->values();
-
-                    $searchText = strtolower(
-                        ($property->title ?? '') . ' ' .
-                        ($property->property_code ?? '') . ' ' .
-                        ($tenant?->full_name ?? '') . ' ' .
-                        ($tenant?->mobile ?? '')
-                    );
-                @endphp
-                <tr x-show="matchRow('active', @js($searchText), @js($slipNeeded), @js($slipPendingVerify))"
-                    class="property-row hover:bg-gray-50 cursor-pointer group"
-                    onclick="window.location='{{ route('properties.show', $property->id) }}'"
-                    role="button"
-                    tabindex="0"
-                    @keypress.enter="window.location='{{ route('properties.show', $property->id) }}'">
-
-                    {{-- Col 1: ทรัพย์สิน + mobile stacked info --}}
-                    <td class="px-4 py-3">
-                        <div class="flex items-start gap-2.5">
-                            {{-- Status bar --}}
-                            <div class="w-1.5 rounded-full flex-shrink-0 mt-0.5
-                                @if($bookingStatus === 'checked_in' || $bookingStatus === 'confirmed') bg-red-500
-                                @elseif($bookingStatus === 'deposit_confirmed') bg-blue-400
-                                @elseif($bookingStatus === 'pending') bg-yellow-400
-                                @else bg-gray-300 @endif"
-                                style="height: 1.75rem">
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <p class="font-semibold text-gray-800 truncate group-hover:text-brand-600 transition-colors leading-snug">{{ $property->title ?? '—' }}</p>
-                                @if($property->property_code)
-                                <p class="text-[11px] text-gray-400 font-mono">{{ $property->property_code }}</p>
-                                @endif
-
-                                {{-- Mobile-only stacked content (hidden on sm+) --}}
-                                <div class="sm:hidden mt-2.5 pt-2.5 border-t border-gray-100 space-y-1.5">
-
-                                    {{-- Tenant --}}
-                                    <div class="flex items-center gap-1.5">
-                                        @if($tenantPhotoUrl)
-                                            <img src="{{ $tenantPhotoUrl }}" alt="{{ $tenant->full_name }}"
-                                                 class="w-5 h-5 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-200">
-                                        @else
-                                            <div class="w-5 h-5 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
-                                                <span class="text-white text-[9px] font-bold leading-none">{{ $tenantInitial }}</span>
-                                            </div>
-                                        @endif
-                                        <span class="text-xs text-gray-700 font-medium truncate">{{ $tenant?->full_name ?? '(ไม่ระบุ)' }}</span>
-                                        @if($tenant?->mobile)
-                                        <span class="text-[10px] text-gray-400 flex-shrink-0">· {{ $tenant->mobile }}</span>
-                                        @endif
-                                    </div>
-
-                                    {{-- Status badge + Rent --}}
-                                    <div class="flex items-center justify-between gap-2 flex-wrap">
-                                        @if($bookingStatus === 'checked_in')
-                                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>ไม่ว่าง
-                                            </span>
-                                        @elseif($bookingStatus === 'confirmed')
-                                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>ยืนยันแล้ว
-                                            </span>
-                                        @elseif($bookingStatus === 'deposit_confirmed')
-                                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>โครงการในอนาคต
-                                            </span>
-                                        @elseif($bookingStatus === 'pending')
-                                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>จองแล้ว
-                                            </span>
-                                        @else
-                                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>มีสัญญา
-                                            </span>
-                                        @endif
-                                        @if($booking?->monthly_rent)
-                                        <span class="text-xs font-bold text-gray-700 tabular-nums">{{ number_format($booking->monthly_rent, 0) }} <span class="font-normal text-gray-400 text-[10px]">฿/เดือน</span></span>
-                                        @endif
-                                    </div>
-
-                                    {{-- Slip + Due date --}}
-                                    @if($slipNeeded)
-                                    <div class="flex items-center gap-1 text-[10px] font-semibold text-amber-600">
-                                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                                        </svg>
-                                        รอแนบสลิป@if($pendingSlipLabel) <span class="font-normal text-amber-500">· {{ $pendingSlipLabel }}</span>@endif
-                                        @if($pendingDueDate) <span class="{{ $dueDateClass }}">· ครบ {{ $pendingDueDate->locale('th')->translatedFormat('j M') }}</span>@endif
-                                    </div>
-                                    @elseif($slipPendingVerify)
-                                    <div class="flex items-center gap-1 text-[10px] font-semibold text-blue-500">
-                                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                        </svg>
-                                        รอตรวจสอบ@if($lastSlipAt) <span class="font-normal text-blue-400">· {{ $lastSlipAt->locale('th')->translatedFormat('j M') }}</span>@endif
-                                    </div>
-                                    @elseif($lastSlipAt)
-                                    <div class="flex items-center gap-1 text-[10px] text-gray-400">
-                                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                                        </svg>
-                                        แนบล่าสุด {{ $lastSlipAt->locale('th')->translatedFormat('j M Y') }}
-                                    </div>
-                                    @endif
-
-                                    {{-- Compact dates --}}
-                                    @php
-                                        $displayDate = $actualMoveIn ?? $contractStart ?? $checkIn;
-                                    @endphp
-                                    @if($displayDate || $contractEnd || $rentalMonths)
-                                    <div class="text-[10px] text-gray-400 leading-relaxed">
-                                        @if($displayDate)
-                                        เข้าอยู่: {{ $displayDate->locale('th')->translatedFormat('j M Y') }}
-                                        @endif
-                                        @if($contractEnd)
-                                        · สิ้นสุด: {{ $contractEnd->locale('th')->translatedFormat('j M Y') }}
-                                        @endif
-                                        @if($rentalMonths)
-                                        · {{ $rentalMonths }} เดือน
-                                        @endif
-                                    </div>
-                                    @endif
-
-                                </div>{{-- /mobile stacked --}}
-                            </div>
-                        </div>
-                    </td>
-
-                    {{-- Col 2: ผู้เช่า (sm+) --}}
-                    <td class="px-4 py-3 hidden sm:table-cell">
-                        <div class="flex items-center gap-2">
-                            @if($tenantPhotoUrl)
-                                <img src="{{ $tenantPhotoUrl }}" alt="{{ $tenant->full_name }}"
-                                     class="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-200">
-                            @else
-                                <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
-                                    <span class="text-white text-xs font-bold leading-none">{{ $tenantInitial }}</span>
-                                </div>
-                            @endif
-                            <div class="min-w-0">
-                                <p class="text-sm font-semibold text-gray-700 truncate">{{ $tenant?->full_name ?? '(ไม่ระบุ)' }}</p>
-                                @if($tenant?->mobile)
-                                <p class="text-[11px] text-gray-400">{{ $tenant->mobile }}</p>
-                                @endif
-                            </div>
-                        </div>
-                    </td>
-
-                    {{-- Col 3: สถานะ + การชำระ (sm+) --}}
-                    <td class="px-4 py-3 hidden sm:table-cell align-top">
-                        {{-- Booking status badge --}}
-                        @if($bookingStatus === 'checked_in')
-                            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>ไม่ว่าง
-                            </span>
-                        @elseif($bookingStatus === 'confirmed')
-                            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>ยืนยันแล้ว
-                            </span>
-                        @elseif($bookingStatus === 'deposit_confirmed')
-                            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>โครงการในอนาคต
-                            </span>
-                        @elseif($bookingStatus === 'pending')
-                            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>จองแล้ว
-                            </span>
-                        @else
-                            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>มีสัญญา
-                            </span>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="font-semibold text-gray-800 truncate leading-snug">{{ $row->property->title ?? '—' }}</p>
+                        @if($row->property->property_code)
+                        <p class="text-[11px] text-gray-400 font-mono mt-0.5">{{ $row->property->property_code }}</p>
                         @endif
+                    </div>
+                    <svg class="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                    </svg>
+                </div>
 
-                        {{-- Slip + due date --}}
-                        <div class="mt-1.5 space-y-0.5">
-                            @if($slipNeeded)
-                                <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600">
-                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                                    </svg>
-                                    รอแนบสลิป@if($pendingSlipLabel) <span class="font-normal text-amber-500 ml-0.5">· {{ $pendingSlipLabel }}</span>@endif
-                                </div>
-                                @if($pendingDueDate)
-                                <div class="flex items-center gap-1 text-[10px] {{ $dueDateClass }}">
-                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                    </svg>
-                                    {{ $dueDatePast ? 'เกินกำหนด' : 'ครบกำหนด' }} {{ $pendingDueDate->locale('th')->translatedFormat('j M Y') }}
-                                </div>
-                                @endif
-                            @elseif($slipPendingVerify)
-                                <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-500">
-                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                    รอตรวจสอบ@if($lastSlipAt) <span class="font-normal text-blue-400 ml-0.5">· {{ $lastSlipAt->locale('th')->translatedFormat('j M') }}</span>@endif
-                                </div>
-                            @elseif($lastSlipAt)
-                                <div class="inline-flex items-center gap-1 text-[10px] text-gray-400">
-                                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    แนบล่าสุด {{ $lastSlipAt->locale('th')->translatedFormat('j M Y') }}
-                                </div>
-                            @endif
-                        </div>
-                    </td>
+                <div class="flex items-center justify-between gap-2 flex-wrap mt-2">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full">
+                        <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
+                    </span>
+                    @if($row->booking?->monthly_rent)
+                    <span class="text-xs font-bold text-gray-700 tabular-nums">{{ number_format($row->booking->monthly_rent, 0) }} <span class="font-normal text-gray-400 text-[10px]">฿/ด.</span></span>
+                    @endif
+                </div>
+            </div>
+        </div>
 
-                    {{-- Col 4: ค่าเช่า (md+) --}}
-                    <td class="px-4 py-3 text-right tabular-nums hidden md:table-cell align-top">
-                        @if($booking)
-                            <span class="font-bold text-gray-800">{{ number_format($booking->monthly_rent, 0) }}</span>
-                            <span class="text-xs text-gray-400">฿</span>
-                        @else
-                            <span class="text-gray-400">—</span>
-                        @endif
-                    </td>
+        {{-- Tenant + slip + dates --}}
+        <div class="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+            <div class="flex items-center gap-1.5">
+                @if($row->tenantPhotoUrl)
+                    <img src="{{ $row->tenantPhotoUrl }}" alt="{{ $row->tenant->full_name }}"
+                         class="w-5 h-5 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-200">
+                @else
+                    <div class="w-5 h-5 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
+                        <span class="text-white text-[9px] font-bold leading-none">{{ $row->tenantInitial }}</span>
+                    </div>
+                @endif
+                <span class="text-xs text-gray-700 font-medium truncate">{{ $row->tenant?->full_name ?? '(ไม่ระบุ)' }}</span>
+                @if($row->tenant?->mobile)
+                <span class="text-[10px] text-gray-400 flex-shrink-0">· {{ $row->tenant->mobile }}</span>
+                @endif
+            </div>
 
-                    {{-- Col 5: ข้อมูลสัญญา (lg+) --}}
-                    <td class="px-4 py-3 hidden lg:table-cell align-top">
-                        <div class="space-y-0.5 text-[11px]">
-                            @if($actualMoveIn)
-                            <div class="flex gap-1.5 text-gray-500">
-                                <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">เข้าอยู่จริง</span>
-                                <span>{{ $actualMoveIn->locale('th')->translatedFormat('j M Y') }}</span>
-                            </div>
-                            @endif
-                            @if($contractStart)
-                            <div class="flex gap-1.5 text-gray-500">
-                                <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">ตามสัญญา</span>
-                                <span>{{ $contractStart->locale('th')->translatedFormat('j M Y') }}</span>
-                            </div>
-                            @elseif($checkIn && !$actualMoveIn)
-                            <div class="flex gap-1.5 text-gray-500">
-                                <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">เริ่มเช่า</span>
-                                <span>{{ $checkIn->locale('th')->translatedFormat('j M Y') }}</span>
-                            </div>
-                            @endif
-                            @if($contractEnd)
-                            <div class="flex gap-1.5 text-gray-500">
-                                <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">สิ้นสุด</span>
-                                <span>{{ $contractEnd->locale('th')->translatedFormat('j M Y') }}</span>
-                            </div>
-                            @endif
-                            @if($rentalMonths)
-                            <div class="text-gray-400">{{ $rentalMonths }} เดือน</div>
-                            @endif
-                            @if(!$actualMoveIn && !$contractStart && !$checkIn && !$contractEnd && !$rentalMonths)
-                            <span class="text-gray-300">—</span>
-                            @endif
-                        </div>
-                    </td>
+            @if($row->slipNeeded)
+            <div class="flex items-center gap-1 text-[10px] font-semibold text-amber-600 flex-wrap">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                รอแนบสลิป@if($row->pendingSlipLabel) <span class="font-normal text-amber-500">· {{ $row->pendingSlipLabel }}</span>@endif
+                @if($row->pendingDueDate) <span class="{{ $row->dueDateClass }}">· ครบ {{ $row->pendingDueDate->locale('th')->translatedFormat('j M') }}</span>@endif
+            </div>
+            @elseif($row->slipPendingVerify)
+            <div class="flex items-center gap-1 text-[10px] font-semibold text-blue-500">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                รอตรวจสอบ@if($row->lastSlipAt) <span class="font-normal text-blue-400">· {{ $row->lastSlipAt->locale('th')->translatedFormat('j M') }}</span>@endif
+            </div>
+            @elseif($row->lastSlipAt)
+            <div class="flex items-center gap-1 text-[10px] text-gray-400">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+                แนบล่าสุด {{ $row->lastSlipAt->locale('th')->translatedFormat('j M Y') }}
+            </div>
+            @endif
 
-                    {{-- Action --}}
-                    <td class="px-4 py-3 align-top">
-                        <svg class="w-4 h-4 text-gray-300 group-hover:text-brand-500 transition-colors mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
-                        </svg>
-                    </td>
-                </tr>
-                @endforeach
+            @php $displayDate = $row->actualMoveIn ?? $row->contractStart ?? $row->checkIn; @endphp
+            @if($displayDate || $row->contractEnd || $row->rentalMonths)
+            <div class="text-[10px] text-gray-400 leading-relaxed flex flex-wrap gap-x-1">
+                @if($displayDate)
+                <span>เข้าอยู่: {{ $displayDate->locale('th')->translatedFormat('j M Y') }}</span>
+                @endif
+                @if($row->contractEnd)
+                <span>· สิ้นสุด: {{ $row->contractEnd->locale('th')->translatedFormat('j M Y') }}</span>
+                @endif
+                @if($row->rentalMonths)
+                <span>· {{ $row->rentalMonths }} เดือน</span>
+                @endif
+            </div>
+            @endif
+        </div>
+    </a>
+    @endforeach
 
-                {{-- ---- Vacant / No Contract rows ---- --}}
-                @foreach($withoutContract as $property)
-                @php
-                    $searchText = strtolower(($property->title ?? '') . ' ' . ($property->property_code ?? ''));
-                @endphp
-                <tr x-show="matchRow('vacant', @js($searchText), false)"
-                    class="property-row hover:bg-gray-50/60 opacity-75">
-
-                    {{-- Col 1 --}}
-                    <td class="px-4 py-3">
-                        <div class="flex items-center gap-2.5">
-                            <div class="w-1.5 h-7 rounded-full bg-green-200 flex-shrink-0"></div>
-                            <div class="min-w-0">
-                                <p class="font-medium text-gray-600 truncate leading-snug">{{ $property->title ?? '—' }}</p>
-                                @if($property->property_code)
-                                <p class="text-[11px] text-gray-400 font-mono">{{ $property->property_code }}</p>
-                                @endif
-                                {{-- Mobile: show status + rent --}}
-                                <div class="sm:hidden mt-1.5 flex items-center gap-2">
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>ว่าง
-                                    </span>
-                                    @if($property->price_per_month)
-                                    <span class="text-xs text-gray-500 tabular-nums">{{ number_format($property->price_per_month, 0) }} <span class="text-[10px] text-gray-400">฿/เดือน</span></span>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </td>
-
-                    {{-- Col 2: ผู้เช่า --}}
-                    <td class="px-4 py-3 hidden sm:table-cell text-sm text-gray-400">—</td>
-
-                    {{-- Col 3: สถานะ --}}
-                    <td class="px-4 py-3 hidden sm:table-cell">
-                        <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>ว่าง
-                        </span>
-                    </td>
-
-                    {{-- Col 4: ค่าเช่า --}}
-                    <td class="px-4 py-3 text-right tabular-nums hidden md:table-cell">
-                        @if($property->price_per_month)
-                            <span class="text-gray-500">{{ number_format($property->price_per_month, 0) }}</span>
-                            <span class="text-xs text-gray-400">฿</span>
-                        @else
-                            <span class="text-gray-400">—</span>
-                        @endif
-                    </td>
-
-                    {{-- Col 5: ข้อมูลสัญญา --}}
-                    <td class="px-4 py-3 hidden lg:table-cell text-gray-400">—</td>
-
-                    {{-- Action --}}
-                    <td class="px-4 py-3"></td>
-                </tr>
-                @endforeach
-
-            </tbody>
-        </table>
+    @foreach($vacantRows as $row)
+    <div x-show="matchRow('vacant', @js($row->searchText), false, false)"
+         class="property-row bg-white rounded-2xl border border-gray-100 p-4 opacity-75">
+        <div class="flex items-center gap-3">
+            <div class="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 relative">
+                @if($row->imageUrl)
+                <img src="{{ $row->imageUrl }}" alt="{{ $row->property->title }}"
+                     class="w-full h-full object-cover"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                @endif
+                <div class="w-full h-full items-center justify-center absolute inset-0 {{ $row->imageUrl ? 'hidden' : 'flex' }}">
+                    <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="font-medium text-gray-600 truncate leading-snug">{{ $row->property->title ?? '—' }}</p>
+                @if($row->property->property_code)
+                <p class="text-[11px] text-gray-400 font-mono">{{ $row->property->property_code }}</p>
+                @endif
+                <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>ว่าง
+                    </span>
+                    @if($row->property->price_per_month)
+                    <span class="text-xs text-gray-500 tabular-nums">{{ number_format($row->property->price_per_month, 0) }} <span class="text-[10px] text-gray-400">฿/เดือน</span></span>
+                    @endif
+                </div>
+            </div>
+        </div>
     </div>
-</x-card>
+    @endforeach
+
+</div>
+
+{{-- ============================================================ --}}
+{{-- DESKTOP TABLE (md and up) --}}
+{{-- ============================================================ --}}
+<x-table>
+    <x-slot:head>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">ทรัพย์สิน</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">ผู้เช่า</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3">สถานะ / การชำระ</th>
+        <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">ค่าเช่า/เดือน</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 hidden xl:table-cell">ข้อมูลสัญญา</th>
+        <th class="px-4 py-3 w-10"></th>
+    </x-slot:head>
+
+    @foreach($contractRows as $row)
+    <tr x-show="matchRow('active', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
+        class="property-row hover:bg-gray-50 cursor-pointer group"
+        onclick="window.location='{{ route('properties.show', $row->property->id) }}'"
+        role="button"
+        tabindex="0"
+        @keypress.enter="window.location='{{ route('properties.show', $row->property->id) }}'">
+
+        {{-- Col 1: ทรัพย์สิน --}}
+        <td class="px-4 py-3">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 relative">
+                    @if($row->imageUrl)
+                    <img src="{{ $row->imageUrl }}" alt="{{ $row->property->title }}"
+                         class="w-full h-full object-cover"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                    @endif
+                    <div class="w-full h-full items-center justify-center absolute inset-0 {{ $row->imageUrl ? 'hidden' : 'flex' }}">
+                        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="min-w-0">
+                    <p class="font-semibold text-gray-800 truncate group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '—' }}</p>
+                    @if($row->property->property_code)
+                    <p class="text-[11px] text-gray-400 font-mono">{{ $row->property->property_code }}</p>
+                    @endif
+                </div>
+            </div>
+        </td>
+
+        {{-- Col 2: ผู้เช่า --}}
+        <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+                @if($row->tenantPhotoUrl)
+                    <img src="{{ $row->tenantPhotoUrl }}" alt="{{ $row->tenant->full_name }}"
+                         class="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-gray-200">
+                @else
+                    <div class="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
+                        <span class="text-white text-xs font-bold leading-none">{{ $row->tenantInitial }}</span>
+                    </div>
+                @endif
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-gray-700 truncate">{{ $row->tenant?->full_name ?? '(ไม่ระบุ)' }}</p>
+                    @if($row->tenant?->mobile)
+                    <p class="text-[11px] text-gray-400">{{ $row->tenant->mobile }}</p>
+                    @endif
+                </div>
+            </div>
+        </td>
+
+        {{-- Col 3: สถานะ + การชำระ --}}
+        <td class="px-4 py-3 align-top">
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
+            </span>
+
+            <div class="mt-1.5 space-y-0.5">
+                @if($row->slipNeeded)
+                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                        </svg>
+                        รอแนบสลิป@if($row->pendingSlipLabel) <span class="font-normal text-amber-500 ml-0.5">· {{ $row->pendingSlipLabel }}</span>@endif
+                    </div>
+                    @if($row->pendingDueDate)
+                    <div class="flex items-center gap-1 text-[10px] {{ $row->dueDateClass }}">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        {{ $row->dueDatePast ? 'เกินกำหนด' : 'ครบกำหนด' }} {{ $row->pendingDueDate->locale('th')->translatedFormat('j M Y') }}
+                    </div>
+                    @endif
+                @elseif($row->slipPendingVerify)
+                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-500">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        รอตรวจสอบ@if($row->lastSlipAt) <span class="font-normal text-blue-400 ml-0.5">· {{ $row->lastSlipAt->locale('th')->translatedFormat('j M') }}</span>@endif
+                    </div>
+                @elseif($row->lastSlipAt)
+                    <div class="inline-flex items-center gap-1 text-[10px] text-gray-400">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        แนบล่าสุด {{ $row->lastSlipAt->locale('th')->translatedFormat('j M Y') }}
+                    </div>
+                @endif
+            </div>
+        </td>
+
+        {{-- Col 4: ค่าเช่า (lg+) --}}
+        <td class="px-4 py-3 text-right tabular-nums hidden lg:table-cell align-top">
+            @if($row->booking)
+                <span class="font-bold text-gray-800">{{ number_format($row->booking->monthly_rent, 0) }}</span>
+                <span class="text-xs text-gray-400">฿</span>
+            @else
+                <span class="text-gray-400">—</span>
+            @endif
+        </td>
+
+        {{-- Col 5: ข้อมูลสัญญา (xl+) --}}
+        <td class="px-4 py-3 hidden xl:table-cell align-top">
+            <div class="space-y-0.5 text-[11px]">
+                @if($row->actualMoveIn)
+                <div class="flex gap-1.5 text-gray-500">
+                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">เข้าอยู่จริง</span>
+                    <span>{{ $row->actualMoveIn->locale('th')->translatedFormat('j M Y') }}</span>
+                </div>
+                @endif
+                @if($row->contractStart)
+                <div class="flex gap-1.5 text-gray-500">
+                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">ตามสัญญา</span>
+                    <span>{{ $row->contractStart->locale('th')->translatedFormat('j M Y') }}</span>
+                </div>
+                @elseif($row->checkIn && !$row->actualMoveIn)
+                <div class="flex gap-1.5 text-gray-500">
+                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">เริ่มเช่า</span>
+                    <span>{{ $row->checkIn->locale('th')->translatedFormat('j M Y') }}</span>
+                </div>
+                @endif
+                @if($row->contractEnd)
+                <div class="flex gap-1.5 text-gray-500">
+                    <span class="text-gray-400 w-18 flex-shrink-0 whitespace-nowrap">สิ้นสุด</span>
+                    <span>{{ $row->contractEnd->locale('th')->translatedFormat('j M Y') }}</span>
+                </div>
+                @endif
+                @if($row->rentalMonths)
+                <div class="text-gray-400">{{ $row->rentalMonths }} เดือน</div>
+                @endif
+                @if(!$row->actualMoveIn && !$row->contractStart && !$row->checkIn && !$row->contractEnd && !$row->rentalMonths)
+                <span class="text-gray-300">—</span>
+                @endif
+            </div>
+        </td>
+
+        {{-- Action --}}
+        <td class="px-4 py-3 align-top">
+            <svg class="w-4 h-4 text-gray-300 group-hover:text-brand-500 transition-colors mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+            </svg>
+        </td>
+    </tr>
+    @endforeach
+
+    @foreach($vacantRows as $row)
+    <tr x-show="matchRow('vacant', @js($row->searchText), false, false)"
+        class="property-row hover:bg-gray-50/60 opacity-75">
+
+        <td class="px-4 py-3">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 relative">
+                    @if($row->imageUrl)
+                    <img src="{{ $row->imageUrl }}" alt="{{ $row->property->title }}"
+                         class="w-full h-full object-cover"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                    @endif
+                    <div class="w-full h-full items-center justify-center absolute inset-0 {{ $row->imageUrl ? 'hidden' : 'flex' }}">
+                        <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="min-w-0">
+                    <p class="font-medium text-gray-600 truncate leading-snug">{{ $row->property->title ?? '—' }}</p>
+                    @if($row->property->property_code)
+                    <p class="text-[11px] text-gray-400 font-mono">{{ $row->property->property_code }}</p>
+                    @endif
+                </div>
+            </div>
+        </td>
+
+        <td class="px-4 py-3 text-sm text-gray-400">—</td>
+
+        <td class="px-4 py-3">
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>ว่าง
+            </span>
+        </td>
+
+        <td class="px-4 py-3 text-right tabular-nums hidden lg:table-cell">
+            @if($row->property->price_per_month)
+                <span class="text-gray-500">{{ number_format($row->property->price_per_month, 0) }}</span>
+                <span class="text-xs text-gray-400">฿</span>
+            @else
+                <span class="text-gray-400">—</span>
+            @endif
+        </td>
+
+        <td class="px-4 py-3 hidden xl:table-cell text-gray-400">—</td>
+
+        <td class="px-4 py-3"></td>
+    </tr>
+    @endforeach
+</x-table>
 @endif
 
 {{-- ===== Empty State ===== --}}
