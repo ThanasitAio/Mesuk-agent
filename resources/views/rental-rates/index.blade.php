@@ -67,16 +67,16 @@
          style="background:radial-gradient(circle,rgba(74,222,128,.07),transparent)"></div>
 
     <div class="relative p-4 lg:p-5" style="z-index:2">
-        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-3">
+        <div class="flex items-center gap-2 mb-3">
+            <h2 class="text-sm font-black text-white tracking-wide">ภาพรวมการเช่า</h2>
+            <span class="text-[10px] px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.09);color:rgba(255,255,255,.45)">
+                {{ now()->day . ' ' . $thM[now()->month-1] . ' ' . (now()->year+543) }}
+            </span>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3">
 
             <div class="w-full sm:flex-1 sm:min-w-0">
-                <div class="flex items-center gap-2 mb-3">
-                    <h2 class="text-sm font-black text-white tracking-wide">ภาพรวมการเช่า</h2>
-                    <span class="text-[10px] px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.09);color:rgba(255,255,255,.45)">
-                        {{ now()->day . ' ' . $thM[now()->month-1] . ' ' . (now()->year+543) }}
-                    </span>
-                </div>
-
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div class="stat-card rounded-xl p-3 text-center" style="background:rgba(255,255,255,.07)">
                         <p class="text-2xl font-black text-white tabular-nums leading-none">{{ $totalProps }}</p>
@@ -98,23 +98,23 @@
             </div>
 
             {{-- Donut with mini legend --}}
-            <div class="flex-shrink-0 flex flex-row sm:flex-col items-center gap-4 sm:gap-2 w-full sm:w-auto justify-center border-t sm:border-t-0 pt-4 sm:pt-0.5"
-                 style="border-color:rgba(255,255,255,.08)">
-                <div class="relative flex-shrink-0" style="width:78px;height:78px">
-                    <canvas id="heroDonut" width="78" height="78"></canvas>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span class="text-[17px] font-black tabular-nums leading-none" style="color:#22c55e">{{ $vacancyRate }}%</span>
-                        <span class="text-[8px] mt-0.5" style="color:rgba(255,255,255,.38)">ว่าง</span>
+            <div class="stat-card flex-shrink-0 flex flex-row items-center gap-4 w-full sm:w-auto rounded-xl p-3"
+                 style="background:rgba(255,255,255,.07)">
+                <div class="relative flex-shrink-0 mx-auto sm:mx-0" style="width:84px;height:84px">
+                    <canvas id="heroDonut" width="84" height="84" style="width:84px;height:84px"></canvas>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none overflow-hidden">
+                        <span class="font-black tabular-nums leading-none" style="color:#22c55e;font-size:16px">{{ $vacancyRate }}%</span>
+                        <span style="color:rgba(255,255,255,.45);font-size:9px;margin-top:2px">ว่าง</span>
                     </div>
                 </div>
-                <div class="flex flex-col gap-1 sm:gap-0.5">
+                <div class="flex flex-col gap-1.5 min-w-0">
                     <div class="flex items-center gap-1.5">
                         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#22c55e"></span>
-                        <span class="text-[11px] sm:text-[9px] tabular-nums" style="color:rgba(255,255,255,.60)">ว่าง {{ $totalVacant }} อสังหา</span>
+                        <span class="text-[11px] tabular-nums whitespace-nowrap" style="color:rgba(255,255,255,.68)">ว่าง {{ $totalVacant }} อสังหา</span>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#ef4444"></span>
-                        <span class="text-[11px] sm:text-[9px] tabular-nums" style="color:rgba(255,255,255,.60)">ไม่ว่าง {{ $totalOccupied }} อสังหา</span>
+                        <span class="text-[11px] tabular-nums whitespace-nowrap" style="color:rgba(255,255,255,.68)">ไม่ว่าง {{ $totalOccupied }} อสังหา</span>
                     </div>
                 </div>
             </div>
@@ -248,7 +248,7 @@
 
         {{-- Accordion header (compact & beautiful) --}}
         <button type="button" @click="open = !open"
-                class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50/60 transition-all duration-200">
+                class="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50/60 transition-all duration-200">
 
             {{-- Avatar --}}
             <div class="flex-shrink-0">
@@ -269,8 +269,10 @@
 
             {{-- Info section --}}
             <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <p class="text-base font-bold text-gray-900 truncate">{{ $mgr->manager_name }}</p>
+                <p class="text-sm sm:text-base font-bold text-gray-900 truncate mb-1">{{ $mgr->manager_name }}</p>
+
+                @if($mgr->manager_code || $mgr->manager_pass_decode)
+                <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
                     @if($mgr->manager_code)
                         <span class="font-mono text-[10px] text-brand-600 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded flex-shrink-0">
                             {{ $mgr->manager_code }}
@@ -282,30 +284,30 @@
                         </span>
                     @endif
                 </div>
-                
-                <div class="flex items-center gap-3 text-xs flex-wrap">
+                @endif
+
+                <div class="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs flex-wrap">
                     <span @click.stop="filter = 'all'; open = true"
                           :class="filter === 'all' ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-blue-50'"
-                          class="inline-flex items-center gap-1.5 font-semibold text-blue-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
-                        <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
-                        ทั้งหมด {{ $mgr->total_props }} อสังหา
+                          class="inline-flex items-center gap-1 sm:gap-1.5 font-semibold text-blue-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
+                        <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                        ทั้งหมด {{ $mgr->total_props }}<span class="hidden sm:inline">&nbsp;อสังหา</span>
                     </span>
                     <span @click.stop="filter = 'vacant'; open = true"
                           :class="filter === 'vacant' ? 'bg-green-100 ring-1 ring-green-300' : 'hover:bg-green-50'"
-                          class="inline-flex items-center gap-1.5 font-semibold text-green-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
-                        <span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+                          class="inline-flex items-center gap-1 sm:gap-1.5 font-semibold text-green-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
+                        <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-green-500 flex-shrink-0"></span>
                         {{ $mgr->vacant_count }} ว่าง
                     </span>
                     <span @click.stop="filter = 'occupied'; open = true"
                           :class="filter === 'occupied' ? 'bg-red-100 ring-1 ring-red-300' : 'hover:bg-red-50'"
-                          class="inline-flex items-center gap-1.5 font-semibold text-red-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
-                        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>
+                          class="inline-flex items-center gap-1 sm:gap-1.5 font-semibold text-red-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
+                        <span class="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>
                         {{ $mgr->occupied_count }} ไม่ว่าง
-                    </span>  
+                    </span>
                     @if($mgrRevenue > 0)
-                        <span class="hidden md:inline text-gray-400">·</span>
-                        <span class="hidden md:inline text-brand-700 font-bold tabular-nums">
-                            ฿{{ number_format($mgrRevenue, 0) }}/ด.
+                        <span class="text-brand-700 font-bold tabular-nums">
+                            ฿{{ number_format($mgrRevenue, 0) }}<span class="text-gray-400 font-normal">/ด.</span>
                         </span>
                     @endif
                 </div>
@@ -594,6 +596,7 @@
             },
             options: {
                 cutout: '72%',
+                responsive: false,
                 plugins: { legend: { display: false }, tooltip: { enabled: false } },
                 animation: { duration: 1200, easing: 'easeInOutQuart' },
             }
