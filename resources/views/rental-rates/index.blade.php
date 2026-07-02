@@ -67,9 +67,9 @@
          style="background:radial-gradient(circle,rgba(74,222,128,.07),transparent)"></div>
 
     <div class="relative p-4 lg:p-5" style="z-index:2">
-        <div class="flex items-start gap-3">
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-3">
 
-            <div class="flex-1 min-w-0">
+            <div class="w-full sm:flex-1 sm:min-w-0">
                 <div class="flex items-center gap-2 mb-3">
                     <h2 class="text-sm font-black text-white tracking-wide">ภาพรวมการเช่า</h2>
                     <span class="text-[10px] px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.09);color:rgba(255,255,255,.45)">
@@ -98,22 +98,23 @@
             </div>
 
             {{-- Donut with mini legend --}}
-            <div class="flex-shrink-0 flex flex-col items-center gap-2 pt-0.5">
-                <div class="relative" style="width:78px;height:78px">
+            <div class="flex-shrink-0 flex flex-row sm:flex-col items-center gap-4 sm:gap-2 w-full sm:w-auto justify-center border-t sm:border-t-0 pt-4 sm:pt-0.5"
+                 style="border-color:rgba(255,255,255,.08)">
+                <div class="relative flex-shrink-0" style="width:78px;height:78px">
                     <canvas id="heroDonut" width="78" height="78"></canvas>
                     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                         <span class="text-[17px] font-black tabular-nums leading-none" style="color:#22c55e">{{ $vacancyRate }}%</span>
                         <span class="text-[8px] mt-0.5" style="color:rgba(255,255,255,.38)">ว่าง</span>
                     </div>
                 </div>
-                <div class="flex flex-col gap-0.5">
-                    <div class="flex items-center gap-1">
+                <div class="flex flex-col gap-1 sm:gap-0.5">
+                    <div class="flex items-center gap-1.5">
                         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#22c55e"></span>
-                        <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ว่าง {{ $totalVacant }} อสังหา</span>
+                        <span class="text-[11px] sm:text-[9px] tabular-nums" style="color:rgba(255,255,255,.60)">ว่าง {{ $totalVacant }} อสังหา</span>
                     </div>
-                    <div class="flex items-center gap-1">
+                    <div class="flex items-center gap-1.5">
                         <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:#ef4444"></span>
-                        <span class="text-[9px] tabular-nums" style="color:rgba(255,255,255,.50)">ไม่ว่าง {{ $totalOccupied }} อสังหา</span>
+                        <span class="text-[11px] sm:text-[9px] tabular-nums" style="color:rgba(255,255,255,.60)">ไม่ว่าง {{ $totalOccupied }} อสังหา</span>
                     </div>
                 </div>
             </div>
@@ -139,12 +140,12 @@
 
     {{-- Chart 1: จำนวนอสังหาแต่ละผู้บริหาร --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 animate-fade-in">
-        <div class="flex items-start justify-between mb-2">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2 mb-3 sm:mb-2">
             <div>
                 <h3 class="text-sm font-bold text-gray-800">จำนวนอสังหาแต่ละผู้บริหาร</h3>
                 <p class="text-[11px] text-gray-400 mt-0.5">อสังหาทั้งหมดที่ดูแล (แยกตามสถานะ)</p>
             </div>
-            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0 ml-2">
+            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0">
                 <span class="flex items-center gap-1">
                     <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
@@ -160,12 +161,12 @@
 
     {{-- Chart 2: เปอร์เซ็นต์อสังหาว่าง --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 animate-fade-in" style="animation-delay: 0.1s">
-        <div class="flex items-start justify-between mb-2">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-2 mb-3 sm:mb-2">
             <div>
                 <h3 class="text-sm font-bold text-gray-800">เปอร์เซ็นต์อสังหาว่างแต่ละผู้บริหาร</h3>
                 <p class="text-[11px] text-gray-400 mt-0.5">สัดส่วนอสังหาว่างเทียบกับอสังหาทั้งหมด</p>
             </div>
-            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0 ml-2">
+            <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0">
                 <span class="flex items-center gap-1">
                     <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
@@ -678,11 +679,15 @@
 
     @if($byManager->count() > 0)
     const raw = @json($chartData);
+    const isMobile = window.matchMedia('(max-width: 639px)').matches;
+    const maxNameLen = isMobile ? 10 : 20;
     const labels = raw.map(r => {
-        const name = r.name.length > 20 ? r.name.slice(0, 19) + '…' : r.name;
-        const code = r.code ? ' (' + r.code + ')' : '';
+        const name = r.name.length > maxNameLen ? r.name.slice(0, maxNameLen - 1) + '…' : r.name;
+        const code = (!isMobile && r.code) ? ' (' + r.code + ')' : '';
         return name + code;
     });
+    const yTickFont = { size: isMobile ? 10 : 11, weight: '500' };
+    const yTickPadding = isMobile ? 6 : 8;
 
     // Chart 1: Stacked count bar (green=ว่าง, red=ไม่ว่าง)
     const mgrCtx = document.getElementById('managerChart');
@@ -735,12 +740,12 @@
                         stacked: true, 
                         grid: { display: false }, 
                         border: { display: false }, 
-                        ticks: { 
-                            color: '#374151', 
-                            font: { size: 11, weight: '500' },
-                            padding: 8,
+                        ticks: {
+                            color: '#374151',
+                            font: yTickFont,
+                            padding: yTickPadding,
                             autoSkip: false
-                        } 
+                        }
                     }
                 }
             },
@@ -806,10 +811,10 @@
                         stacked: true,
                         grid: { display: false },
                         border: { display: false },
-                        ticks: { 
-                            color: '#374151', 
-                            font: { size: 11, weight: '500' },
-                            padding: 8,
+                        ticks: {
+                            color: '#374151',
+                            font: yTickFont,
+                            padding: yTickPadding,
                             autoSkip: false
                         }
                     }
