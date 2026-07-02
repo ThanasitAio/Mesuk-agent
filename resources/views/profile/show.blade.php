@@ -25,8 +25,7 @@
 
         {{-- Profile Banner --}}
         @php
-            $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
-            $avatarUrl = $agent->avatar ? ($happyestPublic . '/storage/' . $agent->avatar) : null;
+            $avatarUrl = $agent->avatar ? route('agent.avatar', $agent->agent_code) : null;
         @endphp
         <div class="px-6 py-4 bg-gradient-to-r from-brand-50 to-white border-b border-gray-100 flex items-center gap-4">
 

@@ -216,7 +216,7 @@
             {{-- Avatar --}}
             <div class="flex-shrink-0">
                 @if($mgr->manager_avatar)
-                    <img src="{{ $happyestPublic.'/storage/'.$mgr->manager_avatar }}"
+                    <img src="{{ route('agent.avatar', $mgr->manager_code) }}"
                          alt="{{ $mgr->manager_name }}"
                          class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100"
                          onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">

@@ -104,6 +104,16 @@ class ProfileController extends Controller
         return back()->with('success', 'อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว');
     }
 
+    public function viewAvatar(string $agentCode)
+    {
+        $agent = HrAgent::where('agent_code', $agentCode)->firstOrFail();
+
+        abort_if(!$agent->avatar, 404);
+        abort_if(!Storage::disk('payment_storage')->exists($agent->avatar), 404);
+
+        return response()->file(Storage::disk('payment_storage')->path($agent->avatar));
+    }
+
     public function updatePassword(Request $request)
     {
         $agent = HrAgent::findOrFail(session('agent_id'));

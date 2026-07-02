@@ -32,6 +32,7 @@ Route::middleware('auth.agent')->group(function () {
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
     Route::put('/profile/bank', [ProfileController::class, 'updateBank'])->name('profile.bank');
     Route::post('/profile/photo', [ProfileController::class, 'uploadPhoto'])->name('profile.photo');
+    Route::get('/avatar/{agentCode}', [ProfileController::class, 'viewAvatar'])->name('agent.avatar');
 
     // Property Billing Management
     Route::get('/properties', [PropertyBillingController::class, 'index'])->name('properties.index');

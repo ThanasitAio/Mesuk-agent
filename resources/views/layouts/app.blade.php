@@ -118,8 +118,7 @@
                       {{ request()->routeIs('profile*') ? 'bg-brand-700' : 'hover:bg-brand-800' }}">
                 @if(session('agent_avatar'))
                     @php
-                        $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
-                        $avatarUrl = $happyestPublic . '/storage/' . session('agent_avatar');
+                        $avatarUrl = route('agent.avatar', session('agent_code'));
                     @endphp
                     <img src="{{ $avatarUrl }}"
                          alt="{{ session('agent_name', 'ผู้ใช้') }}"
@@ -178,8 +177,7 @@
                         class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm">
                     @if(session('agent_avatar'))
                         @php
-                            $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
-                            $avatarUrl = $happyestPublic . '/storage/' . session('agent_avatar');
+                            $avatarUrl = route('agent.avatar', session('agent_code'));
                         @endphp
                         <img src="{{ $avatarUrl }}"
                              alt="{{ session('agent_name', 'ผู้ใช้') }}"
@@ -418,8 +416,7 @@
     <div class="px-5 pt-2 pb-4 flex items-center gap-4">
         @if(session('agent_avatar'))
             @php
-                $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
-                $avatarUrl = $happyestPublic . '/storage/' . session('agent_avatar');
+                $avatarUrl = route('agent.avatar', session('agent_code'));
             @endphp
             <img src="{{ $avatarUrl }}"
                  alt="{{ session('agent_name', 'ผู้ใช้') }}"
