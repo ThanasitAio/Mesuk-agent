@@ -80,18 +80,12 @@ class ProfileController extends Controller
 
         // ลบรูปเก่า
         if ($agent->avatar) {
-            Storage::disk('payment_storage')->delete($agent->avatar);
+            Storage::disk('happyest_public')->delete($agent->avatar);
         }
 
-        // บันทึกรูปใหม่ (ไม่ใช้ public/ prefix เหมือน payment slips)
-        $file = $request->file('avatar');
-        $ext  = strtolower($file->getClientOriginalExtension());
-        $name = uniqid('av_', true) . '.' . $ext;
-        $dir  = 'avatars/' . $agent->id;
-
-        // ใช้ putFileAs แบบไม่มี public/ prefix
-        $path = $dir . '/' . $name;
-        Storage::disk('payment_storage')->putFileAs($dir, $file, $name);
+        // บันทึกรูปใหม่ — ใช้ disk/path เดียวกับฝั่ง admin (happyest) คือ
+        // public disk + 'agents/avatars' เพื่อให้แสดงผลได้ทั้งสองระบบ
+        $path = $request->file('avatar')->store('agents/avatars', 'happyest_public');
 
         $agent->avatar = $path;
         $agent->save();
@@ -102,16 +96,6 @@ class ProfileController extends Controller
         logSystem('agent', $agent->id, 'Profile', 'UPDATE', 'อัปโหลดรูปโปรไฟล์');
 
         return back()->with('success', 'อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว');
-    }
-
-    public function viewAvatar(string $agentCode)
-    {
-        $agent = HrAgent::where('agent_code', $agentCode)->firstOrFail();
-
-        abort_if(!$agent->avatar, 404);
-        abort_if(!Storage::disk('payment_storage')->exists($agent->avatar), 404);
-
-        return response()->file(Storage::disk('payment_storage')->path($agent->avatar));
     }
 
     public function updatePassword(Request $request)

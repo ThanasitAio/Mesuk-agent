@@ -60,6 +60,22 @@ return [
             'report' => false,
         ],
 
+        /*
+         | Shared PUBLIC storage — must point to the same directory as
+         | Happy Realestate's "public" disk root (public/storage junction)
+         | so files like agent avatars are web-accessible from both
+         | systems. Override HAPPYEST_PUBLIC_STORAGE_PATH / HAPPYEST_APP_URL
+         | in .env for production.
+         */
+        'happyest_public' => [
+            'driver'     => 'local',
+            'root'       => env('HAPPYEST_PUBLIC_STORAGE_PATH', base_path('../happyest/public/storage')),
+            'url'        => rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/').'/storage',
+            'visibility' => 'public',
+            'throw'      => false,
+            'report'     => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
