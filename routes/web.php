@@ -9,9 +9,13 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyBillingController;
 use App\Http\Controllers\RentalRateController;
 
-// Redirect root to dashboard
+// Redirect root to dashboard (if logged in) or login (if not)
 Route::get('/', function () {
-    return redirect()->route('dashboard');
+    if (session('agent_logged_in') && session('agent_id')) {
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('login');
 });
 
 // --- Auth Routes ---

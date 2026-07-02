@@ -115,6 +115,15 @@ input[type="month"] {
     color-scheme: light;
 }
 
+/* Prevent iOS/Android auto-zoom on input focus: mobile WebKit zooms the
+   viewport when a focused field's font-size is below 16px. Force 16px only
+   below the `md` breakpoint so desktop text-sm sizing is unaffected. */
+@media (max-width: 767px) {
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+}
+
 /* ─── Flatpickr — brand color overrides (loaded after flatpickr.min.css) ─── */
 .flatpickr-calendar {
     font-family: var(--font-sans);
