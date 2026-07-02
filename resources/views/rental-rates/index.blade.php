@@ -82,13 +82,13 @@
                         <p class="text-2xl font-black text-white tabular-nums leading-none">{{ $totalProps }}</p>
                         <p class="text-[10px] mt-1" style="color:rgba(255,255,255,.38)">ทรัพย์ทั้งหมด</p>
                     </div>
-                    <div class="stat-card rounded-xl p-3 text-center" style="background:rgba(34,197,94,.13)">
-                        <p class="text-2xl font-black tabular-nums leading-none" style="color:#22c55e">{{ $totalVacant }}</p>
-                        <p class="text-[10px] mt-1" style="color:rgba(34,197,94,.70)">ว่าง</p>
-                    </div>
                     <div class="stat-card rounded-xl p-3 text-center" style="background:rgba(239,68,68,.13)">
                         <p class="text-2xl font-black tabular-nums leading-none" style="color:#ef4444">{{ $totalOccupied }}</p>
                         <p class="text-[10px] mt-1" style="color:rgba(239,68,68,.70)">ไม่ว่าง</p>
+                    </div>
+                    <div class="stat-card rounded-xl p-3 text-center" style="background:rgba(34,197,94,.13)">
+                        <p class="text-2xl font-black tabular-nums leading-none" style="color:#22c55e">{{ $totalVacant }}</p>
+                        <p class="text-[10px] mt-1" style="color:rgba(34,197,94,.70)">ว่าง</p>
                     </div>
                     <div class="stat-card rounded-xl p-3 text-center" style="background:rgba(255,255,255,.07)">
                         <p class="text-2xl font-black text-white tabular-nums leading-none">{{ $byManager->count() }}</p>
@@ -146,10 +146,10 @@
             </div>
             <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0 ml-2">
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#22c55e"></span>ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#22c55e"></span>ว่าง
                 </span>
             </div>
         </div>
@@ -167,10 +167,10 @@
             </div>
             <div class="flex items-center gap-2 text-[10px] text-gray-400 flex-shrink-0 ml-2">
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#22c55e"></span>ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
                 </span>
                 <span class="flex items-center gap-1">
-                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#ef4444"></span>ไม่ว่าง
+                    <span class="inline-block w-2 h-2 rounded-sm" style="background:#22c55e"></span>ว่าง
                 </span>
             </div>
         </div>
@@ -194,6 +194,15 @@
     <p class="text-xs text-gray-400 mt-1">ข้อมูลจะปรากฏเมื่อมีการเพิ่มอสังหาในระบบ</p>
 </div>
 @else
+<div class="flex items-center justify-between mb-2 px-1">
+    <h3 class="text-sm font-bold text-gray-800">รายชื่อผู้บริหารโครงการ</h3>
+    <span class="inline-flex items-center gap-1.5 text-xs font-bold text-white px-3 py-1 rounded-full shadow-sm" style="background:linear-gradient(135deg,#468432 0%,#52a038 100%)">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2.13a4 4 0 100-8 4 4 0 000 8zm6 3c0-1.1-.9-2-2-2m-1-2a4 4 0 100-8"/>
+        </svg>
+        ทั้งหมด {{ $byManager->count() }} คน
+    </span>
+</div>
 <div class="space-y-2">
     @foreach($byManager as $idx => $mgr)
     @php
@@ -207,7 +216,7 @@
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all duration-300 animate-slide-in-up"
          style="animation-delay: {{ $idx * 0.05 }}s"
-         x-data="{ open: false }">
+         x-data="{ open: false, filter: 'all' }">
 
         {{-- Accordion header (compact & beautiful) --}}
         <button type="button" @click="open = !open"
@@ -247,16 +256,24 @@
                 </div>
                 
                 <div class="flex items-center gap-3 text-xs flex-wrap">
-                    <span class="inline-flex items-center gap-1.5 font-semibold text-green-700">
+                    <span @click.stop="filter = 'all'; open = true"
+                          :class="filter === 'all' ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-blue-50'"
+                          class="inline-flex items-center gap-1.5 font-semibold text-blue-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                        ทั้งหมด {{ $mgr->total_props }} อสังหา
+                    </span>
+                    <span @click.stop="filter = 'vacant'; open = true"
+                          :class="filter === 'vacant' ? 'bg-green-100 ring-1 ring-green-300' : 'hover:bg-green-50'"
+                          class="inline-flex items-center gap-1.5 font-semibold text-green-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
                         <span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
                         {{ $mgr->vacant_count }} ว่าง
                     </span>
-                    <span class="inline-flex items-center gap-1.5 font-semibold text-red-700">
+                    <span @click.stop="filter = 'occupied'; open = true"
+                          :class="filter === 'occupied' ? 'bg-red-100 ring-1 ring-red-300' : 'hover:bg-red-50'"
+                          class="inline-flex items-center gap-1.5 font-semibold text-red-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
                         <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"></span>
                         {{ $mgr->occupied_count }} ไม่ว่าง
-                    </span>
-                    <span class="text-gray-400">·</span>
-                    <span class="text-gray-600 font-medium">ทั้งหมด {{ $mgr->total_props }} อสังหา</span>
+                    </span>  
                     @if($mgrRevenue > 0)
                         <span class="hidden md:inline text-gray-400">·</span>
                         <span class="hidden md:inline text-brand-700 font-bold tabular-nums">
@@ -329,7 +346,8 @@
                                 $monthCount = (int) round($start->diffInMonths($end));
                             }
                         @endphp
-                        <tr class="hover:bg-gray-50/50 transition-colors">
+                        <tr x-show="filter === 'all' || filter === '{{ $prop->is_occupied ? 'occupied' : 'vacant' }}'"
+                            class="hover:bg-gray-50/50 transition-colors">
                             <td class="px-3 py-2">
                                 <span class="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
                                     {{ $prop->property_code ?: '—' }}
@@ -422,7 +440,7 @@
                         $monthCount = (int) round($start->diffInMonths($end));
                     }
                 @endphp
-                <div class="px-3 py-3">
+                <div x-show="filter === 'all' || filter === '{{ $prop->is_occupied ? 'occupied' : 'vacant' }}'" class="px-3 py-3">
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <span class="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
                             {{ $prop->property_code ?: '—' }}
@@ -481,16 +499,31 @@
                 @endforeach
             </div>
 
+            {{-- Empty state when the active filter matches nothing --}}
+            <div x-show="(filter === 'vacant' && {{ $mgr->vacant_count }} === 0) || (filter === 'occupied' && {{ $mgr->occupied_count }} === 0)"
+                 class="px-4 py-6 text-center">
+                <p class="text-xs text-gray-400">ไม่มีอสังหาในสถานะนี้</p>
+            </div>
+
             {{-- Card footer --}}
             <div class="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <div class="flex items-center gap-3 flex-wrap">
-                    <span class="text-xs text-gray-500 tabular-nums">{{ $mgr->total_props }} รายการ</span>
-                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700">
+                    <span @click="filter = 'all'"
+                          :class="filter === 'all' ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-blue-50'"
+                          class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors tabular-nums">
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                        {{ $mgr->total_props }} รายการ
+                    </span>
+                    <span @click="filter = 'vacant'"
+                          :class="filter === 'vacant' ? 'bg-green-100 ring-1 ring-green-300' : 'hover:bg-green-50'"
+                          class="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
                         <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
                         {{ $mgr->vacant_count }} ว่าง
                     </span>
                     @if($mgr->occupied_count > 0)
-                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700">
+                    <span @click="filter = 'occupied'"
+                          :class="filter === 'occupied' ? 'bg-red-100 ring-1 ring-red-300' : 'hover:bg-red-50'"
+                          class="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 cursor-pointer px-1.5 py-0.5 rounded-md transition-colors">
                         <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                         {{ $mgr->occupied_count }} ไม่ว่าง
                     </span>
@@ -660,16 +693,16 @@
                 labels,
                 datasets: [
                     {
-                        label: 'ว่าง',
-                        data: raw.map(r => r.vacant),
-                        backgroundColor: '#22c55e', // green-500
+                        label: 'ไม่ว่าง',
+                        data: raw.map(r => r.occupied),
+                        backgroundColor: '#ef4444', // red-500
                         borderRadius: 3,
                         borderSkipped: false,
                     },
                     {
-                        label: 'ไม่ว่าง',
-                        data: raw.map(r => r.occupied),
-                        backgroundColor: '#ef4444', // red-500
+                        label: 'ว่าง',
+                        data: raw.map(r => r.vacant),
+                        backgroundColor: '#22c55e', // green-500
                         borderRadius: 3,
                         borderSkipped: false,
                     }
@@ -724,16 +757,16 @@
                 labels,
                 datasets: [
                     {
-                        label: 'ว่าง',
-                        data: raw.map(r => r.vrate),
-                        backgroundColor: '#22c55e', // green-500
+                        label: 'ไม่ว่าง',
+                        data: raw.map(r => r.rate),
+                        backgroundColor: '#ef4444', // red-500
                         borderRadius: 3,
                         borderSkipped: false,
                     },
                     {
-                        label: 'ไม่ว่าง',
-                        data: raw.map(r => r.rate),
-                        backgroundColor: '#ef4444', // red-500
+                        label: 'ว่าง',
+                        data: raw.map(r => r.vrate),
+                        backgroundColor: '#22c55e', // green-500
                         borderRadius: 3,
                         borderSkipped: false,
                     }
