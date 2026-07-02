@@ -263,7 +263,7 @@
 @if($totalSlipNeeded > 0)
 <button type="button"
         x-on:click="filter = (filter === 'slip_needed' ? 'all' : 'slip_needed')"
-        class="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-3 text-left">
+        class="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5 mb-3 text-left transition-transform active:scale-[0.99]">
     <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
         <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
@@ -283,7 +283,7 @@
 @if($totalSlipVerify > 0)
 <button type="button"
         x-on:click="filter = (filter === 'slip_verify' ? 'all' : 'slip_verify')"
-        class="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 mb-3 text-left">
+        class="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3.5 mb-3 text-left transition-transform active:scale-[0.99]">
     <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
         <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -314,7 +314,7 @@
         <input type="text"
                x-model="search"
                placeholder="ค้นหาชื่อทรัพย์ รหัส หรือชื่อลูกค้า..."
-               class="w-full pl-11 pr-9 py-2.5 text-sm bg-transparent focus:outline-none text-gray-800 placeholder-gray-400">
+               class="w-full pl-11 pr-9 py-3 text-sm bg-transparent focus:outline-none text-gray-800 placeholder-gray-400">
         <button x-show="search" x-cloak @click="search = ''"
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors focus:outline-none"
                 tabindex="-1">
@@ -326,17 +326,17 @@
     <div class="flex flex-wrap gap-1.5 bg-gray-100 rounded-xl p-1.5">
         <button @click="filter = 'all'"
                 :class="filter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ทั้งหมด</button>
+                class="px-3.5 py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ทั้งหมด</button>
         <button @click="filter = 'active'"
                 :class="filter === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ไม่ว่าง</button>
+                class="px-3.5 py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ไม่ว่าง</button>
         <button @click="filter = 'vacant'"
                 :class="filter === 'vacant' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ว่าง</button>
+                class="px-3.5 py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ว่าง</button>
         @if($totalSlipNeeded > 0)
         <button @click="filter = 'slip_needed'"
                 :class="filter === 'slip_needed' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1">
+                class="px-3.5 py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1">
             รอสลิป
             <span class="text-[10px] font-bold bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none">{{ $totalSlipNeeded }}</span>
         </button>
@@ -344,7 +344,7 @@
         @if($totalSlipVerify > 0)
         <button @click="filter = 'slip_verify'"
                 :class="filter === 'slip_verify' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
-                class="px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1">
+                class="px-3.5 py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1">
             แนบแล้ว
             <span class="text-[10px] font-bold bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none">{{ $totalSlipVerify }}</span>
         </button>
@@ -360,7 +360,7 @@
     @foreach($contractRows as $row)
     <a href="{{ route('properties.show', $row->property->id) }}"
        x-show="matchRow('active', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
-       class="property-row block bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:bg-gray-50 transition-colors">
+       class="property-row block bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:bg-gray-50 active:scale-[0.99] transition-all">
 
         <div class="flex items-start gap-3">
             {{-- Thumbnail --}}

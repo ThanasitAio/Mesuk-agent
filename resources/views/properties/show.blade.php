@@ -561,7 +561,7 @@
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
     {{-- Section Header --}}
-    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+    <div class="flex items-center justify-between gap-2 flex-wrap px-4 sm:px-5 py-3.5 sm:py-4 border-b border-gray-100">
         <div class="flex items-center gap-2.5">
             <div class="w-8 h-8 bg-brand-100 rounded-xl flex items-center justify-center flex-shrink-0">
                 <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -627,20 +627,22 @@
         </div>
     @else
 
-    {{-- ─── Tab Bar ─── --}}
-    <div class="flex border-b border-gray-100 px-4 bg-gray-50/40">
-        <button onclick="switchBillingTab('pending')" id="tab-btn-pending"
-                class="billing-tab-btn text-xs font-bold py-3 px-3 border-b-2 border-brand-600 text-brand-700 transition-all whitespace-nowrap">
-            รอชำระ/รอตรวจสอบ
-        </button>
-        <button onclick="switchBillingTab('paid')" id="tab-btn-paid"
-                class="billing-tab-btn text-xs font-semibold py-3 px-3 border-b-2 border-transparent text-gray-400 transition-all whitespace-nowrap hover:text-gray-600">
-            ชำระแล้ว
-        </button>
-        <button onclick="switchBillingTab('all')" id="tab-btn-all"
-                class="billing-tab-btn text-xs font-semibold py-3 px-3 border-b-2 border-transparent text-gray-400 transition-all whitespace-nowrap hover:text-gray-600">
-            ทั้งหมด
-        </button>
+    {{-- ─── Tab Bar (segmented control) ─── --}}
+    <div class="px-4 sm:px-5 pt-3.5 pb-3 border-b border-gray-100 bg-gray-50/40">
+        <div class="flex gap-1 bg-gray-100 rounded-xl p-1">
+            <button onclick="switchBillingTab('pending')" id="tab-btn-pending"
+                    class="billing-tab-btn flex-1 text-center text-xs font-bold py-2.5 px-2 rounded-lg transition-all whitespace-nowrap bg-white text-brand-700 shadow-sm">
+                รอชำระ/รอตรวจสอบ
+            </button>
+            <button onclick="switchBillingTab('paid')" id="tab-btn-paid"
+                    class="billing-tab-btn flex-1 text-center text-xs font-semibold py-2.5 px-2 rounded-lg transition-all whitespace-nowrap text-gray-500 hover:text-gray-700">
+                ชำระแล้ว
+            </button>
+            <button onclick="switchBillingTab('all')" id="tab-btn-all"
+                    class="billing-tab-btn flex-1 text-center text-xs font-semibold py-2.5 px-2 rounded-lg transition-all whitespace-nowrap text-gray-500 hover:text-gray-700">
+                ทั้งหมด
+            </button>
+        </div>
     </div>
 
     {{-- ─── Desktop Table ─── --}}
@@ -895,7 +897,7 @@
     </div>
 
     {{-- ─── Mobile Cards ─── --}}
-    <div class="md:hidden">
+    <div class="md:hidden p-3 space-y-2.5 bg-gray-50/40">
         @foreach($displayRecords as $record)
             @php
                 $meta = $recordMeta[$record->id] ?? [];
@@ -950,13 +952,13 @@
                     default          => null,
                 };
             @endphp
-            <div class="relative {{ $hasInvoice ? 'px-5 py-4 border-b border-gray-50 last:border-0 bg-brand-50/20' : 'px-5 py-4 border-b border-gray-50 last:border-0 ' . ($isOverdue ? 'bg-red-50/30' : '') }}"
+            <div class="relative rounded-2xl border shadow-sm py-4 pl-5 pr-4 transition-shadow hover:shadow-md {{ $hasInvoice ? 'border-brand-100 bg-brand-50/30' : ($isOverdue ? 'border-red-100 bg-red-50/40' : 'border-gray-100 bg-white') }}"
                  data-billing-status="{{ $record->payment_status }}"
                  @if($meta['is_phase2_combo'] ?? false) data-phase2-row="1" @endif
                  @if($meta['is_combo_month1'] ?? false) data-combomonth1-row="1" style="display:none;" @endif
             >
                 {{-- Left accent bar --}}
-                <span class="absolute left-0 top-4 bottom-4 {{ $barWidth }} rounded-r-full {{ $barClass }}"></span>
+                <span class="absolute left-1.5 top-3 bottom-3 {{ $barWidth }} rounded-full {{ $barClass }}"></span>
 
                 {{-- Top row: type + status badge --}}
                 <div class="flex items-start justify-between gap-3 mb-2 pl-1">
@@ -1128,7 +1130,7 @@
     </div>
 
     {{-- Show more / collapse bar --}}
-    <div id="billing-show-more-bar" style="display:none;" class="border-t border-gray-100 px-5 py-3 flex items-center justify-center bg-gradient-to-r from-transparent via-gray-50/80 to-transparent">
+    <div id="billing-show-more-bar" style="display:none;" class="border-t border-gray-100 px-4 sm:px-5 py-3 flex items-center justify-center bg-gradient-to-r from-transparent via-gray-50/80 to-transparent">
         <button type="button" onclick="toggleBillingExpand()"
                 class="inline-flex items-center gap-2 text-xs font-bold text-brand-600 hover:text-brand-800 transition-colors">
             <svg id="billing-show-more-icon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1144,7 +1146,7 @@
     </div>
 
     @if($lockedRecords->count() > 0)
-    <div id="locked-records-section" class="border-t border-gray-100 bg-gradient-to-br from-gray-50 to-slate-50/50 px-5 py-4">
+    <div id="locked-records-section" class="border-t border-gray-100 bg-gradient-to-br from-gray-50 to-slate-50/50 px-4 sm:px-5 py-4">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
             รอบถัดไป (ล็อก — ชำระตามลำดับเดือน)
@@ -1369,13 +1371,13 @@ function switchBillingTab(tab) {
     currentBillingTab = tab;
     billingExpanded = false;
     document.querySelectorAll('.billing-tab-btn').forEach(btn => {
-        btn.classList.remove('border-brand-600', 'text-brand-700', 'font-bold');
-        btn.classList.add('border-transparent', 'text-gray-400');
+        btn.classList.remove('bg-white', 'text-brand-700', 'font-bold', 'shadow-sm');
+        btn.classList.add('text-gray-500', 'font-semibold');
     });
     const activeBtn = document.getElementById('tab-btn-' + tab);
     if (activeBtn) {
-        activeBtn.classList.remove('border-transparent', 'text-gray-400');
-        activeBtn.classList.add('border-brand-600', 'text-brand-700', 'font-bold');
+        activeBtn.classList.remove('text-gray-500', 'font-semibold');
+        activeBtn.classList.add('bg-white', 'text-brand-700', 'font-bold', 'shadow-sm');
     }
     applyBillingTabFilter();
 }
