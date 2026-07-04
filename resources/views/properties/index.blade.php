@@ -215,17 +215,37 @@
     $totalAvailable    = $vacantRows->where('slug', 'available')->count();
     $totalBooked       = $vacantRows->where('slug', 'booked')->count();
     $totalFutureProject = $vacantRows->where('slug', 'future_project')->count();
+
+    // ─── รายการทั้งหมดแบบย่อ ใช้เช็คว่ามีแถวที่ตรงกับแท็บ/คำค้นหาที่เลือกอยู่หรือไม่ ───
+    $allRowsForMatch = $contractRows
+        ->map(fn ($row) => [
+            'type'          => 'active',
+            'text'          => $row->searchText,
+            'slipNeeded'    => $row->slipNeeded,
+            'slipVerifying' => $row->slipPendingVerify,
+        ])
+        ->concat($vacantRows->map(fn ($row) => [
+            'type'          => $row->filterType,
+            'text'          => $row->searchText,
+            'slipNeeded'    => false,
+            'slipVerifying' => false,
+        ]))
+        ->values();
 @endphp
 
 <div x-data="{
     search: '',
     filter: 'all',
+    rows: @js($allRowsForMatch),
     matchRow(type, text, slipNeeded, slipVerifying) {
         if (this.filter === 'slip_needed') return type === 'active' && slipNeeded;
         if (this.filter === 'slip_verify') return type === 'active' && slipVerifying;
         if (this.filter !== 'all' && this.filter !== type) return false;
         if (!this.search.trim()) return true;
         return text.toLowerCase().includes(this.search.toLowerCase().trim());
+    },
+    get hasMatches() {
+        return this.rows.some(r => this.matchRow(r.type, r.text, r.slipNeeded, r.slipVerifying));
     }
 }">
 
@@ -750,6 +770,17 @@
     </tr>
     @endforeach
 </x-table>
+
+{{-- ===== No results for current tab/search ===== --}}
+<div x-show="!hasMatches" x-cloak class="py-16 text-center">
+    <div class="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <svg class="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+    </div>
+    <p class="text-gray-700 font-semibold">ไม่มีข้อมูล</p>
+    <p class="text-sm text-gray-400 mt-1">ไม่พบรายการที่ตรงกับตัวกรองหรือคำค้นหานี้</p>
+</div>
 @endif
 
 {{-- ===== Empty State ===== --}}
