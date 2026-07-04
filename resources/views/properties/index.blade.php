@@ -230,7 +230,7 @@
 }">
 
 {{-- ===== Summary Stats (KPI cards) ===== --}}
-<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-5">
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-3 mb-5">
     <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
         <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-50"></div>
         <div class="relative flex items-start justify-between gap-1.5">
@@ -391,11 +391,9 @@
         <button @click="filter = 'available'"
                 :class="filter === 'available' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ว่าง</button>
-        @if($totalBooked > 0)
         <button @click="filter = 'booked'"
                 :class="filter === 'booked' ? 'bg-white text-yellow-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">จอง</button>
-        @endif
         @if($totalFutureProject > 0)
         <button @click="filter = 'future_project'"
                 :class="filter === 'future_project' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
