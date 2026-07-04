@@ -55,6 +55,16 @@
     $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
     $thM = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
     $vacancyRate = $totalProps > 0 ? round($totalVacant / $totalProps * 100, 1) : 0;
+
+    $statusBadgeClasses = [
+        'red'    => 'text-red-700 bg-red-50 border-red-200',
+        'green'  => 'text-green-700 bg-green-50 border-green-200',
+        'yellow' => 'text-yellow-700 bg-yellow-50 border-yellow-200',
+        'blue'   => 'text-blue-700 bg-blue-50 border-blue-200',
+    ];
+    $statusDotClasses = [
+        'red' => 'bg-red-500', 'green' => 'bg-green-500', 'yellow' => 'bg-yellow-500', 'blue' => 'bg-blue-500',
+    ];
 @endphp
 
 {{-- ── Hero ────────────────────────────────────────────────────────────────── --}}
@@ -421,17 +431,10 @@
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-center">
-                                @if($prop->is_occupied)
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full transition-all duration-200 hover:shadow-md">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                                        ไม่ว่าง
-                                    </span>
-                                @else
-                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full transition-all duration-200 hover:shadow-md">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                        ว่าง
-                                    </span>
-                                @endif
+                                <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $statusBadgeClasses[$prop->status_color] }} border px-2 py-1 rounded-full transition-all duration-200 hover:shadow-md">
+                                    <span class="w-1.5 h-1.5 rounded-full {{ $statusDotClasses[$prop->status_color] }} {{ $prop->is_occupied ? 'animate-pulse' : '' }}"></span>
+                                    {{ $prop->status_label }}
+                                </span>
                             </td>
                         </tr>
                         @endforeach
@@ -475,17 +478,10 @@
                         <span class="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
                             {{ $prop->property_code ?: '—' }}
                         </span>
-                        @if($prop->is_occupied)
-                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded-full transition-all duration-200">
-                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                                ไม่ว่าง
-                            </span>
-                        @else
-                            <span class="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-full transition-all duration-200">
-                                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                ว่าง
-                            </span>
-                        @endif
+                        <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $statusBadgeClasses[$prop->status_color] }} border px-2 py-1 rounded-full transition-all duration-200">
+                            <span class="w-1.5 h-1.5 rounded-full {{ $statusDotClasses[$prop->status_color] }} {{ $prop->is_occupied ? 'animate-pulse' : '' }}"></span>
+                            {{ $prop->status_label }}
+                        </span>
                     </div>
                     
                     <div class="mb-2">

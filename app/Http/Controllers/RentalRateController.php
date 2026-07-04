@@ -43,9 +43,19 @@ class RentalRateController extends Controller
             ->get()
             ->keyBy('property_id');
 
+        // สถานะของทรัพย์ที่ไม่ได้มีผู้เช่า checked_in อยู่จริง — อ้างอิงจาก property_status_id จริง
+        // (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ไม่ใช่เหมาว่า "ไม่มี checked_in = ว่าง" เสมอไป
+        $vacantStatusMap = [
+            'available'      => ['color' => 'green',  'label' => 'ว่าง'],
+            'unavailable'    => ['color' => 'red',    'label' => 'ไม่ว่าง'],
+            'booked'         => ['color' => 'yellow', 'label' => 'จอง'],
+            'future_project' => ['color' => 'blue',   'label' => 'โครงการในอนาคต'],
+        ];
+
         // All published properties with manager info
         $properties = DB::table('hr_properties as p')
             ->leftJoin('hr_agents as a', 'p.manager_agent_code', '=', 'a.agent_code')
+            ->leftJoin('hr_property_statuses as ps', 'p.property_status_id', '=', 'ps.id')
             ->whereNull('p.deleted_at')
             ->where('p.status', 'published')
             ->select(
@@ -58,14 +68,24 @@ class RentalRateController extends Controller
                 DB::raw("COALESCE(a.name, 'ไม่ระบุผู้บริหาร') AS manager_name"),
                 'a.avatar AS manager_avatar',
                 'a.agent_code AS manager_code',
-                'a.pass_decode AS manager_pass_decode'
+                'a.pass_decode AS manager_pass_decode',
+                'ps.slug AS property_status_slug'
             )
             ->orderBy('a.name')
             ->orderBy('p.property_code')
             ->get()
-            ->each(function ($p) use ($occupiedSet, $activeBookings) {
+            ->each(function ($p) use ($occupiedSet, $activeBookings, $vacantStatusMap) {
                 $p->is_occupied = isset($occupiedSet[$p->id]);
                 $p->booking     = $p->is_occupied ? $activeBookings->get($p->id) : null;
+
+                if ($p->is_occupied) {
+                    $p->status_label = 'ไม่ว่าง';
+                    $p->status_color = 'red';
+                } else {
+                    $status = $vacantStatusMap[$p->property_status_slug] ?? $vacantStatusMap['available'];
+                    $p->status_label = $status['label'];
+                    $p->status_color = $status['color'];
+                }
             });
 
         // Group by manager and compute stats

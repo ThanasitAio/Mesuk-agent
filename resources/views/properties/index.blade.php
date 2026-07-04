@@ -73,6 +73,15 @@
         'pending'           => ['color' => 'yellow', 'label' => 'จองแล้ว',        'pulse' => false],
     ];
 
+    // สถานะของทรัพย์ที่ยังไม่มีสัญญา/booking ในระบบ — อ้างอิงจาก property_status_id จริง
+    // (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ไม่ใช่เหมาว่า "ไม่มี booking = ว่าง" เสมอไป
+    $vacantStatusMap = [
+        'available'      => ['color' => 'green',  'label' => 'ว่าง'],
+        'unavailable'    => ['color' => 'red',    'label' => 'ไม่ว่าง'],
+        'booked'         => ['color' => 'yellow', 'label' => 'จอง'],
+        'future_project' => ['color' => 'blue',   'label' => 'โครงการในอนาคต'],
+    ];
+
     $resolveImageUrl = function ($property) use ($happyestPublic) {
         $media = $property->primaryImageMedia;
         if (! $media || ! $media->file_path) {
@@ -178,11 +187,16 @@
         ];
     });
 
-    $vacantRows = $withoutContract->map(function ($property) use ($resolveImageUrl) {
+    $vacantRows = $withoutContract->map(function ($property) use ($resolveImageUrl, $vacantStatusMap) {
+        $slug   = optional($property->propertyStatus)->slug ?? 'available';
+        $status = $vacantStatusMap[$slug] ?? $vacantStatusMap['available'];
+
         return (object) [
-            'property'   => $property,
-            'imageUrl'   => $resolveImageUrl($property),
-            'searchText' => strtolower(($property->title ?? '') . ' ' . ($property->property_code ?? '')),
+            'property'    => $property,
+            'imageUrl'    => $resolveImageUrl($property),
+            'searchText'  => strtolower(($property->title ?? '') . ' ' . ($property->property_code ?? '')),
+            'statusColor' => $status['color'],
+            'statusLabel' => $status['label'],
         ];
     });
 @endphp
@@ -486,8 +500,8 @@
                 <p class="font-medium text-gray-600 truncate leading-snug">{{ $row->property->title ?? '—' }}</p>
                 @endif
                 <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>ว่าง
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full">
+                        <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }}"></span>{{ $row->statusLabel }}
                     </span>
                     @if($row->property->price_per_month)
                     <span class="text-xs text-gray-500 tabular-nums">{{ number_format($row->property->price_per_month, 0) }} <span class="text-[10px] text-gray-400">฿/เดือน</span></span>
@@ -664,8 +678,8 @@
         <td class="px-5 py-3.5 text-sm text-gray-400">—</td>
 
         <td class="px-5 py-3.5">
-            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>ว่าง
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }}"></span>{{ $row->statusLabel }}
             </span>
         </td>
 
