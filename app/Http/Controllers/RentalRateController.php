@@ -43,13 +43,11 @@ class RentalRateController extends Controller
             ->get()
             ->keyBy('property_id');
 
-        // สถานะของทรัพย์ที่ไม่ได้มีผู้เช่า checked_in อยู่จริง — อ้างอิงจาก property_status_id จริง
-        // (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ไม่ใช่เหมาว่า "ไม่มี checked_in = ว่าง" เสมอไป
+        // หน้านี้โฟกัสเฉพาะสถานะ "ว่าง" และ "ไม่ว่าง" เท่านั้น — ไม่แสดงทรัพย์ที่สถานะ
+        // "จอง" หรือ "โครงการในอนาคต" เพราะยังไม่ใช่ทรัพย์ที่พร้อมปล่อยเช่าจริง
         $vacantStatusMap = [
-            'available'      => ['color' => 'green',  'label' => 'ว่าง'],
-            'unavailable'    => ['color' => 'red',    'label' => 'ไม่ว่าง'],
-            'booked'         => ['color' => 'yellow', 'label' => 'จอง'],
-            'future_project' => ['color' => 'blue',   'label' => 'โครงการในอนาคต'],
+            'available'   => ['color' => 'green', 'label' => 'ว่าง'],
+            'unavailable' => ['color' => 'red',   'label' => 'ไม่ว่าง'],
         ];
 
         // All published properties with manager info
@@ -86,7 +84,11 @@ class RentalRateController extends Controller
                     $p->status_label = $status['label'];
                     $p->status_color = $status['color'];
                 }
-            });
+            })
+            // ตัดทรัพย์ที่สถานะ "จอง" หรือ "โครงการในอนาคต" ออก (เฉพาะรายการที่ไม่มีผู้เช่า checked_in อยู่จริง)
+            // เพื่อให้หน้านี้แสดงและนับจำนวนเฉพาะสถานะว่าง/ไม่ว่างเท่านั้น
+            ->filter(fn($p) => $p->is_occupied || in_array($p->property_status_slug, ['available', 'unavailable']) || is_null($p->property_status_slug))
+            ->values();
 
         // Group by manager and compute stats
         $byManager = $properties

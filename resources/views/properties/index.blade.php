@@ -191,14 +191,30 @@
         $slug   = optional($property->propertyStatus)->slug ?? 'available';
         $status = $vacantStatusMap[$slug] ?? $vacantStatusMap['available'];
 
+        // ประเภทสำหรับใช้กรองแท็บ — สถานะ "ไม่ว่าง" ที่ไม่มีสัญญา (unavailable) นับรวมกับแท็บ "ไม่ว่าง"
+        $filterType = match ($slug) {
+            'unavailable'    => 'active',
+            'booked'         => 'booked',
+            'future_project' => 'future_project',
+            default          => 'available',
+        };
+
         return (object) [
             'property'    => $property,
             'imageUrl'    => $resolveImageUrl($property),
             'searchText'  => strtolower(($property->title ?? '') . ' ' . ($property->property_code ?? '')),
             'statusColor' => $status['color'],
             'statusLabel' => $status['label'],
+            'slug'        => $slug,
+            'filterType'  => $filterType,
         ];
     });
+
+    // ─── จำนวนแยกตามสถานะจริง (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ───
+    $totalActive       = $withContract->count() + $vacantRows->where('slug', 'unavailable')->count();
+    $totalAvailable    = $vacantRows->where('slug', 'available')->count();
+    $totalBooked       = $vacantRows->where('slug', 'booked')->count();
+    $totalFutureProject = $vacantRows->where('slug', 'future_project')->count();
 @endphp
 
 <div x-data="{
@@ -214,7 +230,7 @@
 }">
 
 {{-- ===== Summary Stats (KPI cards) ===== --}}
-<div class="grid grid-cols-3 gap-2.5 sm:gap-3 mb-5">
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-5">
     <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
         <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-50"></div>
         <div class="relative flex items-start justify-between gap-1.5">
@@ -233,7 +249,7 @@
         <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-red-50"></div>
         <div class="relative flex items-start justify-between gap-1.5">
             <div class="min-w-0">
-                <p class="text-xl sm:text-2xl font-black text-red-600 tabular-nums leading-none">{{ $withContract->count() }}</p>
+                <p class="text-xl sm:text-2xl font-black text-red-600 tabular-nums leading-none">{{ $totalActive }}</p>
                 <p class="text-[10px] sm:text-xs text-red-500 font-medium mt-1.5 leading-tight">ไม่ว่าง</p>
             </div>
             <div class="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shadow-md shadow-red-200">
@@ -247,12 +263,40 @@
         <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-50"></div>
         <div class="relative flex items-start justify-between gap-1.5">
             <div class="min-w-0">
-                <p class="text-xl sm:text-2xl font-black text-green-600 tabular-nums leading-none">{{ $withoutContract->count() }}</p>
+                <p class="text-xl sm:text-2xl font-black text-green-600 tabular-nums leading-none">{{ $totalAvailable }}</p>
                 <p class="text-[10px] sm:text-xs text-green-500 font-medium mt-1.5 leading-tight">ว่าง</p>
             </div>
             <div class="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-200">
                 <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-amber-50"></div>
+        <div class="relative flex items-start justify-between gap-1.5">
+            <div class="min-w-0">
+                <p class="text-xl sm:text-2xl font-black text-yellow-600 tabular-nums leading-none">{{ $totalBooked }}</p>
+                <p class="text-[10px] sm:text-xs text-yellow-600 font-medium mt-1.5 leading-tight">จอง</p>
+            </div>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shadow-md shadow-yellow-200">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="relative overflow-hidden bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="pointer-events-none absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-50"></div>
+        <div class="relative flex items-start justify-between gap-1.5">
+            <div class="min-w-0">
+                <p class="text-xl sm:text-2xl font-black text-blue-600 tabular-nums leading-none">{{ $totalFutureProject }}</p>
+                <p class="text-[10px] sm:text-xs text-blue-500 font-medium mt-1.5 leading-tight">โครงการในอนาคต</p>
+            </div>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shadow-blue-200">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21V7l8-4v18M13 21V11l6 4v6M9 9h0M9 12h0M9 15h0"/>
                 </svg>
             </div>
         </div>
@@ -344,9 +388,19 @@
         <button @click="filter = 'active'"
                 :class="filter === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ไม่ว่าง</button>
-        <button @click="filter = 'vacant'"
-                :class="filter === 'vacant' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+        <button @click="filter = 'available'"
+                :class="filter === 'available' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">ว่าง</button>
+        @if($totalBooked > 0)
+        <button @click="filter = 'booked'"
+                :class="filter === 'booked' ? 'bg-white text-yellow-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">จอง</button>
+        @endif
+        @if($totalFutureProject > 0)
+        <button @click="filter = 'future_project'"
+                :class="filter === 'future_project' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">โครงการในอนาคต</button>
+        @endif
         @if($totalSlipNeeded > 0)
         <button @click="filter = 'slip_needed'"
                 :class="filter === 'slip_needed' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
@@ -477,7 +531,7 @@
     @endforeach
 
     @foreach($vacantRows as $row)
-    <div x-show="matchRow('vacant', @js($row->searchText), false, false)"
+    <div x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), false, false)"
          class="property-row bg-white rounded-2xl border border-gray-100 p-4 opacity-75">
         <div class="flex items-center gap-3">
             <div class="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 relative">
@@ -663,7 +717,7 @@
     @endforeach
 
     @foreach($vacantRows as $row)
-    <tr x-show="matchRow('vacant', @js($row->searchText), false, false)"
+    <tr x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), false, false)"
         class="property-row hover:bg-gray-50/60 opacity-75">
 
         <td class="px-5 py-3.5">
