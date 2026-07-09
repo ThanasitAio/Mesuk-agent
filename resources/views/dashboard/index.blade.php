@@ -85,6 +85,71 @@
     </div>
 </div>
 
+{{-- ── Ad Referral Links ────────────────────────────────────────────────────── --}}
+<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 mb-5">
+    <div class="flex items-start gap-3 mb-4">
+        <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-green-500 bg-gradient-to-br from-green-400 to-green-600
+                    flex items-center justify-center shadow-md shadow-green-200">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+            </svg>
+        </div>
+        <div>
+            <p class="text-sm font-bold text-gray-900">ลิงก์แนะนำสำหรับยิงแอด</p>
+            <p class="text-xs text-gray-500 mt-0.5">ลูกค้าที่คลิกลิงก์แล้วสมัครสมาชิกใหม่ จะผูกเป็นลูกค้าของคุณอัตโนมัติทุกการจอง</p>
+        </div>
+    </div>
+
+    <div class="flex items-center gap-2 p-3 rounded-xl bg-green-50 border border-green-200 mb-3">
+        <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold text-green-700">ลิงก์หน้าแรก</p>
+            <p class="text-xs text-gray-500 truncate">{{ $happyestPublic }}?ref={{ session('agent_code') }}</p>
+        </div>
+        <button type="button" onclick="copyAdLink('{{ $happyestPublic }}?ref={{ session('agent_code') }}')"
+                class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-2 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            คัดลอก
+        </button>
+    </div>
+
+    @if($myListedProperties->isEmpty())
+        <p class="text-xs text-gray-400 text-center py-2">คุณยังไม่มีทรัพย์ที่ลงประกาศ (ลงประกาศได้ที่หน้าเว็บหลัก)</p>
+    @else
+        @if($myListedPropertiesTotal > $myListedProperties->count())
+            <p class="text-[11px] text-gray-400 mb-2">แสดง {{ $myListedProperties->count() }} รายการล่าสุด จากทั้งหมด {{ $myListedPropertiesTotal }} รายการ</p>
+        @endif
+        <div class="max-h-64 overflow-y-auto flex flex-col gap-2">
+            @foreach($myListedProperties as $property)
+                <div class="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-gray-800 truncate">{{ $property->title }}</p>
+                        <p class="text-[11px] text-gray-400">{{ $property->property_code }}</p>
+                    </div>
+                    @if($property->status === 'published')
+                        <button type="button"
+                                onclick="copyAdLink('{{ $happyestPublic }}/property/{{ $property->slug }}?ref={{ session('agent_code') }}')"
+                                class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-white border border-green-300 hover:bg-green-50 text-green-700 text-[11px] font-semibold px-2.5 py-1.5 transition-colors">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            คัดลอกลิงก์
+                        </button>
+                    @else
+                        <span class="flex-shrink-0 text-[11px] font-medium text-gray-400 px-2.5 py-1.5" title="ต้องรอเผยแพร่ก่อนจึงจะยิงแอดได้">
+                            รอเผยแพร่
+                        </span>
+                    @endif
+                </div>
+            @endforeach
+        </div>
+    @endif
+</div>
+
 {{-- ── Stats Cards ──────────────────────────────────────────────────────────── --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
 
@@ -648,6 +713,20 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    // คัดลอกลิงก์แอด (ผูก ref=agent_code)
+    function copyAdLink(url) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(url).then(() => Toast.success('คัดลอกลิงก์แอดแล้ว'));
+        } else {
+            const el = document.createElement('textarea');
+            el.value = url; el.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(el); el.focus(); el.select();
+            document.execCommand('copy'); document.body.removeChild(el);
+            Toast.success('คัดลอกลิงก์แอดแล้ว');
+        }
+    }
+</script>
 <script>
 (function () {
     Chart.defaults.font.family = 'inherit';

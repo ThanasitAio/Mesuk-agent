@@ -18,6 +18,20 @@ class DashboardController extends Controller
             ->pluck('id')
             ->all();
 
+        // ทรัพย์ที่ตัวแทนคนนี้ลงประกาศเอง (agent_code) — สำหรับสร้างลิงก์แอด ต่างจาก manager_agent_code ที่ใช้ในหน้าบิล
+        $myListedPropertiesTotal = DB::table('hr_properties')
+            ->where('agent_code', $agentCode)
+            ->whereNull('deleted_at')
+            ->count();
+
+        $myListedProperties = DB::table('hr_properties')
+            ->where('agent_code', $agentCode)
+            ->whereNull('deleted_at')
+            ->select('id', 'title', 'slug', 'property_code', 'status')
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
         // Bookings for those properties
         $bookingIds = collect();
         if (!empty($managedPropIds)) {
@@ -171,6 +185,8 @@ class DashboardController extends Controller
         }
 
         return view('dashboard.index', compact(
+            'myListedProperties',
+            'myListedPropertiesTotal',
             'totalBookings',
             'totalCustomers',
             'paidAmount',
