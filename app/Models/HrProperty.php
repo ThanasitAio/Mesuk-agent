@@ -28,6 +28,14 @@ class HrProperty extends Model
         return $this->belongsTo(HrAgent::class, 'manager_agent_code', 'agent_code');
     }
 
+    /**
+     * ตัวแทนที่ทำการฝากทรัพย์ (สร้างรายการนี้)
+     */
+    public function creatorAgent()
+    {
+        return $this->belongsTo(HrAgent::class, 'agent_code', 'agent_code');
+    }
+
     public function propertyStatus()
     {
         return $this->belongsTo(HrPropertyStatus::class, 'property_status_id');

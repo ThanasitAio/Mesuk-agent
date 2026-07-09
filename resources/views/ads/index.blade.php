@@ -7,7 +7,15 @@
 
 @php
     $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
-    $homeAdLink     = $happyestPublic . '?ref=' . session('agent_code');
+
+    // ลิงก์หน้าเว็บ (ไม่ใช่ไฟล์ static) ต้องไม่มี "/public" บน production เด็ดขาด — ระบบหลัก (happyest)
+    // route ทุกหน้าผ่าน root index.php (ดู .htaccess: RewriteBase /happyest/) ไม่ใช่ผ่าน public/index.php
+    // ดังนั้นลิงก์ที่มี /public จะ 404 กับลูกค้าที่กดจากแอด แม้ .env จะตั้งค่าผิดมาอีกก็จะไม่หลุดออกไป
+    $happyestPageBase = app()->environment('production')
+        ? preg_replace('#/public/?$#', '', $happyestPublic)
+        : $happyestPublic;
+
+    $homeAdLink     = $happyestPageBase . '?ref=' . session('agent_code');
 
     $resolveImageUrl = function ($property) use ($happyestPublic) {
         $media = $property->primaryImageMedia;
@@ -46,13 +54,15 @@
         'price'       => $property->price_per_month,
         'managerName' => $property->manager?->name,
         'managerCode' => $property->manager_agent_code,
+        'ownerName'   => $property->owner?->full_name,
+        'creatorName' => $property->creatorAgent?->name,
         'imageUrl'    => $resolveImageUrl($property),
         'statusSlug'  => $property->status_slug,
         'statusColor' => $property->status_color,
         'statusLabel' => $property->status_label,
         'isPublished' => $property->is_published,
         'searchText'  => $property->search_text,
-        'adLink'      => $happyestPublic . '/property/' . $property->slug . '?ref=' . session('agent_code'),
+        'adLink'      => $happyestPageBase . '/property/' . $property->slug . '?ref=' . session('agent_code'),
     ]);
 @endphp
 
@@ -95,8 +105,7 @@
         <div class="min-w-0">
             <h2 class="text-base sm:text-lg font-black text-white leading-tight">ลิงก์สำหรับยิงแอด / ส่งให้ลูกค้า</h2>
             <p class="text-xs sm:text-sm mt-1 leading-relaxed" style="color: rgba(255,255,255,0.65)">
-                ส่งลิงก์นี้ให้ลูกค้าเพื่อดูรายละเอียดอสังหาริมทรัพย์ หรือใช้ยิงแอดได้ทันที — เมื่อลูกค้าทำการจอง
-                ต้องเลือกรหัสตัวแทนของคุณเองในขั้นตอนจอง ระบบยังไม่ผูกตัวแทนให้อัตโนมัติจากลิงก์
+                ส่งลิงก์นี้ให้ลูกค้าเพื่อดูรายละเอียดอสังหาริมทรัพย์ หรือใช้ยิงแอดได้ทันที
             </p>
         </div>
     </div>
@@ -210,90 +219,102 @@
     </div>
 </div>
 
-{{-- ── Property Grid ────────────────────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mt-3">
+{{-- ── Property List (compact rows) ─────────────────────────────────────────── --}}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-2 mt-3">
     @foreach($cardRows as $row)
+    @php
+        $peopleParts = array_filter([
+            $row['ownerName']   ? 'เจ้าของ: ' . $row['ownerName'] : null,
+            $row['managerName'] ? 'ผู้บริหาร: ' . $row['managerName'] : null,
+            $row['creatorName'] ? 'ตัวแทนฝาก: ' . $row['creatorName'] : null,
+        ]);
+    @endphp
     <div x-data="{ copied: false }"
          x-show="matchRow('{{ $row['statusSlug'] }}', @js($row['searchText']))"
-         class="ads-card-in group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
-         style="animation-delay: {{ min($loop->index, 11) * 40 }}ms">
+         class="ads-card-in group flex gap-2.5 bg-white rounded-xl shadow-sm border border-gray-100 p-2.5 transition-all duration-200 hover:shadow-md hover:border-gray-200"
+         style="animation-delay: {{ min($loop->index, 11) * 30 }}ms">
 
         {{-- Thumbnail --}}
-        <div class="w-full h-40 bg-gray-100 relative overflow-hidden">
+        <div class="w-20 h-20 sm:w-[5.5rem] sm:h-[5.5rem] flex-shrink-0 rounded-lg bg-gray-100 relative overflow-hidden">
             @if($row['imageUrl'])
             <img src="{{ $row['imageUrl'] }}" alt="{{ $row['title'] }}"
-                 class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
+                 class="w-full h-full object-cover"
                  onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
             @endif
             <div class="w-full h-full items-center justify-center absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 {{ $row['imageUrl'] ? 'hidden' : 'flex' }}">
-                <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                 </svg>
             </div>
-            <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            <span class="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] font-semibold {{ $badgeClasses[$row['statusColor']] }} border px-2 py-0.5 rounded-full backdrop-blur-sm shadow-sm">
-                <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row['statusColor']] }}"></span>{{ $row['statusLabel'] }}
-            </span>
-            @if(!$row['isPublished'])
-            <span class="absolute top-2 right-2 inline-flex items-center text-[10px] font-semibold text-gray-500 bg-white/90 border border-gray-200 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                รอเผยแพร่
-            </span>
-            @endif
+            <span class="absolute bottom-1 left-1 w-2 h-2 rounded-full {{ $dotClasses[$row['statusColor']] }} ring-2 ring-white"></span>
         </div>
 
-        <div class="p-3.5">
-            @if($row['code'])
-            <p class="font-mono font-bold text-xs text-gray-500 truncate leading-snug">{{ $row['code'] }}</p>
-            @endif
-            <p class="text-sm font-bold text-gray-800 leading-snug mt-0.5 line-clamp-2 min-h-[2.5em]">{{ $row['title'] ?? '—' }}</p>
+        {{-- Content --}}
+        <div class="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+            <div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    @if($row['code'])
+                    <span class="font-mono text-[10px] font-bold text-gray-400 truncate">{{ $row['code'] }}</span>
+                    @endif
+                    <span class="inline-flex items-center gap-1 text-[9px] font-semibold {{ $badgeClasses[$row['statusColor']] }} border px-1.5 py-0.5 rounded-full leading-none">
+                        {{ $row['statusLabel'] }}
+                    </span>
+                    @if(!$row['isPublished'])
+                    <span class="text-[9px] font-medium text-gray-400">รอเผยแพร่</span>
+                    @endif
+                </div>
 
-            @if($row['district'] || $row['province'])
-            <p class="flex items-center gap-1 text-xs text-gray-400 truncate mt-1.5">
-                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-                <span class="truncate">{{ trim(($row['district'] ?? '') . ($row['district'] && $row['province'] ? ', ' : '') . ($row['province'] ?? '')) }}</span>
-            </p>
-            @endif
+                <p class="text-sm font-bold text-gray-800 leading-snug line-clamp-1 mt-0.5">{{ $row['title'] ?? '—' }}</p>
 
-            <div class="flex items-center justify-between gap-2 mt-2">
-                @if($row['price'])
-                <span class="text-sm font-bold text-gray-700 tabular-nums">{{ number_format($row['price'], 0) }} <span class="font-normal text-gray-400 text-[11px]">฿/ด.</span></span>
-                @else
-                <span></span>
+                @if($row['district'] || $row['province'])
+                <p class="flex items-center gap-1 text-[11px] text-gray-400 truncate mt-0.5">
+                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span class="truncate">{{ trim(($row['district'] ?? '') . ($row['district'] && $row['province'] ? ', ' : '') . ($row['province'] ?? '')) }}</span>
+                </p>
                 @endif
-                @if($row['managerName'])
-                <span class="text-[11px] text-gray-400 truncate max-w-[45%]" title="ผู้บริหารโครงการ: {{ $row['managerName'] }}">{{ $row['managerName'] }}</span>
+
+                @if(count($peopleParts))
+                <p class="text-[10px] text-gray-400 truncate mt-0.5" title="{{ implode(' · ', $peopleParts) }}">
+                    {{ implode(' · ', $peopleParts) }}
+                </p>
                 @endif
             </div>
 
-            <div class="mt-3 pt-3 border-t border-gray-100">
+            <div class="flex items-center justify-between gap-2 mt-1.5">
+                @if($row['price'])
+                <span class="text-sm font-bold text-gray-700 tabular-nums">{{ number_format($row['price'], 0) }} <span class="font-normal text-gray-400 text-[10px]">฿/ด.</span></span>
+                @else
+                <span></span>
+                @endif
+
                 @if($row['isPublished'])
                 <button type="button"
                         @click="copyAdLink('{{ $row['adLink'] }}'); copied = true; setTimeout(() => copied = false, 1600)"
                         :class="copied ? 'ads-copied-pop bg-green-700' : 'bg-green-600 hover:bg-green-700'"
-                        class="w-full inline-flex items-center justify-center gap-1.5 rounded-lg text-white text-xs font-semibold px-3 py-2 transition-all duration-150 active:scale-95">
+                        class="flex-shrink-0 inline-flex items-center gap-1 rounded-lg text-white text-[11px] font-semibold px-2.5 py-1.5 transition-all duration-150 active:scale-95">
                     <template x-if="!copied">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                   d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                         </svg>
                     </template>
                     <template x-if="copied">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                         </svg>
                     </template>
-                    <span x-text="copied ? 'คัดลอกลิงก์แล้ว' : 'คัดลอกลิงก์แอด'"></span>
+                    <span x-text="copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'"></span>
                 </button>
                 @else
-                <span class="w-full inline-flex items-center justify-center gap-1.5 text-xs font-medium text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2"
+                <span class="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5"
                       title="ต้องรอเผยแพร่ก่อนจึงจะยิงแอดได้">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                     </svg>
-                    ยังไม่เผยแพร่ ยิงแอดไม่ได้
+                    ยิงแอดไม่ได้
                 </span>
                 @endif
             </div>

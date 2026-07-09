@@ -17,7 +17,7 @@ class AdsController extends Controller
     public function index()
     {
         $properties = HrProperty::whereNull('deleted_at')
-            ->with(['propertyStatus', 'primaryImageMedia', 'manager'])
+            ->with(['propertyStatus', 'primaryImageMedia', 'manager', 'owner', 'creatorAgent'])
             ->orderByDesc('id')
             ->get()
             ->map(function (HrProperty $property) {
