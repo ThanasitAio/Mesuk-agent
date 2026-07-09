@@ -60,7 +60,6 @@
         'statusSlug'  => $property->status_slug,
         'statusColor' => $property->status_color,
         'statusLabel' => $property->status_label,
-        'isPublished' => $property->is_published,
         'searchText'  => $property->search_text,
         'detailLink'  => $happyestPageBase . '/property/' . $property->slug,
         'adLink'      => $happyestPageBase . '/property/' . $property->slug . '?ref=' . session('agent_code'),
@@ -255,11 +254,6 @@
                 {{ number_format($row['price'], 0) }}<span class="font-normal text-white/70 text-[9px]">฿/ด.</span>
             </span>
             @endif
-            @if(!$row['isPublished'])
-            <span class="absolute bottom-1.5 left-1.5 right-1.5 text-center text-[8px] font-semibold text-gray-500 bg-white/90 border border-gray-200 px-1 py-0.5 rounded-full backdrop-blur-sm truncate">
-                รอเผยแพร่
-            </span>
-            @endif
         </div>
 
         {{-- Content --}}
@@ -314,7 +308,6 @@
                     ดูรายละเอียด
                 </a>
 
-                @if($row['isPublished'])
                 <button type="button"
                         @click="copyAdLink('{{ $row['adLink'] }}'); copied = true; setTimeout(() => copied = false, 1600)"
                         :class="copied ? 'ads-copied-pop bg-green-700' : 'bg-green-600 hover:bg-green-700'"
@@ -332,15 +325,6 @@
                     </template>
                     <span x-text="copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'"></span>
                 </button>
-                @else
-                <span class="flex-1 inline-flex items-center justify-center gap-1 text-[11px] font-medium text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 lg:py-2"
-                      title="ต้องรอเผยแพร่ก่อนจึงจะยิงแอดได้">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                    </svg>
-                    ยิงแอดไม่ได้
-                </span>
-                @endif
             </div>
         </div>
     </div>

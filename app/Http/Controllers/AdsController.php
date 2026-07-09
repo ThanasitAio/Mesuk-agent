@@ -17,6 +17,8 @@ class AdsController extends Controller
     public function index()
     {
         $properties = HrProperty::whereNull('deleted_at')
+            ->where('status', 'published')
+            ->whereNotNull('published_at')
             ->with(['propertyStatus', 'primaryImageMedia', 'manager', 'owner', 'creatorAgent'])
             ->orderByDesc('id')
             ->get()
@@ -27,7 +29,6 @@ class AdsController extends Controller
                 $property->status_slug   = $slug;
                 $property->status_color  = $status['color'];
                 $property->status_label  = $status['label'];
-                $property->is_published  = $property->status === 'published';
                 $property->search_text   = strtolower(
                     ($property->title ?? '') . ' ' .
                     ($property->property_code ?? '') . ' ' .
