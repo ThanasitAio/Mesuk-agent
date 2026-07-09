@@ -23,6 +23,11 @@ class HrProperty extends Model
         return $this->belongsTo(HrCustomer::class, 'customer_id');
     }
 
+    public function manager()
+    {
+        return $this->belongsTo(HrAgent::class, 'manager_agent_code', 'agent_code');
+    }
+
     public function propertyStatus()
     {
         return $this->belongsTo(HrPropertyStatus::class, 'property_status_id');

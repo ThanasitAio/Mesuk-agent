@@ -8,8 +8,13 @@ class DashboardController extends Controller
 {
     public function index()
     {
+        $isManager = (bool) session('agent_is_manager');
+
+        if (! $isManager) {
+            return view('dashboard.index', ['isManager' => false]);
+        }
+
         $agentCode = session('agent_code');
-        $agentId   = session('agent_id');
 
         // Properties managed by this agent
         $managedPropIds = DB::table('hr_properties')
@@ -17,20 +22,6 @@ class DashboardController extends Controller
             ->whereNull('deleted_at')
             ->pluck('id')
             ->all();
-
-        // ทรัพย์ที่ตัวแทนคนนี้ลงประกาศเอง (agent_code) — สำหรับสร้างลิงก์แอด ต่างจาก manager_agent_code ที่ใช้ในหน้าบิล
-        $myListedPropertiesTotal = DB::table('hr_properties')
-            ->where('agent_code', $agentCode)
-            ->whereNull('deleted_at')
-            ->count();
-
-        $myListedProperties = DB::table('hr_properties')
-            ->where('agent_code', $agentCode)
-            ->whereNull('deleted_at')
-            ->select('id', 'title', 'slug', 'property_code', 'status')
-            ->orderByDesc('id')
-            ->limit(20)
-            ->get();
 
         // Bookings for those properties
         $bookingIds = collect();
@@ -185,8 +176,7 @@ class DashboardController extends Controller
         }
 
         return view('dashboard.index', compact(
-            'myListedProperties',
-            'myListedPropertiesTotal',
+            'isManager',
             'totalBookings',
             'totalCustomers',
             'paidAmount',

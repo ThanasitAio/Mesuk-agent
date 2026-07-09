@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'ภาพรวม')
-@section('breadcrumb', 'ยอดชำระเงินและสรุปการจอง')
+@section('breadcrumb', $isManager ? 'ยอดชำระเงินและสรุปการจอง' : 'หน้าหลัก')
 
 @section('content')
 
@@ -36,7 +36,11 @@
                 สวัสดี, {{ session('agent_name') }} 👋
             </h2>
             <p class="text-sm mt-1.5" style="color: rgba(255,255,255,0.65)">
-                สรุปภาพรวมพอร์ตโฟลิโอและการชำระเงิน
+                @if($isManager)
+                    สรุปภาพรวมพอร์ตโฟลิโอและการชำระเงิน
+                @else
+                    ยินดีต้อนรับสู่ระบบจัดการตัวแทน Mesuk
+                @endif
             </p>
         </div>
         <div class="hero-badge-row flex-shrink-0 flex flex-row sm:flex-col flex-wrap items-center sm:items-end gap-2">
@@ -46,7 +50,7 @@
                 <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse flex-shrink-0"></span>
                 {{ session('agent_code') }}
             </span>
-            @if($overdueCount > 0)
+            @if($isManager && $overdueCount > 0)
             <span class="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold text-red-200"
                   style="background:rgba(239,68,68,0.18); border-color:rgba(239,68,68,0.3); backdrop-filter:blur(8px);">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,6 +63,7 @@
         </div>
     </div>
 
+    @if($isManager)
     {{-- Quick stats strip --}}
     <div class="hero-stats-row relative mt-4 sm:mt-5 pt-4 grid grid-cols-3 gap-2 sm:gap-3"
          style="border-top:1px solid rgba(255,255,255,0.12); z-index:2;">
@@ -83,72 +88,56 @@
             <p class="text-[11px] font-medium mt-1" style="color:rgba(255,255,255,0.6)">ลูกค้าทั้งหมด</p>
         </div>
     </div>
+    @endif
 </div>
 
-{{-- ── Ad Referral Links ────────────────────────────────────────────────────── --}}
-<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5 mb-5">
-    <div class="flex items-start gap-3 mb-4">
-        <div class="w-10 h-10 flex-shrink-0 rounded-xl bg-green-500 bg-gradient-to-br from-green-400 to-green-600
+@if(! $isManager)
+{{-- ── Quick Links (non-manager agents) ────────────────────────────────────── --}}
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <a href="{{ route('ads.index') }}"
+       class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="w-12 h-12 flex-shrink-0 rounded-xl bg-green-500 bg-gradient-to-br from-green-400 to-green-600
                     flex items-center justify-center shadow-md shadow-green-200">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
             </svg>
         </div>
-        <div>
-            <p class="text-sm font-bold text-gray-900">ลิงก์แนะนำสำหรับยิงแอด</p>
-            <p class="text-xs text-gray-500 mt-0.5">ลูกค้าที่คลิกลิงก์แล้วสมัครสมาชิกใหม่ จะผูกเป็นลูกค้าของคุณอัตโนมัติทุกการจอง</p>
+        <div class="min-w-0">
+            <p class="text-sm font-bold text-gray-900">โฆษณา</p>
+            <p class="text-xs text-gray-500 mt-0.5">ดูอสังหาริมทรัพย์ทั้งหมด คัดลอกลิงก์ไปยิงแอดหรือส่งให้ลูกค้า</p>
         </div>
-    </div>
-
-    <div class="flex items-center gap-2 p-3 rounded-xl bg-green-50 border border-green-200 mb-3">
-        <div class="flex-1 min-w-0">
-            <p class="text-xs font-semibold text-green-700">ลิงก์หน้าแรก</p>
-            <p class="text-xs text-gray-500 truncate">{{ $happyestPublic }}?ref={{ session('agent_code') }}</p>
-        </div>
-        <button type="button" onclick="copyAdLink('{{ $happyestPublic }}?ref={{ session('agent_code') }}')"
-                class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-2 transition-colors">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    </a>
+    <a href="{{ route('logs.index') }}"
+       class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="w-12 h-12 flex-shrink-0 rounded-xl bg-brand-600 bg-gradient-to-br from-brand-500 to-brand-700
+                    flex items-center justify-center shadow-md shadow-brand-200">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-            คัดลอก
-        </button>
-    </div>
-
-    @if($myListedProperties->isEmpty())
-        <p class="text-xs text-gray-400 text-center py-2">คุณยังไม่มีทรัพย์ที่ลงประกาศ (ลงประกาศได้ที่หน้าเว็บหลัก)</p>
-    @else
-        @if($myListedPropertiesTotal > $myListedProperties->count())
-            <p class="text-[11px] text-gray-400 mb-2">แสดง {{ $myListedProperties->count() }} รายการล่าสุด จากทั้งหมด {{ $myListedPropertiesTotal }} รายการ</p>
-        @endif
-        <div class="max-h-64 overflow-y-auto flex flex-col gap-2">
-            @foreach($myListedProperties as $property)
-                <div class="flex items-center gap-2 p-2.5 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-gray-800 truncate">{{ $property->title }}</p>
-                        <p class="text-[11px] text-gray-400">{{ $property->property_code }}</p>
-                    </div>
-                    @if($property->status === 'published')
-                        <button type="button"
-                                onclick="copyAdLink('{{ $happyestPublic }}/property/{{ $property->slug }}?ref={{ session('agent_code') }}')"
-                                class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-white border border-green-300 hover:bg-green-50 text-green-700 text-[11px] font-semibold px-2.5 py-1.5 transition-colors">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                            </svg>
-                            คัดลอกลิงก์
-                        </button>
-                    @else
-                        <span class="flex-shrink-0 text-[11px] font-medium text-gray-400 px-2.5 py-1.5" title="ต้องรอเผยแพร่ก่อนจึงจะยิงแอดได้">
-                            รอเผยแพร่
-                        </span>
-                    @endif
-                </div>
-            @endforeach
         </div>
-    @endif
+        <div class="min-w-0">
+            <p class="text-sm font-bold text-gray-900">ประวัติการใช้งาน</p>
+            <p class="text-xs text-gray-500 mt-0.5">ดูประวัติการเข้าใช้งานระบบของคุณ</p>
+        </div>
+    </a>
+    <a href="{{ route('profile') }}"
+       class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
+        <div class="w-12 h-12 flex-shrink-0 rounded-xl bg-violet-600 bg-gradient-to-br from-violet-500 to-purple-700
+                    flex items-center justify-center shadow-md shadow-violet-200">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+        </div>
+        <div class="min-w-0">
+            <p class="text-sm font-bold text-gray-900">โปรไฟล์ของฉัน</p>
+            <p class="text-xs text-gray-500 mt-0.5">ข้อมูลส่วนตัวและบัญชีธนาคาร</p>
+        </div>
+    </a>
 </div>
+@else
 
 {{-- ── Stats Cards ──────────────────────────────────────────────────────────── --}}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -709,24 +698,13 @@
 </div>
 @endif
 
+@endif
+
 @endsection
 
+@if($isManager)
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script>
-    // คัดลอกลิงก์แอด (ผูก ref=agent_code)
-    function copyAdLink(url) {
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(url).then(() => Toast.success('คัดลอกลิงก์แอดแล้ว'));
-        } else {
-            const el = document.createElement('textarea');
-            el.value = url; el.style.cssText = 'position:fixed;opacity:0';
-            document.body.appendChild(el); el.focus(); el.select();
-            document.execCommand('copy'); document.body.removeChild(el);
-            Toast.success('คัดลอกลิงก์แอดแล้ว');
-        }
-    }
-</script>
 <script>
 (function () {
     Chart.defaults.font.family = 'inherit';
@@ -862,3 +840,4 @@
 })();
 </script>
 @endpush
+@endif

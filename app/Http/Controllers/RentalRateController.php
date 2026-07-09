@@ -6,8 +6,21 @@ use Illuminate\Support\Facades\DB;
 
 class RentalRateController extends Controller
 {
+    // เมนู "อัตราเช่า" แสดงข้อมูลอสังหาริมทรัพย์ของผู้บริหารโครงการทุกคนในบริษัท
+    // จึงจำกัดให้เห็นเฉพาะรหัสตัวแทนที่กำหนดไว้เท่านั้น
+    public const ALLOWED_AGENT_CODES = ['0000001', '0000305', '0000390', '9999999'];
+
+    private function authorize(): void
+    {
+        if (!in_array(session('agent_code'), self::ALLOWED_AGENT_CODES, true)) {
+            abort(403, 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้');
+        }
+    }
+
     public function index()
     {
+        $this->authorize();
+
         logSystem(
             userType: 'agent',
             userId: session('agent_id'),

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AdsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
@@ -48,6 +49,9 @@ Route::middleware('auth.agent')->group(function () {
 
     // Rental Rate Overview
     Route::get('/rental-rates', [RentalRateController::class, 'index'])->name('rental-rates.index');
+
+    // Ads — ลิงก์แอด สำหรับตัวแทนทุกคน
+    Route::get('/ads', [AdsController::class, 'index'])->name('ads.index');
 
     // Deploy / System (เฉพาะ agent_code 0000390)
     Route::get('/deploy', [DeployController::class, 'show'])->name('deploy.show');

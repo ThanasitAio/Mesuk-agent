@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\HrAgent;
+use App\Models\HrProperty;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\RateLimiter;
@@ -75,12 +76,18 @@ class AuthController extends Controller
 
         $fullName = trim(($agent->prefix ? $agent->prefix . ' ' : '') . $agent->name);
 
+        // ผู้บริหารโครงการ = มีอสังหาริมทรัพย์ที่ manager_agent_code ตรงกับตัวแทนคนนี้อย่างน้อย 1 รายการ
+        $isManager = HrProperty::where('manager_agent_code', $agent->agent_code)
+            ->whereNull('deleted_at')
+            ->exists();
+
         session([
-            'agent_logged_in' => true,
-            'agent_id'        => $agent->id,
-            'agent_name'      => $fullName ?: $agent->agent_code,
-            'agent_code'      => $agent->agent_code,
-            'agent_avatar'    => $agent->avatar,
+            'agent_logged_in'  => true,
+            'agent_id'         => $agent->id,
+            'agent_name'       => $fullName ?: $agent->agent_code,
+            'agent_code'       => $agent->agent_code,
+            'agent_avatar'     => $agent->avatar,
+            'agent_is_manager' => $isManager,
         ]);
 
         RateLimiter::clear($throttleKey);

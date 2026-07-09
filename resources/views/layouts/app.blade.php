@@ -57,6 +57,9 @@
         </div>
 
         {{-- Navigation --}}
+        @php
+            $rentalRateAllowed = in_array(session('agent_code'), \App\Http\Controllers\RentalRateController::ALLOWED_AGENT_CODES, true);
+        @endphp
         <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
             <a href="{{ route('dashboard') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
@@ -68,6 +71,7 @@
                 หน้าหลัก
             </a>
 
+            @if(session('agent_is_manager'))
             <a href="{{ route('properties.index') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                       {{ request()->routeIs('properties.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
@@ -77,7 +81,9 @@
                 </svg>
                 อสังหาริมทรัพย์
             </a>
+            @endif
 
+            @if($rentalRateAllowed)
             <a href="{{ route('rental-rates.index') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                       {{ request()->routeIs('rental-rates.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
@@ -86,6 +92,17 @@
                           d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                 </svg>
                 อัตราเช่า
+            </a>
+            @endif
+
+            <a href="{{ route('ads.index') }}"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('ads.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+                </svg>
+                โฆษณา
             </a>
 
             <a href="{{ route('logs.index') }}"
@@ -299,15 +316,24 @@
                               {{ request()->routeIs('dashboard') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
                         ภาพรวม
                     </a>
+                    @if(session('agent_is_manager'))
                     <a href="{{ route('properties.index') }}"
                        class="text-xs font-medium transition-colors
                               {{ request()->routeIs('properties.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
                         อสังหาริมทรัพย์
                     </a>
+                    @endif
+                    @if($rentalRateAllowed)
                     <a href="{{ route('rental-rates.index') }}"
                        class="text-xs font-medium transition-colors
                               {{ request()->routeIs('rental-rates.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
                         อัตราเช่า
+                    </a>
+                    @endif
+                    <a href="{{ route('ads.index') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('ads.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        โฆษณา
                     </a>
                     <a href="{{ route('logs.index') }}"
                        class="text-xs font-medium transition-colors
@@ -355,20 +381,20 @@
             <span class="text-[11px] leading-none {{ request()->routeIs('dashboard') ? 'font-semibold' : '' }}">หน้าหลัก</span>
         </a>
 
-        {{-- Properties --}}
-        <a href="{{ route('properties.index') }}"
+        {{-- Ads --}}
+        <a href="{{ route('ads.index') }}"
            class="flex-1 flex flex-col items-center justify-center gap-1 tap-effect transition-colors
-                  {{ request()->routeIs('properties.*') ? 'text-brand-600' : 'text-gray-400' }}">
+                  {{ request()->routeIs('ads.*') ? 'text-brand-600' : 'text-gray-400' }}">
             <div class="relative">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.75">
                     <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                          d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
                 </svg>
-                @if(request()->routeIs('properties.*'))
+                @if(request()->routeIs('ads.*'))
                     <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
                 @endif
             </div>
-            <span class="text-[11px] leading-none {{ request()->routeIs('properties.*') ? 'font-semibold' : '' }}">อสังหา</span>
+            <span class="text-[11px] leading-none {{ request()->routeIs('ads.*') ? 'font-semibold' : '' }}">โฆษณา</span>
         </a>
 
         {{-- Logs --}}
@@ -462,14 +488,23 @@
          </a>
     ─────────────────────────────────────────────────────────────────────── --}}
     @php
-        $extraMenus = [
-            [
+        $extraMenus = [];
+        if (session('agent_is_manager')) {
+            $extraMenus[] = [
+                'route'   => 'properties.index',
+                'pattern' => 'properties.*',
+                'label'   => 'อสังหาริมทรัพย์',
+                'icon'    => '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>',
+            ];
+        }
+        if ($rentalRateAllowed) {
+            $extraMenus[] = [
                 'route'   => 'rental-rates.index',
                 'pattern' => 'rental-rates.*',
                 'label'   => 'อัตราเช่า',
                 'icon'    => '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>',
-            ],
-        ];
+            ];
+        }
     @endphp
 
     @if(count($extraMenus) > 0)
@@ -613,6 +648,19 @@
             info:    (msg, opts = {}) => show({ type: 'info',    message: msg, ...opts }),
         };
     })();
+
+    // ─── คัดลอกลิงก์แอด (ผูก ref=agent_code) ──────────────────────────────────
+    function copyAdLink(url) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(url).then(() => Toast.success('คัดลอกลิงก์แอดแล้ว'));
+        } else {
+            const el = document.createElement('textarea');
+            el.value = url; el.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(el); el.focus(); el.select();
+            document.execCommand('copy'); document.body.removeChild(el);
+            Toast.success('คัดลอกลิงก์แอดแล้ว');
+        }
+    }
 
     // ─── Modal helpers ─────────────────────────────────────────────────────────
     function openModal(id) {
