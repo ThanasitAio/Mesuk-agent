@@ -220,8 +220,8 @@
     </div>
 </div>
 
-{{-- ── Property List (compact rows) ─────────────────────────────────────────── --}}
-<div class="grid grid-cols-1 xl:grid-cols-2 gap-2 mt-3">
+{{-- ── Property List ─────────────────────────────────────────────────────────── --}}
+<div class="flex flex-col gap-2.5 lg:gap-3 mt-3">
     @foreach($cardRows as $row)
     @php
         $peopleParts = array_filter([
@@ -232,11 +232,11 @@
     @endphp
     <div x-data="{ copied: false }"
          x-show="matchRow('{{ $row['statusSlug'] }}', @js($row['searchText']))"
-         class="ads-card-in group flex gap-3 bg-white rounded-2xl shadow-sm border border-gray-100 p-3 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-gray-200"
+         class="ads-card-in group flex gap-3 lg:gap-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-3 lg:p-4 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 hover:border-gray-200"
          style="animation-delay: {{ min($loop->index, 11) * 30 }}ms">
 
         {{-- Thumbnail --}}
-        <div class="w-24 h-24 flex-shrink-0 rounded-xl bg-gray-100 relative overflow-hidden ring-1 ring-black/5">
+        <div class="w-24 h-24 lg:w-28 lg:h-28 flex-shrink-0 rounded-xl bg-gray-100 relative overflow-hidden ring-1 ring-black/5">
             @if($row['imageUrl'])
             <img src="{{ $row['imageUrl'] }}" alt="{{ $row['title'] }}"
                  class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
@@ -258,14 +258,15 @@
         </div>
 
         {{-- Content --}}
-        <div class="flex-1 min-w-0 flex flex-col justify-between">
-            <div>
+        <div class="flex-1 min-w-0 flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-5">
+            {{-- Info --}}
+            <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                         @if($row['code'])
                         <p class="font-mono text-[10px] font-bold text-gray-400 truncate leading-none">{{ $row['code'] }}</p>
                         @endif
-                        <p class="text-[15px] font-bold text-gray-900 leading-snug line-clamp-1 mt-1">{{ $row['title'] ?? '—' }}</p>
+                        <p class="text-[15px] lg:text-base font-bold text-gray-900 leading-snug line-clamp-1 mt-1">{{ $row['title'] ?? '—' }}</p>
                     </div>
                     @if($row['price'])
                     <span class="flex-shrink-0 inline-flex items-baseline gap-0.5 text-xs font-bold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-2.5 py-1 tabular-nums whitespace-nowrap">
@@ -275,7 +276,7 @@
                 </div>
 
                 @if($row['district'] || $row['province'])
-                <p class="flex items-center gap-1 text-[11px] text-gray-400 truncate mt-1">
+                <p class="flex items-center gap-1 text-[11px] text-gray-400 truncate mt-1.5">
                     <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -285,18 +286,23 @@
                 @endif
 
                 @if(count($peopleParts))
-                <p class="flex items-center gap-1 text-[10.5px] text-gray-400 truncate mt-1" title="{{ implode(' · ', $peopleParts) }}">
-                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4"/>
-                    </svg>
-                    <span class="truncate">{{ implode(' · ', $peopleParts) }}</span>
-                </p>
+                <div class="mt-1.5 space-y-0.5">
+                    @foreach($peopleParts as $part)
+                    <p class="flex items-center gap-1 text-[10.5px] text-gray-400 truncate">
+                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4"/>
+                        </svg>
+                        <span class="truncate">{{ $part }}</span>
+                    </p>
+                    @endforeach
+                </div>
                 @endif
             </div>
 
-            <div class="flex items-center gap-1.5 mt-2">
+            {{-- Actions --}}
+            <div class="flex items-center gap-1.5 mt-2 lg:mt-0 lg:flex-shrink-0">
                 <a href="{{ $row['detailLink'] }}" target="_blank" rel="noopener"
-                   class="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-300 text-[11px] font-semibold px-2.5 py-1.5 transition-all duration-150 active:scale-95">
+                   class="flex-1 lg:flex-none lg:w-36 inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 hover:border-gray-300 text-[11px] font-semibold px-2.5 py-1.5 lg:py-2 transition-all duration-150 active:scale-95">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                     </svg>
@@ -307,7 +313,7 @@
                 <button type="button"
                         @click="copyAdLink('{{ $row['adLink'] }}'); copied = true; setTimeout(() => copied = false, 1600)"
                         :class="copied ? 'ads-copied-pop bg-green-700' : 'bg-green-600 hover:bg-green-700'"
-                        class="flex-1 inline-flex items-center justify-center gap-1 rounded-lg text-white text-[11px] font-semibold px-2.5 py-1.5 transition-all duration-150 active:scale-95">
+                        class="flex-1 lg:flex-none lg:w-36 inline-flex items-center justify-center gap-1 rounded-lg text-white text-[11px] font-semibold px-2.5 py-1.5 lg:py-2 transition-all duration-150 active:scale-95">
                     <template x-if="!copied">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -322,7 +328,7 @@
                     <span x-text="copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'"></span>
                 </button>
                 @else
-                <span class="flex-1 inline-flex items-center justify-center gap-1 text-[11px] font-medium text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5"
+                <span class="flex-1 lg:flex-none lg:w-36 inline-flex items-center justify-center gap-1 text-[11px] font-medium text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 lg:py-2"
                       title="ต้องรอเผยแพร่ก่อนจึงจะยิงแอดได้">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
