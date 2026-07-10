@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth.agent' => \App\Http\Middleware\AgentAuthMiddleware::class,
         ]);
+
+        // Trust Cloudflare/reverse proxy so Laravel reads X-Forwarded-Proto correctly
+        // (without this, HTTPS requests behind the proxy look like HTTP internally,
+        // which drops the Secure session cookie right after login).
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
