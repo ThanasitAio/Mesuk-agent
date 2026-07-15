@@ -563,7 +563,7 @@
     {{-- Logout --}}
     <div class="px-5">
         <button type="button"
-                onclick="openModal('logout-confirm')"
+                onclick="closeMoreSheet(); openModal('logout-confirm')"
                 class="w-full flex items-center justify-center gap-3 bg-red-50 active:bg-red-100 text-red-600 font-semibold py-4 rounded-2xl transition-colors text-sm tap-effect">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

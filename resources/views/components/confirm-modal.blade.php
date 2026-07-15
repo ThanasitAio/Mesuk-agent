@@ -69,7 +69,8 @@
             {{ $slot }}
         </div>
 
-        <div class="px-6 pb-6 pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 border-t border-gray-100">
+        <div class="px-6 pt-4 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 border-t border-gray-100"
+             style="padding-bottom: max(env(safe-area-inset-bottom, 0px), 1.5rem)">
             <button type="button"
                     onclick="closeModal('{{ $id }}')"
                     class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
