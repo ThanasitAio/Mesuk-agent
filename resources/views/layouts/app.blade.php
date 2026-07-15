@@ -670,7 +670,10 @@
         backdrop.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         requestAnimationFrame(() => {
-            panel.style.transform = 'translateY(0)';
+            // Tailwind v4 compiles translate-y-full / scale-95 to the native
+            // `translate` / `scale` CSS properties, not `transform` — must
+            // clear those inline, not `transform`, or the panel stays off-screen.
+            panel.style.translate = '0 0';
             panel.style.opacity   = '1';
             panel.style.scale     = '1';
         });
@@ -679,7 +682,7 @@
         const backdrop = document.getElementById(id + '_backdrop');
         const panel    = document.getElementById(id + '_panel');
         if (!backdrop || !panel) return;
-        panel.style.transform = '';
+        panel.style.translate = '';
         panel.style.opacity   = '';
         panel.style.scale     = '';
         setTimeout(() => {
