@@ -151,7 +151,8 @@ class PropertyBillingController extends Controller
             'deposit'         => 'เงินมัดจำ',
             'processing_fee'  => 'ค่าดำเนินการ',
         ];
-        $selectedRentalTypes = collect($request->input('rental_types', []))
+        $rentalTypeTags = array_values($request->input('rental_types', []));
+        $selectedRentalTypes = collect($rentalTypeTags)
             ->map(fn ($key) => $rentalTypeLabels[$key] ?? $key)
             ->implode(', ');
 
@@ -186,6 +187,7 @@ class PropertyBillingController extends Controller
             'payment_slips'     => $allSlips,
             'payment_status'    => 'pending_verification',
             'paid_at'           => $paidAt,
+            'rental_type_tags'  => $rentalTypeTags,
         ]);
 
         // ถ้าเป็นโหมดรวม ให้อัพเดทรายการค่าเช่าเดือน 1 ด้วย
@@ -202,6 +204,7 @@ class PropertyBillingController extends Controller
                     'payment_slips'     => $allSlips,
                     'payment_status'    => 'pending_verification',
                     'paid_at'           => $paidAt,
+                    'rental_type_tags'  => $rentalTypeTags,
                 ]);
             }
         }

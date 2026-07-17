@@ -15,11 +15,12 @@ class HrPaymentRecord extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'payment_slips' => 'array',
-        'due_date'      => 'date',
-        'paid_at'       => 'datetime',
-        'verified_at'   => 'datetime',
-        'amount'        => 'decimal:2',
+        'payment_slips'     => 'array',
+        'rental_type_tags'  => 'array',
+        'due_date'          => 'date',
+        'paid_at'           => 'datetime',
+        'verified_at'       => 'datetime',
+        'amount'            => 'decimal:2',
     ];
 
     public function booking()
