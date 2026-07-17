@@ -1263,10 +1263,10 @@
             <div class="space-y-1">
                 <x-form.date name="transfer_date" label="วันที่โอน" :value="now()->format('Y-m-d')" :max="now()->format('Y-m-d')" required />
 
-                <div>
+                <div x-show="visibleRentalTypeOptions.length > 0">
                     <p class="text-xs font-semibold text-gray-500 mb-1.5">ประเภทค่าเช่า</p>
                     <div class="flex flex-wrap gap-1.5">
-                        <template x-for="opt in rentalTypeOptions" :key="opt.key">
+                        <template x-for="opt in visibleRentalTypeOptions" :key="opt.key">
                             <button type="button"
                                     @click="toggleRentalType(opt.key)"
                                     :class="rentalTypes.includes(opt.key) ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500'"
@@ -1624,10 +1624,11 @@ function applyBillingTabFilter() {
         const panel = document.getElementById('slip-modal_panel');
         if (panel._x_dataStack) {
             const alpineData = Alpine.$data(panel);
-            alpineData.files       = [];
-            alpineData.errorMsg    = '';
-            alpineData.submitting  = false;
-            alpineData.rentalTypes = defaultRentalTypesFor(recordId);
+            alpineData.files             = [];
+            alpineData.errorMsg          = '';
+            alpineData.submitting        = false;
+            alpineData.currentPaymentType = (window.billingRecordMeta[recordId] || {}).payment_type || null;
+            alpineData.rentalTypes       = defaultRentalTypesFor(recordId);
         }
 
         openModal('slip-modal');
@@ -1660,6 +1661,7 @@ function applyBillingTabFilter() {
             submitting: false,
             errorMsg: '',
             rentalTypes: [],
+            currentPaymentType: null,
             rentalTypeOptions: [
                 { key: 'rent',           label: 'ค่าเช่า' },
                 { key: 'land_tax',       label: 'ค่าภาษีที่ดิน' },
@@ -1667,6 +1669,16 @@ function applyBillingTabFilter() {
                 { key: 'deposit',        label: 'เงินมัดจำ' },
                 { key: 'processing_fee', label: 'ค่าดำเนินการ' },
             ],
+
+            get visibleRentalTypeOptions() {
+                if (this.currentPaymentType === 'monthly_rent' || this.currentPaymentType === 'late_fee') {
+                    return this.rentalTypeOptions.filter(o => ['rent', 'land_tax', 'utility'].includes(o.key));
+                }
+                if (this.currentPaymentType === 'deposit' || this.currentPaymentType === 'processing_fee') {
+                    return [];
+                }
+                return this.rentalTypeOptions;
+            },
 
             toggleRentalType(key) {
                 const idx = this.rentalTypes.indexOf(key);
