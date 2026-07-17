@@ -149,22 +149,33 @@ body { font-family: 'Sarabun', sans-serif; background: #c8d4e3; font-size: 9.5pt
 <div class="page-wrapper">
 <div class="invoice-sheet">
 
-    {{-- ─── S1: Company Header ─── --}}
+    {{-- ─── S1: Header (Company หรือ นักลงทุน ตาม billing_route) ─── --}}
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; table-layout:fixed; margin-bottom:2mm;">
         <tr>
+            @if(!$isInvestorRoute)
             <td valign="middle" style="width:34mm; padding-right:3mm;">
                 @if($logoSrc)
                     <img src="{{ $logoSrc }}" alt="Logo" style="width:30mm; height:auto; display:block;">
                 @endif
             </td>
+            @endif
             <td valign="middle" style="text-align:center;">
-                <div style="font-size:13pt; font-weight:bold; line-height:1.3; margin-bottom:1mm;"><strong>{{ $coNameTh }}</strong></div>
-                <div style="font-size:10pt; font-weight:bold; line-height:1.3; margin-bottom:2mm;"><strong>{{ $coNameEn }}</strong></div>
-                <div style="font-size:8pt; line-height:1.55;">
-                    {{ $coAddrTh }}<br>
-                    สำนักงานใหญ่&nbsp;&nbsp;เลขประจำตัวผู้เสียภาษี <strong>{{ $coTaxId }}</strong><br>
-                    โทร.&nbsp;{{ $coPhone }}@if($coFax)&nbsp;&nbsp;แฟกซ์.&nbsp;{{ $coFax }}@endif
-                </div>
+                @if($isInvestorRoute)
+                    <div style="font-size:13pt; font-weight:bold; line-height:1.3; margin-bottom:2mm;"><strong>{{ $invName }}</strong></div>
+                    <div style="font-size:8pt; line-height:1.55;">
+                        {{ $invAddr }}<br>
+                        @if($invTaxId)เลขประจำตัวผู้เสียภาษี <strong>{{ $invTaxId }}</strong><br>@endif
+                        @if($invMobile)โทร.&nbsp;{{ $invMobile }}@endif
+                    </div>
+                @else
+                    <div style="font-size:13pt; font-weight:bold; line-height:1.3; margin-bottom:1mm;"><strong>{{ $coNameTh }}</strong></div>
+                    <div style="font-size:10pt; font-weight:bold; line-height:1.3; margin-bottom:2mm;"><strong>{{ $coNameEn }}</strong></div>
+                    <div style="font-size:8pt; line-height:1.55;">
+                        {{ $coAddrTh }}<br>
+                        สำนักงานใหญ่&nbsp;&nbsp;เลขประจำตัวผู้เสียภาษี <strong>{{ $coTaxId }}</strong><br>
+                        โทร.&nbsp;{{ $coPhone }}@if($coFax)&nbsp;&nbsp;แฟกซ์.&nbsp;{{ $coFax }}@endif
+                    </div>
+                @endif
             </td>
             <td valign="top" style="width:34mm; text-align:right; font-size:7.5pt; white-space:nowrap; padding-top:1mm;">Page 1/1</td>
         </tr>
@@ -377,8 +388,12 @@ body { font-family: 'Sarabun', sans-serif; background: #c8d4e3; font-size: 9.5pt
         <tr>
             <td width="50%">&nbsp;</td>
             <td width="50%" style="text-align:center; font-size:9pt; line-height:1.5; padding-bottom:2mm;">
-                ในนาม : <strong>{{ $coNameTh }}</strong><br>
-                <span style="font-size:8pt;">For : {{ $coNameEn }}</span>
+                @if($isInvestorRoute)
+                    ในนาม : <strong>{{ $invName }}</strong>
+                @else
+                    ในนาม : <strong>{{ $coNameTh }}</strong><br>
+                    <span style="font-size:8pt;">For : {{ $coNameEn }}</span>
+                @endif
             </td>
         </tr>
         <tr>
@@ -386,7 +401,7 @@ body { font-family: 'Sarabun', sans-serif; background: #c8d4e3; font-size: 9.5pt
                 &nbsp;
             </td>
             <td width="50%" style="height:12mm; text-align:center; vertical-align:bottom; padding:0 15mm;">
-                @if($coSignatureSrc)
+                @if(!$isInvestorRoute && $coSignatureSrc)
                     <img src="{{ $coSignatureSrc }}" alt="ลายเซ็น" style="max-height:11mm; max-width:100%;">
                 @endif
             </td>

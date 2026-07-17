@@ -85,9 +85,37 @@
     $phaseCardColor = $isInitialPaymentPhase ? 'border-brand-500' : (($isWaitingContract || $isDepositPendingVerification) ? 'border-amber-400' : 'border-emerald-500');
     $fmtAmt = fn($a) => ((float) $a != floor((float) $a)) ? number_format((float) $a, 2) : number_format((int) $a);
 
-    $invoiceByMonth          = $invoices->whereNotNull('billing_month')->keyBy('billing_month');
-    $invoiceByDepositType    = $invoices->where('invoice_type', 'deposit')->first();
-    $invoiceByServiceFeeType = $invoices->where('invoice_type', 'service_fee')->first();
+    // แต่ละรอบบิลอาจมีใบแจ้งหนี้เปิดพร้อมกัน 2 ใบ (แยกบริษัท/นักลงทุน ตาม billing_route)
+    // เมื่อยอดของรอบบิลนั้นถูกแบ่งจ่ายให้ทั้งสองฝ่าย (ดู $meta['is_split_payment'] จากคอนโทรลเลอร์)
+    $recordInvoiceMap = [];
+    foreach ($displayRecords as $rec) {
+        $matchedInvoices = $invoices->filter(function ($inv) use ($rec) {
+            if ($rec->payment_type === 'monthly_rent') {
+                return $inv->invoice_type === 'monthly_rent'
+                    && $rec->due_date
+                    && $inv->billing_month === $rec->due_date->format('Y-m');
+            }
+            if ($rec->payment_type === 'deposit') {
+                return $inv->invoice_type === 'deposit'
+                    && (int) ($inv->deposit_phase ?? 1) === (int) ($rec->deposit_phase ?? 1);
+            }
+            if ($rec->payment_type === 'processing_fee') {
+                return $inv->invoice_type === 'service_fee';
+            }
+            return false;
+        });
+
+        $companyInv  = $matchedInvoices->first(fn ($inv) => $inv->billing_route !== 'investor');
+        $investorInv = $matchedInvoices->first(fn ($inv) => $inv->billing_route === 'investor');
+
+        $recordInvoiceMap[$rec->id] = [
+            'company'  => $companyInv,
+            'investor' => $investorInv,
+            'primary'  => $companyInv ?? $investorInv,
+            'has'      => $matchedInvoices->isNotEmpty(),
+            'split'    => $companyInv && $investorInv,
+        ];
+    }
 @endphp
 
 <style>
@@ -684,15 +712,13 @@
                         $badgeClass = $colorMap[$colorKey]['badge'] ?? $colorMap['gray']['badge'];
                         $barColor   = $colorMap[$colorKey]['bar']   ?? $colorMap['gray']['bar'];
                         $rowBg      = $colorMap[$colorKey]['rowBg'] ?? '';
-                        $recordInvoice = null;
-                        if ($record->payment_type === 'monthly_rent' && $record->due_date) {
-                            $recordInvoice = $invoiceByMonth[$record->due_date->format('Y-m')] ?? null;
-                        } elseif ($record->payment_type === 'deposit') {
-                            $recordInvoice = $invoiceByDepositType ?? null;
-                        } elseif ($record->payment_type === 'processing_fee') {
-                            $recordInvoice = $invoiceByServiceFeeType ?? null;
-                        }
-                        $hasInvoice = $recordInvoice !== null;
+                        $recInv         = $recordInvoiceMap[$record->id] ?? ['company' => null, 'investor' => null, 'primary' => null, 'has' => false, 'split' => false];
+                        $recordInvoice  = $recInv['primary'];
+                        $hasInvoice     = $recInv['has'];
+                        $isSplitInvoice = $recInv['split'];
+                        $invoiceCodesLabel = $isSplitInvoice
+                            ? $recInv['company']->invoice_code . ' / ' . $recInv['investor']->invoice_code
+                            : ($hasInvoice ? $recordInvoice->invoice_code : null);
                         if ($hasInvoice) { $rowBg = 'background:rgba(242,251,234,0.55)'; $barColor = '#86efac'; }
                         $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                                       && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
@@ -754,11 +780,11 @@
                                 {{ $recToInvestor ? '👤' : '🏢' }} {{ $recRecipient }}
                             </span>
                             @if($rentPeriod)
-                                <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
+                                <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $invoiceCodesLabel }}</span>@endif</p>
                             @elseif($recordDetail)
-                                <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
+                                <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $invoiceCodesLabel }}</span>@endif</p>
                             @elseif($hasInvoice)
-                                <p class="text-[10px] font-mono font-bold mt-1" style="color:#468432">{{ $recordInvoice->invoice_code }}</p>
+                                <p class="text-[10px] font-mono font-bold mt-1" style="color:#468432">{{ $invoiceCodesLabel }}</p>
                             @endif
                             @if($record->payment_code)
                                 <p class="text-[10px] text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
@@ -825,7 +851,7 @@
                                     <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
-                                    มีใบแจ้งหนี้
+                                    มีใบแจ้งหนี้{{ $isSplitInvoice ? ' (2 ใบ)' : '' }}
                                 </span>
                                 @endif
                             </div>
@@ -889,7 +915,26 @@
                                         @endif
                                     </div>
                                 @endif
-                                @if($hasInvoice)
+                                @if($isSplitInvoice)
+                                <div class="inline-flex flex-col items-center gap-1.5">
+                                    <a href="{{ route('invoices.print', $recInv['company']->id) }}" target="_blank"
+                                       class="inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                       style="background:#468432">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                        </svg>
+                                        ใบแจ้งหนี้ บริษัท
+                                    </a>
+                                    <a href="{{ route('invoices.print', $recInv['investor']->id) }}" target="_blank"
+                                       class="inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
+                                       style="background:#2563eb">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                        </svg>
+                                        ใบแจ้งหนี้ นักลงทุน
+                                    </a>
+                                </div>
+                                @elseif($hasInvoice)
                                 <a href="{{ route('invoices.print', $recordInvoice->id) }}" target="_blank"
                                    class="inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
                                    style="background:#468432">
@@ -922,15 +967,13 @@
                 $colorKey   = $record->getStatusColor();
                 $badgeClass = $colorMap[$colorKey]['badge'] ?? $colorMap['gray']['badge'];
                 $barClass   = $colorMap[$colorKey]['bar']   ?? $colorMap['gray']['bar'];
-                $recordInvoice = null;
-                if ($record->payment_type === 'monthly_rent' && $record->due_date) {
-                    $recordInvoice = $invoiceByMonth[$record->due_date->format('Y-m')] ?? null;
-                } elseif ($record->payment_type === 'deposit') {
-                    $recordInvoice = $invoiceByDepositType ?? null;
-                } elseif ($record->payment_type === 'processing_fee') {
-                    $recordInvoice = $invoiceByServiceFeeType ?? null;
-                }
-                $hasInvoice = $recordInvoice !== null;
+                $recInv         = $recordInvoiceMap[$record->id] ?? ['company' => null, 'investor' => null, 'primary' => null, 'has' => false, 'split' => false];
+                $recordInvoice  = $recInv['primary'];
+                $hasInvoice     = $recInv['has'];
+                $isSplitInvoice = $recInv['split'];
+                $invoiceCodesLabel = $isSplitInvoice
+                    ? $recInv['company']->invoice_code . ' / ' . $recInv['investor']->invoice_code
+                    : ($hasInvoice ? $recordInvoice->invoice_code : null);
                 if ($hasInvoice) { $barClass = 'bg-brand-400'; }
                 $barWidth = $hasInvoice ? 'w-1.5' : 'w-1';
                 $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
@@ -995,11 +1038,11 @@
                         </span>
                         {{-- Record detail --}}
                         @if($rentPeriod)
-                            <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
+                            <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $invoiceCodesLabel }}</span>@endif</p>
                         @elseif($recordDetail)
-                            <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $recordInvoice->invoice_code }}</span>@endif</p>
+                            <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $invoiceCodesLabel }}</span>@endif</p>
                         @elseif($hasInvoice)
-                            <p class="text-[10px] text-brand-600 font-mono font-bold mt-1">{{ $recordInvoice->invoice_code }}</p>
+                            <p class="text-[10px] text-brand-600 font-mono font-bold mt-1">{{ $invoiceCodesLabel }}</p>
                         @endif
                         @if($record->payment_code)
                             <p class="text-xs text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
@@ -1118,22 +1161,57 @@
                     </div>
                 @endif
 
-                {{-- Invoice footer bar (hasInvoice) --}}
+                {{-- Invoice footer bar (hasInvoice) — รองรับกรณีมีใบแจ้งหนี้เปิดพร้อมกัน 2 ใบ (บริษัท + นักลงทุน) --}}
                 @if($hasInvoice)
-                    <div class="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
-                        <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            เปิดใบแจ้งหนี้แล้ว
-                        </span>
-                        <a href="{{ route('invoices.print', $recordInvoice->id) }}" target="_blank"
-                           class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap flex-shrink-0">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                            </svg>
-                            ใบแจ้งหนี้ PDF
-                        </a>
+                    <div class="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                        @if($isSplitInvoice)
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    ใบแจ้งหนี้ บริษัท
+                                </span>
+                                <a href="{{ route('invoices.print', $recInv['company']->id) }}" target="_blank"
+                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                    </svg>
+                                    PDF
+                                </a>
+                            </div>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    ใบแจ้งหนี้ นักลงทุน
+                                </span>
+                                <a href="{{ route('invoices.print', $recInv['investor']->id) }}" target="_blank"
+                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                    </svg>
+                                    PDF
+                                </a>
+                            </div>
+                        @else
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    เปิดใบแจ้งหนี้แล้ว
+                                </span>
+                                <a href="{{ route('invoices.print', $recordInvoice->id) }}" target="_blank"
+                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap flex-shrink-0">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                    </svg>
+                                    ใบแจ้งหนี้ PDF
+                                </a>
+                            </div>
+                        @endif
                     </div>
                 @endif
             </div>
@@ -1189,65 +1267,67 @@
 
     <div id="slip-modal_panel"
          style="opacity:0; transform: translateY(40px); scale: 0.98; transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);"
-         class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[92vh] overflow-y-auto"
+         class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl ring-1 ring-black/5 w-full sm:max-w-lg max-h-[92vh] flex flex-col overflow-hidden"
          onclick="event.stopPropagation()"
          x-data="slipUploader()"
          x-init="init()">
 
-        <div class="sm:hidden flex justify-center pt-3 pb-1">
+        <div class="sm:hidden flex justify-center pt-2 pb-0.5 flex-shrink-0">
             <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
         </div>
 
-        <div class="flex items-start justify-between px-6 pt-4 pb-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-3xl sm:rounded-t-2xl z-10">
-            <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2 mb-1">
-                    <div class="w-7 h-7 bg-brand-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                        </svg>
-                    </div>
-                    <p class="text-base font-bold text-gray-800">แนบสลิปแทนลูกค้า</p>
+        {{-- Header (fixed, not part of the scroll area) --}}
+        <div class="flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 border-b border-gray-100 flex-shrink-0">
+            <div class="min-w-0 flex-1 flex items-center gap-2">
+                <div class="w-7 h-7 bg-brand-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                    </svg>
                 </div>
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span id="slip-record-label" class="text-sm text-gray-500"></span>
-                    <span id="slip-record-amount-badge"
-                          class="hidden text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded-lg">
-                        <span id="slip-record-amount"></span> ฿
-                    </span>
+                <div class="min-w-0">
+                    <p class="text-sm font-bold text-gray-800 leading-tight">แนบสลิปแทนลูกค้า</p>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span id="slip-record-label" class="text-xs text-gray-500 truncate"></span>
+                        <span id="slip-record-amount-badge"
+                              class="hidden text-xs font-bold text-brand-700 bg-brand-50 border border-brand-200 px-1.5 rounded leading-tight">
+                            <span id="slip-record-amount"></span> ฿
+                        </span>
+                    </div>
                 </div>
             </div>
             <button type="button"
                     onclick="closeSlipModal()"
-                    class="ml-3 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0">
+                    class="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
 
-        <form id="slip-form" method="POST" enctype="multipart/form-data" class="px-6 py-5 space-y-4">
+        {{-- Scrollable body — only this area scrolls, header/footer stay put --}}
+        <form id="slip-form" method="POST" enctype="multipart/form-data" class="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-3">
             @csrf
 
-            <x-form.date name="transfer_date" label="วันที่โอน" :value="now()->format('Y-m-d')" :max="now()->format('Y-m-d')" required />
+            <div class="space-y-1">
+                <x-form.date name="transfer_date" label="วันที่โอน" :value="now()->format('Y-m-d')" :max="now()->format('Y-m-d')" required />
 
-            <div>
-                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">ประเภทค่าเช่า</p>
-                <div class="flex flex-wrap gap-2">
-                    <template x-for="opt in rentalTypeOptions" :key="opt.key">
-                        <button type="button"
-                                @click="toggleRentalType(opt.key)"
-                                :class="rentalTypes.includes(opt.key) ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500'"
-                                class="text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition-all active:scale-95">
-                            <span x-text="opt.label"></span>
-                        </button>
-                    </template>
+                <div>
+                    <p class="text-xs font-semibold text-gray-500 mb-1.5">ประเภทค่าเช่า</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <template x-for="opt in rentalTypeOptions" :key="opt.key">
+                            <button type="button"
+                                    @click="toggleRentalType(opt.key)"
+                                    :class="rentalTypes.includes(opt.key) ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500'"
+                                    class="text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition-all active:scale-95">
+                                <span x-text="opt.label"></span>
+                            </button>
+                        </template>
+                    </div>
                 </div>
             </div>
 
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">เลือกไฟล์สลิป</p>
-
             <div
-                class="relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-200 cursor-pointer"
+                class="relative border-2 border-dashed rounded-xl px-4 py-3 text-center transition-all duration-200 cursor-pointer"
                 :class="isDragging ? 'border-brand-500 bg-brand-50 scale-[1.01]' : 'border-gray-200 bg-gray-50/50 hover:border-brand-300 hover:bg-brand-50/30'"
                 @dragover.prevent="isDragging = true"
                 @dragleave.prevent="isDragging = false"
@@ -1261,41 +1341,37 @@
                        class="hidden"
                        @change="handleFileInput($event)">
 
-                <div x-show="files.length === 0">
-                    <div class="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-md shadow-brand-700/25">
-                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div x-show="files.length === 0" class="flex items-center gap-3">
+                    <div class="w-9 h-9 bg-brand-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-brand-700/25">
+                        <svg style="width:18px;height:18px" class="text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                         </svg>
                     </div>
-                    <p class="text-sm font-bold text-gray-700 mb-1">ลากวางไฟล์ที่นี่</p>
-                    <p class="text-xs text-gray-400 mb-3">หรือแตะเพื่อเลือกจากอุปกรณ์</p>
-                    <div class="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl px-4 py-2 text-xs font-semibold text-gray-600 shadow-sm">
-                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                        </svg>
-                        JPG · PNG · PDF · ไม่เกิน 5MB/ไฟล์
+                    <div class="min-w-0 text-left">
+                        <p class="text-sm font-bold text-gray-700 leading-tight">แตะหรือวางไฟล์ที่นี่</p>
+                        <p class="text-[11px] text-gray-400 leading-tight mt-0.5">JPG · PNG · PDF · ไม่เกิน 5MB/ไฟล์</p>
                     </div>
                 </div>
 
-                <div x-show="files.length > 0" class="space-y-2" @click.stop>
+                <div x-show="files.length > 0" class="space-y-1.5" @click.stop>
                     <template x-for="(file, index) in files" :key="index">
-                        <div class="flex items-center gap-3 bg-white rounded-xl px-3 py-2.5 text-left shadow-sm border border-gray-100 hover:border-gray-200 transition-colors">
-                            <div class="w-9 h-9 flex-shrink-0 rounded-xl flex items-center justify-center"
+                        <div class="flex items-center gap-2.5 bg-white rounded-lg px-2.5 py-2 text-left shadow-sm border border-gray-100 hover:border-gray-200 transition-colors">
+                            <div class="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center"
                                  :class="file.type === 'application/pdf' ? 'bg-red-100' : 'bg-sky-100'">
-                                <svg style="width:18px;height:18px"
+                                <svg style="width:14px;height:14px"
                                      :class="file.type === 'application/pdf' ? 'text-red-600' : 'text-sky-600'"
                                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                                 </svg>
                             </div>
                             <div class="flex-1 min-w-0 text-left">
-                                <p class="text-sm font-semibold text-gray-800 truncate" x-text="file.name"></p>
-                                <p class="text-xs text-gray-400" x-text="formatSize(file.size)"></p>
+                                <p class="text-xs font-semibold text-gray-800 truncate" x-text="file.name"></p>
+                                <p class="text-[10px] text-gray-400" x-text="formatSize(file.size)"></p>
                             </div>
                             <button type="button"
                                     @click.stop="removeFile(index)"
-                                    class="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    class="w-6 h-6 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
                             </button>
@@ -1305,52 +1381,45 @@
                     <button type="button"
                             x-show="files.length < 5"
                             @click.stop="$refs.fileInput.click()"
-                            class="w-full flex items-center justify-center gap-2 border-2 border-dashed border-brand-200 text-brand-600 hover:border-brand-400 hover:bg-brand-50 rounded-xl py-2.5 text-xs font-semibold transition-colors mt-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="w-full flex items-center justify-center gap-1.5 border-2 border-dashed border-brand-200 text-brand-600 hover:border-brand-400 hover:bg-brand-50 rounded-lg py-1.5 text-[11px] font-semibold transition-colors">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
-                        เพิ่มไฟล์ (<span x-text="5 - files.length"></span> ไฟล์ที่เหลือ )
+                        เพิ่มไฟล์ (<span x-text="5 - files.length"></span> ไฟล์ที่เหลือ)
                     </button>
                 </div>
             </div>
 
-            <div x-show="errorMsg" x-cloak class="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+            <div x-show="errorMsg" x-cloak class="flex items-start gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-2">
                 <svg class="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
                 <span x-text="errorMsg"></span>
             </div>
 
-            <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <p class="text-xs text-amber-800 leading-relaxed">
-                    สลิปที่แนบจะถูกส่งไปรอการตรวจสอบจากทีมงาน และบันทึกในชื่อผู้เช่ารายนั้น
-                </p>
-            </div>
-
-            <div class="flex gap-3 pt-1">
-                <button type="button"
-                        onclick="closeSlipModal()"
-                        class="flex-1 py-3.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 active:scale-95 rounded-xl transition-all">
-                    ยกเลิก
-                </button>
-                <button type="button"
-                        @click="submit()"
-                        :disabled="files.length === 0 || submitting"
-                        class="flex-1 py-3.5 text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-brand-700/25">
-                    <svg x-show="submitting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    <svg x-show="!submitting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    <span x-text="submitting ? 'กำลังอัพโหลด...' : 'ยืนยันส่งสลิป'"></span>
-                </button>
-            </div>
+            <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 leading-snug">
+                สลิปที่แนบจะถูกส่งไปรอการตรวจสอบจากทีมงาน และบันทึกในชื่อผู้เช่ารายนั้น
+            </p>
         </form>
+
+        {{-- Footer action — always visible, no scrolling needed to reach it. Cancel button removed: the header
+             already has an X close button, and a lone full-width button can never get clipped on narrow screens. --}}
+        <div class="px-4 sm:px-5 pt-3 border-t border-gray-100 bg-white flex-shrink-0"
+             style="padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.75rem)">
+            <button type="button"
+                    @click="submit()"
+                    :disabled="files.length === 0 || submitting"
+                    class="w-full py-3 text-sm font-bold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-brand-700/25">
+                <svg x-show="submitting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <svg x-show="!submitting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span x-text="submitting ? 'กำลังอัพโหลด...' : 'ยืนยันส่งสลิป'"></span>
+            </button>
+        </div>
     </div>
 </div>
 
