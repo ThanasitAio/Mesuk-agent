@@ -915,35 +915,6 @@
                                         @endif
                                     </div>
                                 @endif
-                                @if($isSplitInvoice)
-                                <div class="inline-flex flex-col items-center gap-1.5">
-                                    <a href="{{ route('invoices.print', $recInv['company']->id) }}" target="_blank"
-                                       class="inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
-                                       style="background:#468432">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                        </svg>
-                                        ใบแจ้งหนี้ บริษัท
-                                    </a>
-                                    <a href="{{ route('invoices.print', $recInv['investor']->id) }}" target="_blank"
-                                       class="inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
-                                       style="background:#2563eb">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                        </svg>
-                                        ใบแจ้งหนี้ นักลงทุน
-                                    </a>
-                                </div>
-                                @elseif($hasInvoice)
-                                <a href="{{ route('invoices.print', $recordInvoice->id) }}" target="_blank"
-                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap"
-                                   style="background:#468432">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                    </svg>
-                                    ใบแจ้งหนี้
-                                </a>
-                                @endif
                             </div>
                         </td>
                     </tr>
@@ -1165,51 +1136,30 @@
                 @if($hasInvoice)
                     <div class="mt-3 pt-3 border-t border-gray-100 space-y-2">
                         @if($isSplitInvoice)
-                            <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
                                 <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                     ใบแจ้งหนี้ บริษัท
                                 </span>
-                                <a href="{{ route('invoices.print', $recInv['company']->id) }}" target="_blank"
-                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap flex-shrink-0">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                    </svg>
-                                    PDF
-                                </a>
                             </div>
-                            <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
                                 <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                     ใบแจ้งหนี้ นักลงทุน
                                 </span>
-                                <a href="{{ route('invoices.print', $recInv['investor']->id) }}" target="_blank"
-                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap flex-shrink-0">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                    </svg>
-                                    PDF
-                                </a>
                             </div>
                         @else
-                            <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
                                 <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                     เปิดใบแจ้งหนี้แล้ว
                                 </span>
-                                <a href="{{ route('invoices.print', $recordInvoice->id) }}" target="_blank"
-                                   class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 active:scale-95 px-3 py-1.5 rounded-xl transition-all shadow-sm whitespace-nowrap flex-shrink-0">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
-                                    </svg>
-                                    ใบแจ้งหนี้ PDF
-                                </a>
                             </div>
                         @endif
                     </div>
@@ -1266,7 +1216,7 @@
      onclick="closeSlipModal()">
 
     <div id="slip-modal_panel"
-         style="opacity:0; transform: translateY(40px); scale: 0.98; transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);"
+         style="opacity:0; translate: 0 40px; scale: 0.98; transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);"
          class="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl ring-1 ring-black/5 w-full sm:max-w-lg max-h-[92vh] flex flex-col overflow-hidden"
          onclick="event.stopPropagation()"
          x-data="slipUploader()"
