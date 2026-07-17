@@ -123,19 +123,37 @@ class PropertyBillingController extends Controller
         }
 
         $request->validate([
-            'payment_slips'   => 'required|array|min:1|max:5',
-            'payment_slips.*' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'combo_mode'      => 'nullable|in:join,sep',
+            'payment_slips'    => 'required|array|min:1|max:5',
+            'payment_slips.*'  => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'combo_mode'       => 'nullable|in:join,sep',
+            'transfer_date'    => 'required|date|before_or_equal:today',
+            'rental_types'     => 'nullable|array',
+            'rental_types.*'   => 'string|in:rent,land_tax,utility,deposit,processing_fee',
         ], [
             'payment_slips.required'  => 'กรุณาเลือกไฟล์สลิปอย่างน้อย 1 ไฟล์',
             'payment_slips.max'       => 'อัพโหลดได้สูงสุด 5 ไฟล์',
             'payment_slips.*.mimes'   => 'ไฟล์ต้องเป็น JPG, PNG หรือ PDF เท่านั้น',
             'payment_slips.*.max'     => 'ขนาดแต่ละไฟล์ต้องไม่เกิน 5MB',
+            'transfer_date.required'  => 'กรุณาระบุวันที่โอน',
+            'transfer_date.date'      => 'วันที่โอนไม่ถูกต้อง',
+            'transfer_date.before_or_equal' => 'วันที่โอนต้องไม่เกินวันนี้',
         ]);
 
         $bookingId = $record->booking_id;
         $comboMode = $request->input('combo_mode', 'sep');
         $isPhase2Deposit = $record->isPhase2Deposit();
+        $paidAt = \Carbon\Carbon::parse($request->input('transfer_date'))->setTimeFrom(now());
+
+        $rentalTypeLabels = [
+            'rent'            => 'ค่าเช่า',
+            'land_tax'        => 'ค่าภาษีที่ดิน',
+            'utility'         => 'ค่าน้ำ/ไฟ',
+            'deposit'         => 'เงินมัดจำ',
+            'processing_fee'  => 'ค่าดำเนินการ',
+        ];
+        $selectedRentalTypes = collect($request->input('rental_types', []))
+            ->map(fn ($key) => $rentalTypeLabels[$key] ?? $key)
+            ->implode(', ');
 
         // ตรวจสอบว่าเป็นการอัพโหลดแบบรวม (combo) หรือไม่
         $isComboUpload = $isPhase2Deposit && $comboMode === 'join';
@@ -167,7 +185,7 @@ class PropertyBillingController extends Controller
             'payment_slip_path' => $mainSlipPath,
             'payment_slips'     => $allSlips,
             'payment_status'    => 'pending_verification',
-            'paid_at'           => now(),
+            'paid_at'           => $paidAt,
         ]);
 
         // ถ้าเป็นโหมดรวม ให้อัพเดทรายการค่าเช่าเดือน 1 ด้วย
@@ -183,7 +201,7 @@ class PropertyBillingController extends Controller
                     'payment_slip_path' => $mainSlipPath,
                     'payment_slips'     => $allSlips,
                     'payment_status'    => 'pending_verification',
-                    'paid_at'           => now(),
+                    'paid_at'           => $paidAt,
                 ]);
             }
         }
@@ -193,6 +211,10 @@ class PropertyBillingController extends Controller
         $logDescription = $isComboUpload
             ? "แนบสลิปแทนลูกค้า (รวม): มัดจำงวด 2 + ค่าเช่าเดือน 1 — {$property->title}"
             : "แนบสลิปแทนลูกค้า: {$record->getTypeLabel()} — {$property->title}";
+        $logDescription .= " | วันที่โอน: {$paidAt->format('d/m/Y')}";
+        if ($selectedRentalTypes !== '') {
+            $logDescription .= " | ประเภท: {$selectedRentalTypes}";
+        }
 
         logSystem(
             userType: 'agent',
@@ -601,6 +623,8 @@ class PropertyBillingController extends Controller
                 'bank_branch'           => $recToInv ? ($owner->bank_branch ?? null) : ($company->bank_branch ?? null),
                 'qr_url'                => $qrUrl,
                 'promptpay_id'          => $promptpayId,
+                'payment_type'          => $record->payment_type,
+                'has_land_tax'          => (float) ($record->land_tax_amount ?? 0) > 0,
             ];
         }
 

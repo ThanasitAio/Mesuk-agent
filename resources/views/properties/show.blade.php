@@ -1228,6 +1228,22 @@
         <form id="slip-form" method="POST" enctype="multipart/form-data" class="px-6 py-5 space-y-4">
             @csrf
 
+            <x-form.date name="transfer_date" label="วันที่โอน" :value="now()->format('Y-m-d')" :max="now()->format('Y-m-d')" required />
+
+            <div>
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">ประเภทค่าเช่า</p>
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="opt in rentalTypeOptions" :key="opt.key">
+                        <button type="button"
+                                @click="toggleRentalType(opt.key)"
+                                :class="rentalTypes.includes(opt.key) ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-gray-200 bg-white text-gray-500'"
+                                class="text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition-all active:scale-95">
+                            <span x-text="opt.label"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">เลือกไฟล์สลิป</p>
 
             <div
@@ -1587,12 +1603,28 @@ function applyBillingTabFilter() {
         const panel = document.getElementById('slip-modal_panel');
         if (panel._x_dataStack) {
             const alpineData = Alpine.$data(panel);
-            alpineData.files      = [];
-            alpineData.errorMsg   = '';
-            alpineData.submitting = false;
+            alpineData.files       = [];
+            alpineData.errorMsg    = '';
+            alpineData.submitting  = false;
+            alpineData.rentalTypes = defaultRentalTypesFor(recordId);
         }
 
         openModal('slip-modal');
+    }
+
+    function defaultRentalTypesFor(recordId) {
+        const meta = window.billingRecordMeta[recordId] || {};
+        switch (meta.payment_type) {
+            case 'monthly_rent':
+            case 'late_fee':
+                return meta.has_land_tax ? ['rent', 'land_tax'] : ['rent'];
+            case 'deposit':
+                return ['deposit'];
+            case 'processing_fee':
+                return ['processing_fee'];
+            default:
+                return [];
+        }
     }
 
     function closeSlipModal() {
@@ -1606,6 +1638,20 @@ function applyBillingTabFilter() {
             isDragging: false,
             submitting: false,
             errorMsg: '',
+            rentalTypes: [],
+            rentalTypeOptions: [
+                { key: 'rent',           label: 'ค่าเช่า' },
+                { key: 'land_tax',       label: 'ค่าภาษีที่ดิน' },
+                { key: 'utility',        label: 'ค่าน้ำ/ไฟ' },
+                { key: 'deposit',        label: 'เงินมัดจำ' },
+                { key: 'processing_fee', label: 'ค่าดำเนินการ' },
+            ],
+
+            toggleRentalType(key) {
+                const idx = this.rentalTypes.indexOf(key);
+                if (idx === -1) this.rentalTypes.push(key);
+                else this.rentalTypes.splice(idx, 1);
+            },
 
             init() {},
 
@@ -1662,6 +1708,9 @@ function applyBillingTabFilter() {
                 if (currentIsPhase2Combo) {
                     formData.append('combo_mode', _comboMode);
                 }
+                const transferDateInput = document.querySelector('#slip-form [name="transfer_date"]');
+                formData.append('transfer_date', transferDateInput ? transferDateInput.value : '');
+                this.rentalTypes.forEach(t => formData.append('rental_types[]', t));
                 this.files.forEach(f => formData.append('payment_slips[]', f));
 
                 fetch(`${billingUploadBase}/${currentRecordId}/slip`, {
