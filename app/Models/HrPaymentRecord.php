@@ -15,12 +15,13 @@ class HrPaymentRecord extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'payment_slips'     => 'array',
-        'rental_type_tags'  => 'array',
-        'due_date'          => 'date',
-        'paid_at'           => 'datetime',
-        'verified_at'       => 'datetime',
-        'amount'            => 'decimal:2',
+        'payment_slips'         => 'array',
+        'payment_slip_batches'  => 'array',
+        'rental_type_tags'      => 'array',
+        'due_date'              => 'date',
+        'paid_at'               => 'datetime',
+        'verified_at'           => 'datetime',
+        'amount'                => 'decimal:2',
     ];
 
     public function booking()
@@ -93,9 +94,39 @@ class HrPaymentRecord extends Model
             ->isNotEmpty();
     }
 
+    /**
+     * แนบสลิปรอบใหม่ (batch) เข้า payment_slip_batches — รองรับหลายรอบโอน/หลายวันที่ต่อ 1 บิลเดียวกัน
+     * (เช่น จ่ายค่าเช่าบางส่วนวันนี้ ส่วนที่เหลือวันหลัง) โดยไม่ล้างของเดิม ต่างจาก update() ตรงๆ
+     * ที่เขียนทับ payment_slips/paid_at ทั้งก้อน — ยังคง mirror payment_slips/payment_slip_path (flat)
+     * ไว้เหมือนเดิมเพื่อไม่ให้โค้ดจุดอื่นที่อ่าน field เดิม (viewSlip by index ฯลฯ) พัง
+     */
+    public function appendSlipBatch(array $paths, \Carbon\Carbon $transferDate, array $tags = [], string $uploadedByType = 'agent_manager', ?string $uploadedByName = null): void
+    {
+        $batches = $this->payment_slip_batches ?? [];
+        $batches[] = [
+            'paths' => $paths,
+            'transfer_date' => $transferDate->toDateString(),
+            'rental_type_tags' => array_values($tags),
+            'uploaded_by_type' => $uploadedByType,
+            'uploaded_by_name' => $uploadedByName,
+            'uploaded_at' => now()->toIso8601String(),
+        ];
+
+        $existingSlips = $this->payment_slips ?? [];
+        $allSlips = array_merge($existingSlips, $paths);
+
+        $this->update([
+            'payment_slip_batches' => $batches,
+            'payment_slips' => $allSlips,
+            'payment_slip_path' => $allSlips[0] ?? null,
+            'payment_status' => 'pending_verification',
+            'paid_at' => $transferDate,
+        ]);
+    }
+
     public function canUploadSlip(?HrBooking $booking = null): bool
     {
-        if (! in_array($this->payment_status, ['pending', 'failed'], true)) {
+        if (! in_array($this->payment_status, ['pending', 'failed', 'pending_verification'], true)) {
             return false;
         }
 
@@ -123,9 +154,11 @@ class HrPaymentRecord extends Model
         }
 
         if ($this->payment_type === 'monthly_rent') {
+            // รวม pending_verification ด้วย — เดือนที่กำลังรอตรวจสลิปอยู่ยังนับเป็น "เดือนแรกที่ยังไม่จบ"
+            // เพื่อให้แนบสลิปเพิ่ม (อีกรอบโอน) ของเดือนเดียวกันได้ ไม่โดนบล็อกว่าเป็นการ "ข้ามเดือน"
             $firstPendingRent = $records
                 ->where('payment_type', 'monthly_rent')
-                ->whereIn('payment_status', ['pending', 'failed'])
+                ->whereIn('payment_status', ['pending', 'failed', 'pending_verification'])
                 ->sortBy('due_date')
                 ->first();
 

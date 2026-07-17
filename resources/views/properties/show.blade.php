@@ -870,9 +870,10 @@
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                                         </svg>
-                                        แนบสลิป
+                                        {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                                     </button>
-                                @elseif($record->payment_status === 'pending_verification')
+                                @endif
+                                @if($record->payment_status === 'pending_verification')
                                     <div class="inline-flex flex-col items-center gap-1.5">
                                         <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -880,6 +881,14 @@
                                             </svg>
                                             รอตรวจสอบ
                                         </div>
+                                        @php $recBatches = $record->payment_slip_batches ?? []; @endphp
+                                        @if(count($recBatches) > 1)
+                                            @foreach($recBatches as $rb)
+                                            <div class="text-[10px] font-medium text-gray-500">
+                                                โอน {{ \Carbon\Carbon::parse($rb['transfer_date'])->format('d/m/Y') }}
+                                            </div>
+                                            @endforeach
+                                        @endif
                                         @foreach($recSlips as $si => $_)
                                         <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
                                            class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-gray-700 transition-colors">
@@ -895,7 +904,7 @@
                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                             </svg>
-                                            ยกเลิกสลิป
+                                            ยกเลิกทั้งหมด
                                         </button>
                                     </div>
                                 @elseif($record->payment_status === 'paid')
@@ -1074,10 +1083,11 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
                                 </svg>
-                                แนบสลิป
+                                {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                             </button>
                         </div>
-                    @elseif($record->payment_status === 'pending_verification')
+                    @endif
+                    @if($record->payment_status === 'pending_verification')
                         <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
                             <div class="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-2 rounded-xl">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1085,6 +1095,12 @@
                                 </svg>
                                 รอตรวจสอบ
                             </div>
+                            @php $recBatchesM = $record->payment_slip_batches ?? []; @endphp
+                            @if(count($recBatchesM) > 1)
+                                @foreach($recBatchesM as $rbM)
+                                <p class="text-[10px] font-medium text-gray-500">โอน {{ \Carbon\Carbon::parse($rbM['transfer_date'])->format('d/m/Y') }}</p>
+                                @endforeach
+                            @endif
                             @foreach($recSlips as $si => $_)
                             <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
                                class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600">
@@ -1100,7 +1116,7 @@
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
-                                ยกเลิกสลิป
+                                ยกเลิกทั้งหมด
                             </button>
                         </div>
                     @elseif($record->payment_status === 'paid')

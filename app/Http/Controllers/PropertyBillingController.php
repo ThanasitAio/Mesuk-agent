@@ -167,9 +167,7 @@ class PropertyBillingController extends Controller
             foreach ($oldSlips as $oldPath) {
                 Storage::disk('payment_storage')->delete($oldPath);
             }
-            $existingSlips = [];
-        } else {
-            $existingSlips = $record->payment_slips ?? [];
+            $record->update(['payment_slip_batches' => []]);
         }
 
         $newPaths = [];
@@ -178,34 +176,21 @@ class PropertyBillingController extends Controller
             $newPaths[] = $path;
         }
 
-        $allSlips     = array_merge($existingSlips, $newPaths);
-        $mainSlipPath = $allSlips[0] ?? null;
+        $managerName = session('agent_name');
 
-        // อัพเดทรายการหลัก (มัดจำงวด 2)
-        $record->update([
-            'payment_slip_path' => $mainSlipPath,
-            'payment_slips'     => $allSlips,
-            'payment_status'    => 'pending_verification',
-            'paid_at'           => $paidAt,
-            'rental_type_tags'  => $rentalTypeTags,
-        ]);
+        // แนบสลิปรอบนี้เข้า payment_slip_batches — ไม่ล้างรอบก่อนหน้า รองรับจ่ายหลายรอบ/หลายวันต่อ 1 บิล
+        $record->appendSlipBatch($newPaths, $paidAt, $rentalTypeTags, 'agent_manager', $managerName);
 
         // ถ้าเป็นโหมดรวม ให้อัพเดทรายการค่าเช่าเดือน 1 ด้วย
         if ($isComboUpload) {
             $month1Record = $booking->paymentRecords()
                 ->where('payment_type', 'monthly_rent')
                 ->where('month_number', 1)
-                ->whereIn('payment_status', ['pending', 'failed'])
+                ->whereIn('payment_status', ['pending', 'failed', 'pending_verification'])
                 ->first();
 
             if ($month1Record) {
-                $month1Record->update([
-                    'payment_slip_path' => $mainSlipPath,
-                    'payment_slips'     => $allSlips,
-                    'payment_status'    => 'pending_verification',
-                    'paid_at'           => $paidAt,
-                    'rental_type_tags'  => $rentalTypeTags,
-                ]);
+                $month1Record->appendSlipBatch($newPaths, $paidAt, $rentalTypeTags, 'agent_manager', $managerName);
             }
         }
 
@@ -263,6 +248,7 @@ class PropertyBillingController extends Controller
         $record->update([
             'payment_slip_path' => null,
             'payment_slips'     => null,
+            'payment_slip_batches' => null,
             'payment_status'    => 'pending',
             'paid_at'           => null,
         ]);
@@ -280,6 +266,7 @@ class PropertyBillingController extends Controller
                 $month1->update([
                     'payment_slip_path' => null,
                     'payment_slips'     => null,
+                    'payment_slip_batches' => null,
                     'payment_status'    => 'pending',
                     'paid_at'           => null,
                 ]);
