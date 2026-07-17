@@ -73,11 +73,13 @@
     $depositTypes = ['deposit', 'processing_fee'];
     $rentTypes    = ['monthly_rent', 'late_fee'];
     $pendingForBank = $actionableRecords->isNotEmpty() ? $actionableRecords : $allRecords->whereIn('payment_status', ['pending', 'failed']);
-    $hasPendingCompany  = $pendingForBank->filter(fn($r) =>
+    // รายการที่ต้องโอนแยก 2 บัญชี (ดู $meta['is_split_payment']) ต้องแสดงบัญชีทั้งบริษัทและนักลงทุนเสมอ
+    $splitPendingRecords = $pendingForBank->filter(fn($r) => $recordMeta[$r->id]['is_split_payment'] ?? false);
+    $hasPendingCompany  = $splitPendingRecords->isNotEmpty() || $pendingForBank->filter(fn($r) =>
         (in_array($r->payment_type, $depositTypes) && ! $isDepositToInvestor) ||
         (in_array($r->payment_type, $rentTypes) && ! $isRentToInvestor)
     )->isNotEmpty();
-    $hasPendingInvestor = $pendingForBank->filter(fn($r) =>
+    $hasPendingInvestor = $splitPendingRecords->isNotEmpty() || $pendingForBank->filter(fn($r) =>
         (in_array($r->payment_type, $depositTypes) && $isDepositToInvestor) ||
         (in_array($r->payment_type, $rentTypes) && $isRentToInvestor)
     )->isNotEmpty();
@@ -497,9 +499,9 @@
             @if($hasPendingCompany && $company)
             @php
                 $companyLabels = collect();
-                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $depositTypes) && !$isDepositToInvestor)->isNotEmpty())
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $depositTypes) && (!$isDepositToInvestor || ($recordMeta[$r->id]['is_split_payment'] ?? false)))->isNotEmpty())
                     $companyLabels->push('มัดจำ' . ($hasProcessingFee ? '/ค่าดำเนินการ' : ''));
-                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && !$isRentToInvestor)->isNotEmpty())
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && (!$isRentToInvestor || ($recordMeta[$r->id]['is_split_payment'] ?? false)))->isNotEmpty())
                     $companyLabels->push('ค่าเช่า');
             @endphp
             <div class="flex items-stretch gap-0 {{ ($hasPendingInvestor && $owner) ? 'border-b border-gray-100' : '' }}">
@@ -546,9 +548,9 @@
             @if($hasPendingInvestor && $owner)
             @php
                 $investorLabels = collect();
-                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $depositTypes) && $isDepositToInvestor)->isNotEmpty())
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $depositTypes) && ($isDepositToInvestor || ($recordMeta[$r->id]['is_split_payment'] ?? false)))->isNotEmpty())
                     $investorLabels->push('มัดจำ' . ($hasProcessingFee ? '/ค่าดำเนินการ' : ''));
-                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && $isRentToInvestor)->isNotEmpty())
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && ($isRentToInvestor || ($recordMeta[$r->id]['is_split_payment'] ?? false)))->isNotEmpty())
                     $investorLabels->push('ค่าเช่า');
             @endphp
             <div class="flex items-stretch gap-0">
