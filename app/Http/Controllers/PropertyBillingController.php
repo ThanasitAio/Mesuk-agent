@@ -144,13 +144,7 @@ class PropertyBillingController extends Controller
         $isPhase2Deposit = $record->isPhase2Deposit();
         $paidAt = \Carbon\Carbon::parse($request->input('transfer_date'))->setTimeFrom(now());
 
-        $rentalTypeLabels = [
-            'rent'            => 'ค่าเช่า',
-            'land_tax'        => 'ค่าภาษีที่ดิน',
-            'utility'         => 'ค่าน้ำ/ไฟ',
-            'deposit'         => 'เงินมัดจำ',
-            'processing_fee'  => 'ค่าดำเนินการ',
-        ];
+        $rentalTypeLabels = HrPaymentRecord::rentalTypeLabels();
         $rentalTypeTags = array_values($request->input('rental_types', []));
         $selectedRentalTypes = collect($rentalTypeTags)
             ->map(fn ($key) => $rentalTypeLabels[$key] ?? $key)
@@ -286,6 +280,88 @@ class PropertyBillingController extends Controller
         return redirect()
             ->route('properties.show', $property->id)
             ->with('success', 'ยกเลิกสลิปเรียบร้อยแล้ว สามารถแนบสลิปใหม่ได้');
+    }
+
+    public function cancelSlipBatch(Request $request, HrPaymentRecord $record, int $batchIndex)
+    {
+        $record->load('booking.paymentRecords');
+        $booking = $record->booking;
+        abort_if(! $booking, 404, 'ไม่พบข้อมูลการจอง');
+
+        $property = HrProperty::where('id', $booking->property_id)
+            ->where('manager_agent_code', session('agent_code'))
+            ->firstOrFail();
+
+        if ($record->payment_status !== 'pending_verification') {
+            return back()->with('error', 'ไม่สามารถยกเลิกสลิปได้ — สถานะไม่ใช่รอตรวจสอบ');
+        }
+
+        $batches = $record->payment_slip_batches ?? [];
+
+        if (! isset($batches[$batchIndex])) {
+            return back()->with('error', 'ไม่พบรายการสลิปที่ต้องการยกเลิก');
+        }
+
+        $removedBatch = $batches[$batchIndex];
+        unset($batches[$batchIndex]);
+        $batches = array_values($batches);
+
+        // ลบไฟล์เฉพาะที่ไม่ได้ถูกอ้างอิงโดย batch อื่นที่เหลืออยู่ (ของ record นี้เอง หรือ record คู่ combo ที่แชร์สลิปเดียวกัน)
+        $remainingPaths = collect($batches)->flatMap(fn ($b) => $b['paths'] ?? [])
+            ->merge(
+                $booking->paymentRecords
+                    ->where('id', '!=', $record->id)
+                    ->flatMap(fn ($r) => collect($r->payment_slip_batches ?? [])->flatMap(fn ($b) => $b['paths'] ?? []))
+            )->all();
+
+        foreach ($removedBatch['paths'] ?? [] as $path) {
+            if (! in_array($path, $remainingPaths, true)) {
+                Storage::disk('payment_storage')->delete($path);
+            }
+        }
+
+        if (empty($batches)) {
+            $record->update([
+                'payment_slip_path'    => null,
+                'payment_slips'        => null,
+                'payment_slip_batches' => null,
+                'payment_status'       => 'pending',
+                'paid_at'              => null,
+            ]);
+        } else {
+            $allPaths  = collect($batches)->flatMap(fn ($b) => $b['paths'] ?? [])->values()->all();
+            $lastBatch = end($batches);
+            $record->update([
+                'payment_slip_batches' => $batches,
+                'payment_slips'        => $allPaths,
+                'payment_slip_path'    => $allPaths[0] ?? null,
+                'paid_at'              => $lastBatch['transfer_date'] ?? $record->paid_at,
+            ]);
+        }
+
+        $booking->updatePaymentStatus();
+
+        $rentalLabels = collect($removedBatch['rental_type_tags'] ?? [])
+            ->map(fn ($k) => HrPaymentRecord::rentalTypeLabels()[$k] ?? $k)
+            ->implode(', ');
+
+        $logDescription = "ยกเลิกสลิปบางรายการ: {$record->getTypeLabel()} — {$property->title}";
+        $logDescription .= ' | วันที่โอน: ' . \Carbon\Carbon::parse($removedBatch['transfer_date'])->format('d/m/Y');
+        if ($rentalLabels !== '') {
+            $logDescription .= " | ประเภท: {$rentalLabels}";
+        }
+
+        logSystem(
+            userType: 'agent',
+            userId: session('agent_id'),
+            module: 'Property',
+            action: 'DELETE',
+            description: $logDescription
+        );
+
+        return redirect()
+            ->route('properties.show', $property->id)
+            ->with('success', 'ยกเลิกสลิปรายการนี้เรียบร้อยแล้ว');
     }
 
     public function viewSlip(Request $request, HrPaymentRecord $record)

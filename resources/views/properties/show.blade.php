@@ -72,6 +72,7 @@
 
     $depositTypes = ['deposit', 'processing_fee'];
     $rentTypes    = ['monthly_rent', 'late_fee'];
+    $rentalTypeLabels = \App\Models\HrPaymentRecord::rentalTypeLabels();
     $pendingForBank = $actionableRecords->isNotEmpty() ? $actionableRecords : $allRecords->whereIn('payment_status', ['pending', 'failed']);
     // รายการที่ต้องโอนแยก 2 บัญชี (ดู $meta['is_split_payment']) ต้องแสดงบัญชีทั้งบริษัทและนักลงทุนเสมอ
     $splitPendingRecords = $pendingForBank->filter(fn($r) => $recordMeta[$r->id]['is_split_payment'] ?? false);
@@ -883,10 +884,23 @@
                                         </div>
                                         @php $recBatches = $record->payment_slip_batches ?? []; @endphp
                                         @if(count($recBatches) > 1)
-                                            @foreach($recBatches as $rb)
-                                            <div class="text-[10px] font-medium text-gray-500">
-                                                โอน {{ \Carbon\Carbon::parse($rb['transfer_date'])->format('d/m/Y') }}
-                                            </div>
+                                            @foreach($recBatches as $bi => $rb)
+                                                @php
+                                                    $rbLabel = collect($rb['rental_type_tags'] ?? [])
+                                                        ->map(fn ($k) => $rentalTypeLabels[$k] ?? $k)
+                                                        ->implode('/');
+                                                @endphp
+                                                <div class="flex items-center gap-1 text-[10px] font-medium text-gray-500">
+                                                    <span>โอน{{ $rbLabel }} {{ \Carbon\Carbon::parse($rb['transfer_date'])->format('d/m/Y') }}</span>
+                                                    <button type="button"
+                                                            onclick="openCancelSlipBatchConfirm('{{ route('billing.slip.cancel-batch', [$record->id, $bi]) }}')"
+                                                            title="ยกเลิกรายการนี้"
+                                                            class="text-red-400 hover:text-red-600 transition-colors">
+                                                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             @endforeach
                                         @endif
                                         @foreach($recSlips as $si => $_)
@@ -1097,8 +1111,23 @@
                             </div>
                             @php $recBatchesM = $record->payment_slip_batches ?? []; @endphp
                             @if(count($recBatchesM) > 1)
-                                @foreach($recBatchesM as $rbM)
-                                <p class="text-[10px] font-medium text-gray-500">โอน {{ \Carbon\Carbon::parse($rbM['transfer_date'])->format('d/m/Y') }}</p>
+                                @foreach($recBatchesM as $biM => $rbM)
+                                    @php
+                                        $rbLabelM = collect($rbM['rental_type_tags'] ?? [])
+                                            ->map(fn ($k) => $rentalTypeLabels[$k] ?? $k)
+                                            ->implode('/');
+                                    @endphp
+                                    <div class="flex items-center gap-1">
+                                        <p class="text-[10px] font-medium text-gray-500">โอน{{ $rbLabelM }} {{ \Carbon\Carbon::parse($rbM['transfer_date'])->format('d/m/Y') }}</p>
+                                        <button type="button"
+                                                onclick="openCancelSlipBatchConfirm('{{ route('billing.slip.cancel-batch', [$record->id, $biM]) }}')"
+                                                title="ยกเลิกรายการนี้"
+                                                class="text-red-400 hover:text-red-600 transition-colors">
+                                            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </div>
                                 @endforeach
                             @endif
                             @foreach($recSlips as $si => $_)
@@ -1416,6 +1445,31 @@
     </div>
 </x-confirm-modal>
 
+{{-- ── Cancel Single Slip Batch Confirm Modal ── --}}
+<x-confirm-modal
+    id="cancel-slip-batch-confirm"
+    title="ยืนยันยกเลิกสลิปรายการนี้"
+    action=""
+    method="DELETE"
+    icon-variant="danger"
+    confirm-label="ยืนยันยกเลิก"
+    cancel-label="ไม่ยกเลิก">
+    <div class="flex flex-col gap-3">
+        <p class="text-sm text-gray-700 leading-relaxed">
+            คุณต้องการ<span class="font-semibold text-red-600">ยกเลิกสลิปเฉพาะรอบโอนนี้</span>ใช่หรือไม่?
+        </p>
+        <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
+            <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.07 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+            <p class="text-xs text-amber-700 leading-relaxed">
+                รอบโอนอื่นที่แนบไว้จะไม่ถูกยกเลิก — หากยังมีรอบอื่นเหลืออยู่ สถานะจะยังเป็น <span class="font-semibold">รอตรวจสอบ</span> ต่อไป
+            </p>
+        </div>
+    </div>
+</x-confirm-modal>
+
 @endsection
 
 @push('scripts')
@@ -1423,6 +1477,11 @@
 function openCancelSlipConfirm(url) {
     document.getElementById('cancel-slip-confirm_form').action = url;
     openModal('cancel-slip-confirm');
+}
+
+function openCancelSlipBatchConfirm(url) {
+    document.getElementById('cancel-slip-batch-confirm_form').action = url;
+    openModal('cancel-slip-batch-confirm');
 }
 
 window.billingRecordMeta = @json($recordMeta);

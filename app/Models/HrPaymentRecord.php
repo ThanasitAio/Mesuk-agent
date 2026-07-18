@@ -29,6 +29,17 @@ class HrPaymentRecord extends Model
         return $this->belongsTo(HrBooking::class, 'booking_id');
     }
 
+    public static function rentalTypeLabels(): array
+    {
+        return [
+            'rent'           => 'ค่าเช่า',
+            'land_tax'       => 'ค่าภาษีที่ดิน',
+            'utility'        => 'ค่าน้ำ/ไฟ',
+            'deposit'        => 'เงินมัดจำ',
+            'processing_fee' => 'ค่าดำเนินการ',
+        ];
+    }
+
     public function getTypeLabel(): string
     {
         if ($this->payment_type === 'deposit') {
