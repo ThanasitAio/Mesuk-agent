@@ -1,10 +1,10 @@
 {{--
-  x-table — Desktop table wrapper (hidden on mobile, visible md+)
+  x-table - Desktop table wrapper (hidden on mobile, visible md+)
   Props:
-    card  (bool, default true) — wrap in white rounded-xl card
+    card  (bool, default true) - wrap in white rounded-xl card
   Slots:
-    $head  — <th> cells inside the <thead><tr>
-    $slot  — <tr> rows inside <tbody>  (plus @empty row)
+    $head  - <th> cells inside the <thead><tr>
+    $slot  - <tr> rows inside <tbody>  (plus @empty row)
   Usage with card:
     <x-table>
       <x-slot:head><th>…</th></x-slot:head>

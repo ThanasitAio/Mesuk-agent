@@ -8,7 +8,7 @@
 @php
     $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
 
-    // ลิงก์หน้าเว็บ (ไม่ใช่ไฟล์ static) ต้องไม่มี "/public" บน production เด็ดขาด — ระบบหลัก (happyest)
+    // ลิงก์หน้าเว็บ (ไม่ใช่ไฟล์ static) ต้องไม่มี "/public" บน production เด็ดขาด - ระบบหลัก (happyest)
     // route ทุกหน้าผ่าน root index.php (ดู .htaccess: RewriteBase /happyest/) ไม่ใช่ผ่าน public/index.php
     // ดังนั้นลิงก์ที่มี /public จะ 404 กับลูกค้าที่กดจากแอด แม้ .env จะตั้งค่าผิดมาอีกก็จะไม่หลุดออกไป
     $happyestPageBase = app()->environment('production')
@@ -265,7 +265,7 @@
                         @if($row['code'])
                         <p class="font-mono text-[10px] font-bold text-gray-400 truncate leading-none">{{ $row['code'] }}</p>
                         @endif
-                        <p class="text-[15px] lg:text-base font-bold text-gray-900 leading-snug line-clamp-1 mt-1">{{ $row['title'] ?? '—' }}</p>
+                        <p class="text-[15px] lg:text-base font-bold text-gray-900 leading-snug line-clamp-1 mt-1">{{ $row['title'] ?? '-' }}</p>
                     </div>
                     @if($row['price'])
                     <span class="lg:hidden flex-shrink-0 inline-flex items-baseline gap-0.5 text-xs font-bold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-2.5 py-1 tabular-nums whitespace-nowrap">

@@ -169,7 +169,7 @@ class HrBooking extends Model
             'cancelled'          => 'ยกเลิก',
             'rejected'           => 'ปฏิเสธ',
             'completed'          => 'เสร็จสิ้น',
-            default              => $this->status ?? '—',
+            default              => $this->status ?? '-',
         };
     }
 
@@ -182,7 +182,7 @@ class HrBooking extends Model
             'paid'          => 'ชำระแล้ว',
             'refunded'      => 'คืนเงินแล้ว',
             'failed'        => 'ไม่ผ่าน',
-            default         => $this->payment_status ?? '—',
+            default         => $this->payment_status ?? '-',
         };
     }
 
@@ -191,7 +191,7 @@ class HrBooking extends Model
         return match ($this->contract_status) {
             self::CONTRACT_STATUS_SENT     => 'ส่งสัญญาแล้ว',
             self::CONTRACT_STATUS_DRAFTING => 'ร่างสัญญา (ยังไม่ส่ง)',
-            default                        => $this->contract_status ?? '—',
+            default                        => $this->contract_status ?? '-',
         };
     }
 

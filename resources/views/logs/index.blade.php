@@ -1,4 +1,4 @@
-﻿@extends('layouts.app')
+@extends('layouts.app')
 
 @section('title', 'ประวัติการใช้งาน')
 @section('breadcrumb', 'บันทึกการดำเนินการทั้งหมด')
@@ -128,7 +128,7 @@
     @forelse($logs as $log)
         <tr class="hover:bg-gray-50 transition-colors">
             <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                {{ $log->created_at ? $log->created_at->format('d/m/Y') : '—' }}<br>
+                {{ $log->created_at ? $log->created_at->format('d/m/Y') : '-' }}<br>
                 <span class="text-gray-400">{{ $log->created_at ? $log->created_at->format('H:i:s') : '' }}</span>
             </td>
             <td class="px-4 py-3">
@@ -136,26 +136,26 @@
                     <span class="text-xs text-gray-600">#{{ $log->user_id }}</span>
                     <span class="text-xs text-gray-400 block capitalize">{{ $log->user_type }}</span>
                 @else
-                    <span class="text-xs text-gray-400">—</span>
+                    <span class="text-xs text-gray-400">-</span>
                 @endif
             </td>
             <td class="px-4 py-3">
                 <span class="inline-block bg-brand-100 text-brand-700 text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap">
-                    {{ $log->module ?? '—' }}
+                    {{ $log->module ?? '-' }}
                 </span>
             </td>
             <td class="px-4 py-3">
                 <x-log-action-badge :action="$log->action" />
             </td>
             <td class="px-4 py-3 text-gray-600 max-w-xs">
-                <span class="line-clamp-2 text-xs">{{ $log->description ?? '—' }}</span>
+                <span class="line-clamp-2 text-xs">{{ $log->description ?? '-' }}</span>
             </td>
             <td class="px-4 py-3">
                 <span class="inline-block bg-gray-100 text-gray-600 text-xs font-mono px-2 py-0.5 rounded">
-                    {{ $log->method ?? '—' }}
+                    {{ $log->method ?? '-' }}
                 </span>
             </td>
-            <td class="px-4 py-3 text-xs text-gray-500 font-mono">{{ $log->ip_address ?? '—' }}</td>
+            <td class="px-4 py-3 text-xs text-gray-500 font-mono">{{ $log->ip_address ?? '-' }}</td>
         </tr>
     @empty
         <tr>
@@ -181,17 +181,17 @@
             <div class="flex items-start justify-between gap-2 mb-2">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="inline-block bg-brand-100 text-brand-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                        {{ $log->module ?? '—' }}
+                        {{ $log->module ?? '-' }}
                     </span>
                     <x-log-action-badge :action="$log->action" />
                 </div>
                 <span class="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
-                    {{ $log->created_at ? $log->created_at->format('d/m/y H:i') : '—' }}
+                    {{ $log->created_at ? $log->created_at->format('d/m/y H:i') : '-' }}
                 </span>
             </div>
 
             {{-- Description --}}
-            <p class="text-sm text-gray-700 mb-2">{{ $log->description ?? '—' }}</p>
+            <p class="text-sm text-gray-700 mb-2">{{ $log->description ?? '-' }}</p>
 
             {{-- Meta row --}}
             <div class="flex items-center gap-3 text-xs text-gray-400 flex-wrap">

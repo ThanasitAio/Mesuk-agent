@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>500 — ข้อผิดพลาดของระบบ</title>
+    <title>500 - ข้อผิดพลาดของระบบ</title>
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
 </head>
 <body class="min-h-screen bg-gradient-to-br from-brand-950 via-brand-900 to-brand-950 flex items-center justify-center p-4">

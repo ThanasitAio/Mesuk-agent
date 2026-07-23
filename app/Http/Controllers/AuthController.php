@@ -32,7 +32,7 @@ class AuthController extends Controller
         // Normalize: strip leading zeros then re-pad to 7 digits so "390" matches "0000390"
         $agentCode = str_pad(ltrim($request->agent_code, '0') ?: '0', 7, '0', STR_PAD_LEFT);
 
-        // CRIT-2: Rate limit — 5 attempts per minute per IP + agent_code
+        // CRIT-2: Rate limit - 5 attempts per minute per IP + agent_code
         $throttleKey = 'login.' . $request->ip() . '.' . $agentCode;
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
@@ -98,7 +98,7 @@ class AuthController extends Controller
         $response = redirect()->intended(route('dashboard'));
 
         if ($request->boolean('remember')) {
-            // HIGH-5: secure flag reads SESSION_SECURE_COOKIE (.env) — true on HTTPS production
+            // HIGH-5: secure flag reads SESSION_SECURE_COOKIE (.env) - true on HTTPS production
             $response->withCookie(
                 cookie(self::REMEMBER_COOKIE, $agent->agent_code, 60 * 24 * self::REMEMBER_DAYS, '/', null, config('session.secure'), true)
             );

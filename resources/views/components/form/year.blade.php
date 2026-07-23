@@ -36,7 +36,7 @@
             @disabled($disabled)
             {{ $attributes->merge(['class' => $baseClass]) }}
         >
-            <option value="">— เลือกปี —</option>
+            <option value="">- เลือกปี -</option>
             @for($y = $to; $y >= $from; $y--)
                 <option value="{{ $y }}" @selected($selected === (string)$y)>{{ $y + 543 }} ({{ $y }})</option>
             @endfor

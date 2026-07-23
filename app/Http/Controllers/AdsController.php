@@ -6,7 +6,7 @@ use App\Models\HrProperty;
 
 class AdsController extends Controller
 {
-    // ป้ายสถานะอสังหาฯ (ว่าง/ไม่ว่าง/จอง/โครงการในอนาคต) — อ้างอิง property_status_id
+    // ป้ายสถานะอสังหาฯ (ว่าง/ไม่ว่าง/จอง/โครงการในอนาคต) - อ้างอิง property_status_id
     private const STATUS_MAP = [
         'available'      => ['color' => 'green',  'label' => 'ว่าง'],
         'unavailable'    => ['color' => 'red',    'label' => 'ไม่ว่าง'],

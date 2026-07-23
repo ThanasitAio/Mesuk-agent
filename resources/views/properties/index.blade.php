@@ -31,7 +31,7 @@
 
     // เป็น "รอแนบสลิป" เฉพาะรายการที่ครบกำหนดชำระแล้ว หรืออยู่ในรอบเดือนปัจจุบัน
     // (due_date <= สิ้นเดือนนี้) เพื่อให้ผู้บริหารเห็นรายการค่าเช่าเดือนปัจจุบันที่ถึงรอบ
-    // ตั้งแต่ต้นเดือน ไม่ใช่รอจนถึงวันครบกำหนดจริงถึงจะขึ้นเตือน — ไม่รวมรายการเดือนถัดไป
+    // ตั้งแต่ต้นเดือน ไม่ใช่รอจนถึงวันครบกำหนดจริงถึงจะขึ้นเตือน - ไม่รวมรายการเดือนถัดไป
     $duePendingRecords = fn($recs) => $recs->whereIn('payment_status', ['pending', 'failed'])
         ->filter(fn($r) => ! $r->due_date || $r->due_date->lte($currentMonthEnd));
 
@@ -73,7 +73,7 @@
         'pending'           => ['color' => 'yellow', 'label' => 'จองแล้ว',        'pulse' => false],
     ];
 
-    // สถานะของทรัพย์ที่ยังไม่มีสัญญา/booking ในระบบ — อ้างอิงจาก property_status_id จริง
+    // สถานะของทรัพย์ที่ยังไม่มีสัญญา/booking ในระบบ - อ้างอิงจาก property_status_id จริง
     // (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ไม่ใช่เหมาว่า "ไม่มี booking = ว่าง" เสมอไป
     $vacantStatusMap = [
         'available'      => ['color' => 'green',  'label' => 'ว่าง'],
@@ -191,7 +191,7 @@
         $slug   = optional($property->propertyStatus)->slug ?? 'available';
         $status = $vacantStatusMap[$slug] ?? $vacantStatusMap['available'];
 
-        // ประเภทสำหรับใช้กรองแท็บ — สถานะ "ไม่ว่าง" ที่ไม่มีสัญญา (unavailable) นับรวมกับแท็บ "ไม่ว่าง"
+        // ประเภทสำหรับใช้กรองแท็บ - สถานะ "ไม่ว่าง" ที่ไม่มีสัญญา (unavailable) นับรวมกับแท็บ "ไม่ว่าง"
         $filterType = match ($slug) {
             'unavailable'    => 'active',
             'booked'         => 'booked',
@@ -349,7 +349,7 @@
     </div>
     <div class="flex-1 min-w-0">
         <p class="text-sm font-semibold text-amber-700">ยังไม่แนบสลิป <span class="font-bold">{{ $totalSlipNeeded }} อสังหา</span></p>
-        <p class="text-xs text-amber-500 mt-0.5" x-text="filter === 'slip_needed' ? 'กำลังกรองอยู่ — แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูเฉพาะอสังหาที่ยังไม่แนบสลิป'"></p>
+        <p class="text-xs text-amber-500 mt-0.5" x-text="filter === 'slip_needed' ? 'กำลังกรองอยู่ - แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูเฉพาะอสังหาที่ยังไม่แนบสลิป'"></p>
     </div>
     <svg class="w-4 h-4 flex-shrink-0 transition-transform"
          :class="filter === 'slip_needed' ? 'rotate-90 text-amber-600' : 'text-amber-400'"
@@ -369,7 +369,7 @@
     </div>
     <div class="flex-1 min-w-0">
         <p class="text-sm font-semibold text-blue-700">แนบสลิปแล้ว รอตรวจสอบ <span class="font-bold">{{ $totalSlipVerify }} อสังหา</span></p>
-        <p class="text-xs text-blue-400 mt-0.5" x-text="filter === 'slip_verify' ? 'กำลังกรองอยู่ — แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูอสังหาที่รอแอดมินตรวจสอบสลิป'"></p>
+        <p class="text-xs text-blue-400 mt-0.5" x-text="filter === 'slip_verify' ? 'กำลังกรองอยู่ - แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูอสังหาที่รอแอดมินตรวจสอบสลิป'"></p>
     </div>
     <svg class="w-4 h-4 flex-shrink-0 transition-transform"
          :class="filter === 'slip_verify' ? 'rotate-90 text-blue-600' : 'text-blue-400'"
@@ -468,9 +468,9 @@
                     <div class="min-w-0">
                         @if($row->property->property_code)
                         <p class="font-mono font-bold text-sm text-gray-800 truncate leading-snug">{{ $row->property->property_code }}</p>
-                        <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '—' }}</p>
+                        <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
                         @else
-                        <p class="font-semibold text-gray-800 truncate leading-snug">{{ $row->property->title ?? '—' }}</p>
+                        <p class="font-semibold text-gray-800 truncate leading-snug">{{ $row->property->title ?? '-' }}</p>
                         @endif
                     </div>
                     <svg class="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -567,9 +567,9 @@
             <div class="min-w-0 flex-1">
                 @if($row->property->property_code)
                 <p class="font-mono font-bold text-sm text-gray-600 truncate leading-snug">{{ $row->property->property_code }}</p>
-                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '—' }}</p>
+                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
                 @else
-                <p class="font-medium text-gray-600 truncate leading-snug">{{ $row->property->title ?? '—' }}</p>
+                <p class="font-medium text-gray-600 truncate leading-snug">{{ $row->property->title ?? '-' }}</p>
                 @endif
                 <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span class="inline-flex items-center gap-1 text-[10px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full">
@@ -611,9 +611,9 @@
         <td class="px-5 py-3.5 align-top">
             @if($row->property->property_code)
                 <p class="font-mono font-bold text-sm text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->property_code }}</p>
-                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '—' }}</p>
+                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
             @else
-                <p class="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '—' }}</p>
+                <p class="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '-' }}</p>
             @endif
         </td>
 
@@ -683,7 +683,7 @@
                 <span class="font-bold text-gray-800">{{ number_format($row->booking->monthly_rent, 0) }}</span>
                 <span class="text-xs text-gray-400">฿</span>
             @else
-                <span class="text-gray-400">—</span>
+                <span class="text-gray-400">-</span>
             @endif
         </td>
 
@@ -720,7 +720,7 @@
                 </div>
                 @endif
                 @if(!$row->actualMoveIn && !$row->contractStart && !$row->checkIn && !$row->contractEnd && !$row->rentalMonths)
-                <span class="text-gray-300">—</span>
+                <span class="text-gray-300">-</span>
                 @endif
             </div>
         </td>
@@ -741,13 +741,13 @@
         <td class="px-5 py-3.5">
             @if($row->property->property_code)
                 <p class="font-mono font-bold text-sm text-gray-600 leading-snug">{{ $row->property->property_code }}</p>
-                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '—' }}</p>
+                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
             @else
-                <p class="font-medium text-gray-600 leading-snug">{{ $row->property->title ?? '—' }}</p>
+                <p class="font-medium text-gray-600 leading-snug">{{ $row->property->title ?? '-' }}</p>
             @endif
         </td>
 
-        <td class="px-5 py-3.5 text-sm text-gray-400">—</td>
+        <td class="px-5 py-3.5 text-sm text-gray-400">-</td>
 
         <td class="px-5 py-3.5">
             <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full">
@@ -760,11 +760,11 @@
                 <span class="text-gray-500">{{ number_format($row->property->price_per_month, 0) }}</span>
                 <span class="text-xs text-gray-400">฿</span>
             @else
-                <span class="text-gray-400">—</span>
+                <span class="text-gray-400">-</span>
             @endif
         </td>
 
-        <td class="px-5 py-3.5 hidden lg:table-cell text-gray-400">—</td>
+        <td class="px-5 py-3.5 hidden lg:table-cell text-gray-400">-</td>
 
         <td class="px-5 py-3.5"></td>
     </tr>

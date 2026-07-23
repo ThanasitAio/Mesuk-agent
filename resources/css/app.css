@@ -145,7 +145,7 @@ input[type="month"] {
     }
 }
 
-/* ─── Flatpickr — brand color overrides (loaded after flatpickr.min.css) ─── */
+/* ─── Flatpickr - brand color overrides (loaded after flatpickr.min.css) ─── */
 .flatpickr-calendar {
     font-family: var(--font-sans);
     font-size: 0.875rem;
@@ -161,7 +161,7 @@ input[type="month"] {
 .flatpickr-calendar.arrowBottom::before,
 .flatpickr-calendar.arrowBottom::after { border-top-color: var(--color-gray-200); }
 
-/* Month header — gradient */
+/* Month header - gradient */
 .flatpickr-months {
     background: linear-gradient(135deg, var(--color-brand-700) 0%, var(--color-brand-500) 100%);
     padding: 0.5rem 0.25rem;
@@ -227,7 +227,7 @@ input[type="month"] {
     box-shadow: none;
 }
 
-/* Today — dot + tinted */
+/* Today - dot + tinted */
 .flatpickr-day.today {
     border-color: var(--color-brand-400);
     color: var(--color-brand-700);

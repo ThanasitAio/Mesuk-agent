@@ -203,7 +203,7 @@ body { font-family: 'Sarabun', sans-serif; background: #c8d4e3; font-size: 9.5pt
                     </tr>
                     <tr>
                         <td></td>
-                        <td valign="top">Tel.&nbsp;{{ $custMobile ?: '—' }}</td>
+                        <td valign="top">Tel.&nbsp;{{ $custMobile ?: '-' }}</td>
                     </tr>
                     <tr>
                         <td nowrap valign="top" style="font-weight:bold; padding-right:4px; padding-top:5px; white-space:nowrap;"><strong>ผู้ติดต่อ :</strong></td>

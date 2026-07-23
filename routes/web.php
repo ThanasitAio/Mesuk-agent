@@ -51,7 +51,7 @@ Route::middleware('auth.agent')->group(function () {
     // Rental Rate Overview
     Route::get('/rental-rates', [RentalRateController::class, 'index'])->name('rental-rates.index');
 
-    // Ads — ลิงก์แอด สำหรับตัวแทนทุกคน
+    // Ads - ลิงก์แอด สำหรับตัวแทนทุกคน
     Route::get('/ads', [AdsController::class, 'index'])->name('ads.index');
 
     // Deploy / System (เฉพาะ agent_code 0000390)

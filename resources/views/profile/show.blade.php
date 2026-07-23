@@ -108,7 +108,7 @@
                 <div class="grid grid-cols-3 gap-3">
                     <div>
                         <x-form.select name="prefix" label="คำนำหน้า">
-                            <option value="">— ไม่ระบุ —</option>
+                            <option value="">- ไม่ระบุ -</option>
                             @foreach(['นาย','นาง','นางสาว','ดร.','ผศ.ดร.','รศ.ดร.'] as $p)
                                 <option value="{{ $p }}" @selected(old('prefix', $agent->prefix) === $p)>{{ $p }}</option>
                             @endforeach
@@ -129,7 +129,7 @@
 
                     <div>
                         <x-form.select name="gender" label="เพศ">
-                            <option value="">— ไม่ระบุ —</option>
+                            <option value="">- ไม่ระบุ -</option>
                             @foreach(['ชาย','หญิง','อื่น ๆ'] as $g)
                                 <option value="{{ $g }}" @selected(old('gender', $agent->gender) === $g)>{{ $g }}</option>
                             @endforeach

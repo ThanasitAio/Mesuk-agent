@@ -48,7 +48,7 @@ return [
         ],
 
         /*
-         | Shared payment slip storage — must point to the same directory
+         | Shared payment slip storage - must point to the same directory
          | as Happy Realestate's "local" disk root so slips are accessible
          | from both systems.  Override HAPPYEST_STORAGE_PATH in .env for
          | production (absolute path to happyest/storage/app on the server).
@@ -61,7 +61,7 @@ return [
         ],
 
         /*
-         | Shared PUBLIC storage — must point to the same directory as
+         | Shared PUBLIC storage - must point to the same directory as
          | Happy Realestate's "public" disk root (public/storage junction)
          | so files like agent avatars are web-accessible from both
          | systems. Override HAPPYEST_PUBLIC_STORAGE_PATH / HAPPYEST_APP_URL

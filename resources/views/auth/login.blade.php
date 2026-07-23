@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เข้าสู่ระบบ — ระบบจัดการตัวแทน</title>
+    <title>เข้าสู่ระบบ - ระบบจัดการตัวแทน</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/logo-icon.svg') }}">
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">

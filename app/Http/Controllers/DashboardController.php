@@ -55,7 +55,7 @@ class DashboardController extends Controller
             ->whereRaw('DATE(due_date) < CURDATE()')
             ->count();
 
-        // Monthly paid amounts — last 6 months
+        // Monthly paid amounts - last 6 months
         $monthlyData = DB::table('hr_payment_records')
             ->whereIn('booking_id', $bookingIds)
             ->whereNull('deleted_at')
@@ -78,7 +78,7 @@ class DashboardController extends Controller
             $chartAmounts[] = (float) ($monthlyData->get($d->format('Y-m'))?->total ?? 0);
         }
 
-        // Donut — payment status breakdown by count
+        // Donut - payment status breakdown by count
         $statusConfig = [
             'pending'              => ['label' => 'รอชำระ',     'color' => '#F59E0B'],
             'pending_verification' => ['label' => 'รออนุมัติ',  'color' => '#3B82F6'],

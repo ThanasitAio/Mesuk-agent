@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'ระบบ')
-@section('breadcrumb', 'จัดการระบบ — Cache · Migrations · ฟีเจอร์')
+@section('breadcrumb', 'จัดการระบบ - Cache · Migrations · ฟีเจอร์')
 
 @section('content')
 
@@ -336,7 +336,7 @@ $features = [
                             disabled
                             class="px-4 py-2 rounded-xl text-sm font-semibold text-white
                                    bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                        ยืนยัน — รัน Migrations
+                        ยืนยัน - รัน Migrations
                     </button>
                 </div>
             </form>

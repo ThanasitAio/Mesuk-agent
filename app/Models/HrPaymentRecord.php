@@ -106,9 +106,9 @@ class HrPaymentRecord extends Model
     }
 
     /**
-     * แนบสลิปรอบใหม่ (batch) เข้า payment_slip_batches — รองรับหลายรอบโอน/หลายวันที่ต่อ 1 บิลเดียวกัน
+     * แนบสลิปรอบใหม่ (batch) เข้า payment_slip_batches - รองรับหลายรอบโอน/หลายวันที่ต่อ 1 บิลเดียวกัน
      * (เช่น จ่ายค่าเช่าบางส่วนวันนี้ ส่วนที่เหลือวันหลัง) โดยไม่ล้างของเดิม ต่างจาก update() ตรงๆ
-     * ที่เขียนทับ payment_slips/paid_at ทั้งก้อน — ยังคง mirror payment_slips/payment_slip_path (flat)
+     * ที่เขียนทับ payment_slips/paid_at ทั้งก้อน - ยังคง mirror payment_slips/payment_slip_path (flat)
      * ไว้เหมือนเดิมเพื่อไม่ให้โค้ดจุดอื่นที่อ่าน field เดิม (viewSlip by index ฯลฯ) พัง
      */
     public function appendSlipBatch(array $paths, \Carbon\Carbon $transferDate, array $tags = [], string $uploadedByType = 'agent_manager', ?string $uploadedByName = null): void
@@ -165,7 +165,7 @@ class HrPaymentRecord extends Model
         }
 
         if ($this->payment_type === 'monthly_rent') {
-            // รวม pending_verification ด้วย — เดือนที่กำลังรอตรวจสลิปอยู่ยังนับเป็น "เดือนแรกที่ยังไม่จบ"
+            // รวม pending_verification ด้วย - เดือนที่กำลังรอตรวจสลิปอยู่ยังนับเป็น "เดือนแรกที่ยังไม่จบ"
             // เพื่อให้แนบสลิปเพิ่ม (อีกรอบโอน) ของเดือนเดียวกันได้ ไม่โดนบล็อกว่าเป็นการ "ข้ามเดือน"
             $firstPendingRent = $records
                 ->where('payment_type', 'monthly_rent')

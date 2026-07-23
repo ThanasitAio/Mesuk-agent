@@ -390,18 +390,18 @@
                             class="hover:bg-gray-50/50 transition-colors">
                             <td class="px-3 py-2">
                                 <span class="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
-                                    {{ $prop->property_code ?: '—' }}
+                                    {{ $prop->property_code ?: '-' }}
                                 </span>
                             </td>
                             <td class="px-3 py-2">
-                                <p class="text-sm text-gray-800 font-medium max-w-xs truncate">{{ $prop->title ?: '—' }}</p>
+                                <p class="text-sm text-gray-800 font-medium max-w-xs truncate">{{ $prop->title ?: '-' }}</p>
                             </td>
                             <td class="px-3 py-2 text-right">
                                 @if($rent > 0)
                                     <span class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($rent, 0) }}</span>
                                     <span class="text-[10px] text-gray-400">฿</span>
                                 @else
-                                    <span class="text-gray-300 text-xs">—</span>
+                                    <span class="text-gray-300 text-xs">-</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2 hidden lg:table-cell">
@@ -411,14 +411,14 @@
                                         <p class="text-[10px] text-gray-400 mt-0.5">{{ $prop->booking->tenant_mobile }}</p>
                                     @endif
                                 @else
-                                    <span class="text-gray-300 text-xs">—</span>
+                                    <span class="text-gray-300 text-xs">-</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-xs text-gray-600 hidden xl:table-cell">
-                                {{ $contractStartDate ?? '—' }}
+                                {{ $contractStartDate ?? '-' }}
                             </td>
                             <td class="px-3 py-2 text-xs text-gray-600 hidden xl:table-cell">
-                                {{ $contractEndDate ?? '—' }}
+                                {{ $contractEndDate ?? '-' }}
                             </td>
                             <td class="px-3 py-2 text-xs text-gray-700 font-semibold hidden xl:table-cell text-center">
                                 @if($monthCount !== null)
@@ -427,7 +427,7 @@
                                         <span class="text-[10px] text-gray-400">ด.</span>
                                     </span>
                                 @else
-                                    <span class="text-gray-300">—</span>
+                                    <span class="text-gray-300">-</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2 text-center">
@@ -476,7 +476,7 @@
                 <div x-show="filter === 'all' || filter === '{{ $prop->is_occupied ? 'occupied' : 'vacant' }}'" class="px-3 py-3">
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <span class="font-mono text-[10px] font-bold text-brand-700 bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded">
-                            {{ $prop->property_code ?: '—' }}
+                            {{ $prop->property_code ?: '-' }}
                         </span>
                         <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $statusBadgeClasses[$prop->status_color] }} border px-2 py-1 rounded-full transition-all duration-200">
                             <span class="w-1.5 h-1.5 rounded-full {{ $statusDotClasses[$prop->status_color] }} {{ $prop->is_occupied ? 'animate-pulse' : '' }}"></span>
@@ -485,7 +485,7 @@
                     </div>
                     
                     <div class="mb-2">
-                        <p class="text-sm font-semibold text-gray-800">{{ $prop->title ?: '—' }}</p>
+                        <p class="text-sm font-semibold text-gray-800">{{ $prop->title ?: '-' }}</p>
                         @if($rent > 0)
                             <p class="text-xs text-gray-500 mt-1">
                                 ราคา: <span class="font-bold text-gray-900 tabular-nums">{{ number_format($rent, 0) }} ฿/ด.</span>

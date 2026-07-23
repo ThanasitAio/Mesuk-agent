@@ -216,7 +216,7 @@
     </div>
     <div class="flex-1 min-w-0">
         <p class="text-sm font-bold text-white">มี {{ $overdueList->count() }} รายการเกินกำหนดชำระ</p>
-        <p class="text-xs text-red-100 mt-0.5">ยอดค้างรวม <span class="font-bold tabular-nums text-white">฿{{ number_format($overdueList->sum('amount'), 0) }}</span> — กรุณาติดต่อผู้เช่าโดยด่วน</p>
+        <p class="text-xs text-red-100 mt-0.5">ยอดค้างรวม <span class="font-bold tabular-nums text-white">฿{{ number_format($overdueList->sum('amount'), 0) }}</span> - กรุณาติดต่อผู้เช่าโดยด่วน</p>
     </div>
 </div>
 @endif
@@ -276,7 +276,7 @@
             {{-- Name + contact --}}
             <div class="min-w-0 flex-1">
                 <p class="text-xl font-bold text-white leading-tight truncate">
-                    {{ $booking->customer?->full_name ?? '—' }}
+                    {{ $booking->customer?->full_name ?? '-' }}
                 </p>
                 <div class="mt-2 space-y-1">
                     @if($booking->customer?->mobile)
@@ -318,7 +318,7 @@
         </div>
         <div class="px-4 py-3.5">
             <p class="text-[11px] text-gray-400 mb-1 font-medium">ระยะสัญญา</p>
-            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ $booking->rental_months ?? '—' }} <span class="text-xs font-normal text-gray-400">เดือน</span></p>
+            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ $booking->rental_months ?? '-' }} <span class="text-xs font-normal text-gray-400">เดือน</span></p>
         </div>
         <div class="px-4 py-3.5">
             <p class="text-[11px] text-gray-400 mb-1 font-medium">ครบกำหนดชำระ</p>
@@ -331,7 +331,7 @@
         <div class="px-4 py-3 border-r border-gray-100">
             <p class="text-[11px] text-gray-400 mb-0.5 font-medium">เริ่มสัญญา</p>
             <p class="text-xs font-semibold text-gray-700">
-                {{ $startDate ? $startDate->locale('th')->translatedFormat('d M Y') : '—' }}
+                {{ $startDate ? $startDate->locale('th')->translatedFormat('d M Y') : '-' }}
             </p>
         </div>
         <div class="px-4 py-3">
@@ -633,7 +633,7 @@
                 </button>
             </div>
             @if(!$canCombinePayment)
-            <p class="text-[10px] text-amber-600 mt-0.5">มัดจำงวด 2 โอนคนละบัญชีกับค่าเช่า — ต้องแนบสลิปแยก 2 รายการ</p>
+            <p class="text-[10px] text-amber-600 mt-0.5">มัดจำงวด 2 โอนคนละบัญชีกับค่าเช่า - ต้องแนบสลิปแยก 2 รายการ</p>
             @endif
         </div>
         @else
@@ -839,7 +839,7 @@
                                     </div>
                                 @endif
                             @else
-                                <span class="text-gray-300">—</span>
+                                <span class="text-gray-300">-</span>
                             @endif
                         </td>
 
@@ -1179,7 +1179,7 @@
                     </div>
                 @endif
 
-                {{-- Invoice footer bar (hasInvoice) — รองรับกรณีมีใบแจ้งหนี้เปิดพร้อมกัน 2 ใบ (บริษัท + นักลงทุน) --}}
+                {{-- Invoice footer bar (hasInvoice) - รองรับกรณีมีใบแจ้งหนี้เปิดพร้อมกัน 2 ใบ (บริษัท + นักลงทุน) --}}
                 @if($hasInvoice)
                     <div class="mt-3 pt-3 border-t border-gray-100 space-y-2">
                         @if($isSplitInvoice)
@@ -1235,7 +1235,7 @@
     <div id="locked-records-section" class="border-t border-gray-100 bg-gradient-to-br from-gray-50 to-slate-50/50 px-4 sm:px-5 py-4">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
-            รอบถัดไป (ล็อก — ชำระตามลำดับเดือน)
+            รอบถัดไป (ล็อก - ชำระตามลำดับเดือน)
         </p>
         <div class="space-y-2">
             @foreach($lockedRecords as $locked)
@@ -1301,7 +1301,7 @@
             </button>
         </div>
 
-        {{-- Scrollable body — only this area scrolls, header/footer stay put --}}
+        {{-- Scrollable body - only this area scrolls, header/footer stay put --}}
         <form id="slip-form" method="POST" enctype="multipart/form-data" class="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-3">
             @csrf
 
@@ -1399,7 +1399,7 @@
             </p>
         </form>
 
-        {{-- Footer action — always visible, no scrolling needed to reach it. Cancel button removed: the header
+        {{-- Footer action - always visible, no scrolling needed to reach it. Cancel button removed: the header
              already has an X close button, and a lone full-width button can never get clipped on narrow screens. --}}
         <div class="px-4 sm:px-5 pt-3 border-t border-gray-100 bg-white flex-shrink-0"
              style="padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.75rem)">
@@ -1464,7 +1464,7 @@
                       d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.07 16.5c-.77.833.192 2.5 1.732 2.5z"/>
             </svg>
             <p class="text-xs text-amber-700 leading-relaxed">
-                รอบโอนอื่นที่แนบไว้จะไม่ถูกยกเลิก — หากยังมีรอบอื่นเหลืออยู่ สถานะจะยังเป็น <span class="font-semibold">รอตรวจสอบ</span> ต่อไป
+                รอบโอนอื่นที่แนบไว้จะไม่ถูกยกเลิก - หากยังมีรอบอื่นเหลืออยู่ สถานะจะยังเป็น <span class="font-semibold">รอตรวจสอบ</span> ต่อไป
             </p>
         </div>
     </div>
@@ -1535,7 +1535,7 @@ function filterBillingGroup(containerSelector) {
 }
 
 function applyBillingTabFilter() {
-    // ทั้ง desktop table และ mobile cards render รอบบิลเดียวกันคนละ markup —
+    // ทั้ง desktop table และ mobile cards render รอบบิลเดียวกันคนละ markup -
     // ต้องนับ/ตัด 5 รายการแรกแยกกันต่อกลุ่ม ไม่งั้นรวมกันเป็น 2 เท่าแล้วตัดผิดกลุ่ม
     const desktopRows  = filterBillingGroup('#billing-desktop-table');
     const mobileCards  = filterBillingGroup('#billing-mobile-cards');
@@ -1783,7 +1783,7 @@ function applyBillingTabFilter() {
                         break;
                     }
                     if (!allowed.includes(file.type)) {
-                        this.errorMsg = `ไฟล์ "${file.name}" ไม่รองรับ — กรุณาใช้ JPG, PNG หรือ PDF`;
+                        this.errorMsg = `ไฟล์ "${file.name}" ไม่รองรับ - กรุณาใช้ JPG, PNG หรือ PDF`;
                         continue;
                     }
                     if (file.size > maxSize) {

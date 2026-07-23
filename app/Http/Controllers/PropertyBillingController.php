@@ -100,7 +100,7 @@ class PropertyBillingController extends Controller
             userId: session('agent_id'),
             module: 'Property',
             action: 'UPDATE',
-            description: ($newValue ? 'เปิด' : 'ปิด') . "ชำระค่าเช่าก่อนสัญญา — {$property->title}"
+            description: ($newValue ? 'เปิด' : 'ปิด') . "ชำระค่าเช่าก่อนสัญญา - {$property->title}"
         );
 
         return redirect()
@@ -172,7 +172,7 @@ class PropertyBillingController extends Controller
 
         $managerName = session('agent_name');
 
-        // แนบสลิปรอบนี้เข้า payment_slip_batches — ไม่ล้างรอบก่อนหน้า รองรับจ่ายหลายรอบ/หลายวันต่อ 1 บิล
+        // แนบสลิปรอบนี้เข้า payment_slip_batches - ไม่ล้างรอบก่อนหน้า รองรับจ่ายหลายรอบ/หลายวันต่อ 1 บิล
         $record->appendSlipBatch($newPaths, $paidAt, $rentalTypeTags, 'agent_manager', $managerName);
 
         // ถ้าเป็นโหมดรวม ให้อัพเดทรายการค่าเช่าเดือน 1 ด้วย
@@ -191,8 +191,8 @@ class PropertyBillingController extends Controller
         $booking->updatePaymentStatus();
 
         $logDescription = $isComboUpload
-            ? "แนบสลิปแทนลูกค้า (รวม): มัดจำงวด 2 + ค่าเช่าเดือน 1 — {$property->title}"
-            : "แนบสลิปแทนลูกค้า: {$record->getTypeLabel()} — {$property->title}";
+            ? "แนบสลิปแทนลูกค้า (รวม): มัดจำงวด 2 + ค่าเช่าเดือน 1 - {$property->title}"
+            : "แนบสลิปแทนลูกค้า: {$record->getTypeLabel()} - {$property->title}";
         $logDescription .= " | วันที่โอน: {$paidAt->format('d/m/Y')}";
         if ($selectedRentalTypes !== '') {
             $logDescription .= " | ประเภท: {$selectedRentalTypes}";
@@ -226,7 +226,7 @@ class PropertyBillingController extends Controller
             ->firstOrFail();
 
         if ($record->payment_status !== 'pending_verification') {
-            return back()->with('error', 'ไม่สามารถยกเลิกสลิปได้ — สถานะไม่ใช่รอตรวจสอบ');
+            return back()->with('error', 'ไม่สามารถยกเลิกสลิปได้ - สถานะไม่ใช่รอตรวจสอบ');
         }
 
         $oldSlipPath = $record->payment_slip_path;
@@ -274,7 +274,7 @@ class PropertyBillingController extends Controller
             userId: session('agent_id'),
             module: 'Property',
             action: 'DELETE',
-            description: "ยกเลิกสลิป: {$record->getTypeLabel()} — {$property->title}"
+            description: "ยกเลิกสลิป: {$record->getTypeLabel()} - {$property->title}"
         );
 
         return redirect()
@@ -293,7 +293,7 @@ class PropertyBillingController extends Controller
             ->firstOrFail();
 
         if ($record->payment_status !== 'pending_verification') {
-            return back()->with('error', 'ไม่สามารถยกเลิกสลิปได้ — สถานะไม่ใช่รอตรวจสอบ');
+            return back()->with('error', 'ไม่สามารถยกเลิกสลิปได้ - สถานะไม่ใช่รอตรวจสอบ');
         }
 
         $batches = $record->payment_slip_batches ?? [];
@@ -345,7 +345,7 @@ class PropertyBillingController extends Controller
             ->map(fn ($k) => HrPaymentRecord::rentalTypeLabels()[$k] ?? $k)
             ->implode(', ');
 
-        $logDescription = "ยกเลิกสลิปบางรายการ: {$record->getTypeLabel()} — {$property->title}";
+        $logDescription = "ยกเลิกสลิปบางรายการ: {$record->getTypeLabel()} - {$property->title}";
         $logDescription .= ' | วันที่โอน: ' . \Carbon\Carbon::parse($removedBatch['transfer_date'])->format('d/m/Y');
         if ($rentalLabels !== '') {
             $logDescription .= " | ประเภท: {$rentalLabels}";
@@ -413,7 +413,7 @@ class PropertyBillingController extends Controller
     }
 
     /**
-     * Build billing display context — mirrors happyest payment/show.blade.php logic.
+     * Build billing display context - mirrors happyest payment/show.blade.php logic.
      */
     private function buildBillingContext($booking, HrProperty $property, ?HrCompany $company): array
     {

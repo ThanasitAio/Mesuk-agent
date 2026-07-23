@@ -42,7 +42,7 @@ class HrInvoice extends Model
             'service_fee'  => 'ค่าดำเนินการ',
             'monthly_rent' => 'ค่าเช่ารายเดือน',
             'multi'        => 'หลายรายการ',
-            default        => $this->invoice_type ?? '—',
+            default        => $this->invoice_type ?? '-',
         };
     }
 

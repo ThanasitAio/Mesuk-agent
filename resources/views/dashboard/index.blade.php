@@ -407,7 +407,7 @@
                     $av = $customer->avatar;
                     $photoUrl = str_starts_with($av, 'http') ? $av : $happyestPublic . '/storage/' . $av;
                 }
-                $fullName = trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? '')) ?: '—';
+                $fullName = trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? '')) ?: '-';
                 $initial  = mb_strtoupper(mb_substr($fullName, 0, 1));
 
                 $statusMap = [
@@ -443,7 +443,7 @@
                             <span class="text-[11px] text-gray-400">{{ $customer->mobile }}</span>
                         @endif
                         <span class="font-mono text-[10px] text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded-md">
-                            {{ $customer->booking_code ?? '—' }}
+                            {{ $customer->booking_code ?? '-' }}
                         </span>
                     </div>
                 </div>
@@ -522,7 +522,7 @@
             @php
                 $dueDate  = \Carbon\Carbon::parse($due->due_date);
                 $daysLeft = (int) now()->startOfDay()->diffInDays($dueDate->copy()->startOfDay(), false);
-                $fullName = trim(($due->first_name ?? '') . ' ' . ($due->last_name ?? '')) ?: '—';
+                $fullName = trim(($due->first_name ?? '') . ' ' . ($due->last_name ?? '')) ?: '-';
 
                 $typeMap = [
                     'deposit'        => ['label' => 'มัดจำ',       'bg' => 'bg-violet-50', 'text' => 'text-violet-700'],
@@ -556,7 +556,7 @@
                         </span>
                     </div>
                     <p class="text-[11px] text-gray-400">
-                        {{ $due->booking_code ?? '—' }} ·
+                        {{ $due->booking_code ?? '-' }} ·
                         {{ $dueDate->day . ' ' . $thM[$dueDate->month - 1] . ' ' . ($dueDate->year + 543) }}
                     </p>
                 </div>
@@ -633,12 +633,12 @@
                     <td class="px-5 py-3.5">
                         <span class="inline-flex items-center gap-1 font-mono text-xs font-bold
                                      text-brand-700 bg-brand-50 border border-brand-100 px-2.5 py-1 rounded-lg">
-                            {{ $slip->booking_code ?? '—' }}
+                            {{ $slip->booking_code ?? '-' }}
                         </span>
                     </td>
                     <td class="px-5 py-3.5">
                         <span class="text-sm font-medium text-gray-800">
-                            {{ trim(($slip->first_name ?? '') . ' ' . ($slip->last_name ?? '')) ?: '—' }}
+                            {{ trim(($slip->first_name ?? '') . ' ' . ($slip->last_name ?? '')) ?: '-' }}
                         </span>
                     </td>
                     <td class="px-5 py-3.5">
@@ -675,7 +675,7 @@
             <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-mono text-xs font-bold text-brand-700 bg-brand-50 border border-brand-100 px-2 py-0.5 rounded-lg">
-                        {{ $slip->booking_code ?? '—' }}
+                        {{ $slip->booking_code ?? '-' }}
                     </span>
                     <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $slipType['bg'] }} {{ $slipType['text'] }}">
                         {{ $slipType['label'] }}
@@ -685,7 +685,7 @@
             </div>
             <div class="flex items-center justify-between">
                 <p class="text-sm text-gray-700 font-medium">
-                    {{ trim(($slip->first_name ?? '') . ' ' . ($slip->last_name ?? '')) ?: '—' }}
+                    {{ trim(($slip->first_name ?? '') . ' ' . ($slip->last_name ?? '')) ?: '-' }}
                 </p>
                 <p class="text-sm font-extrabold text-gray-900 tabular-nums">
                     {{ number_format((float)$slip->amount, 0) }}<span class="text-xs font-normal text-gray-400"> บาท</span>

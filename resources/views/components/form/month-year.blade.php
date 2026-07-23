@@ -54,7 +54,7 @@
             <select name="{{ $nameMonth }}" id="{{ $nameMonth }}"
                     @disabled($disabled)
                     class="{{ $monthClass }}">
-                <option value="">— เดือน —</option>
+                <option value="">- เดือน -</option>
                 @foreach($months as $num => $thai)
                     <option value="{{ $num }}" @selected($selMonth === (string)$num)>{{ $thai }}</option>
                 @endforeach
@@ -71,7 +71,7 @@
             <select name="{{ $nameYear }}" id="{{ $nameYear }}"
                     @disabled($disabled)
                     class="{{ $yearClass }}">
-                <option value="">— ปี —</option>
+                <option value="">- ปี -</option>
                 @for($y = $yearTo; $y >= $yearFrom; $y--)
                     <option value="{{ $y }}" @selected($selYear === (string)$y)>{{ $y + 543 }}</option>
                 @endfor

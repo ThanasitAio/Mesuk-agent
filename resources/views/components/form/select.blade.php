@@ -5,7 +5,7 @@
     'hint'       => null,
     'disabled'   => false,
     'searchable' => true,
-    'placeholder'=> '— เลือก —',
+    'placeholder'=> '- เลือก -',
 ])
 
 @php

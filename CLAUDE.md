@@ -1,4 +1,4 @@
-# CLAUDE.md — AI Behavior & Codebase Guidelines
+# CLAUDE.md - AI Behavior & Codebase Guidelines
 
 This file governs how AI assistants (Claude and others) must behave when working on this codebase.
 Read and follow every section before writing or suggesting any code.
@@ -7,7 +7,7 @@ Read and follow every section before writing or suggesting any code.
 
 ## 0. Happy Realestate Reference Project (MUST READ FIRST)
 
-> **CRITICAL — Before writing any code related to database tables, models, or business logic:**
+> **CRITICAL - Before writing any code related to database tables, models, or business logic:**
 >
 > This agent system shares the **same MySQL database** as the Happy Realestate project at `C:\laragon\www\happyest`.
 > You **MUST** read the relevant model or controller in happyest first to understand the actual table schema,
@@ -24,7 +24,7 @@ Read and follow every section before writing or suggesting any code.
 | Agent fields | `app/Models/Agent.php` |
 | Admin actions / status transitions | `app/Http/Controllers/Admin/` |
 
-### Key status values (from happyest — do NOT guess):
+### Key status values (from happyest - do NOT guess):
 
 **`hr_bookings.status`:** `pending` → `deposit_confirmed` → `confirmed` → `checked_in` → `checked_out` → `completed` / `cancelled` / `rejected`
 
@@ -37,7 +37,7 @@ Read and follow every section before writing or suggesting any code.
 ### Strict rules:
 
 - **Read happyest models/controllers** to verify column names and enum values before using them
-- **NEVER modify** any file in `C:\laragon\www\happyest` — read only
+- **NEVER modify** any file in `C:\laragon\www\happyest` - read only
 - **Only modify** files in this agent project (`C:\laragon\www\agent`)
 - If happyest schema contradicts what you assumed, trust happyest
 
@@ -53,9 +53,9 @@ Read and follow every section before writing or suggesting any code.
 | Auth | Custom session-based (HrAgent model, NOT Laravel default User auth) |
 | Frontend | Blade templates + Tailwind CSS v4 |
 | Build Tool | Vite 8 |
-| Database (Local) | MySQL (`happyfra_hw`) — shared with Happy Realestate |
+| Database (Local) | MySQL (`happyfra_hw`) - shared with Happy Realestate |
 | Database (Production) | MySQL (configured via `.env` on server) |
-| Deployment Method | **Manual FileZilla FTP/SFTP — NO CI/CD** |
+| Deployment Method | **Manual FileZilla FTP/SFTP - NO CI/CD** |
 
 ---
 
@@ -80,7 +80,7 @@ php artisan optimize:clear
 composer setup
 ```
 
-**CSS compilation** — Tailwind CSS is processed by Vite. After any CSS change:
+**CSS compilation** - Tailwind CSS is processed by Vite. After any CSS change:
 ```bash
 npm run build   # for production build
 # OR
@@ -110,21 +110,21 @@ Routes       →  routes/web.php            (web routes only, no API routes)
 **Forbidden patterns:**
 - Do not introduce Service classes, Repository pattern, or DTO layers unless explicitly requested
 - Do not create new directories under `app/` without explicit user approval
-- Do not use Laravel API routes (`routes/api.php`) — this is a web-only application
+- Do not use Laravel API routes (`routes/api.php`) - this is a web-only application
 - Do not use Laravel Livewire, Inertia.js, or any JS framework
 
 ### 2.2 Authentication System
 
 This project uses a **custom authentication system**, NOT Laravel's built-in auth:
 
-- **Model:** `HrAgent` (not `User`) — stores agent profiles
+- **Model:** `HrAgent` (not `User`) - stores agent profiles
 - **Auth Check:** `AgentAuthMiddleware` via `auth.agent` middleware alias
 - **Session Key:** Check `AgentAuthMiddleware.php` for the exact session key name
 - **Route Protection:** Always use `->middleware('auth.agent')` on protected routes
 
 **Forbidden:**
 - Do not use `Auth::user()`, `auth()->user()`, or Laravel's `Auth` facade
-- Do not add `auth` middleware (Laravel's default) — use `auth.agent` instead
+- Do not add `auth` middleware (Laravel's default) - use `auth.agent` instead
 - Do not use Laravel Breeze, Jetstream, Fortify, or Sanctum
 
 ### 2.3 Audit Logging (Required for all state-changing actions)
@@ -146,7 +146,7 @@ LogHelper::logSystem(
 
 - **Module names:** `Auth`, `Dashboard`, `Profile`, `Log` (match existing usage)
 - **Action names:** `LOGIN`, `LOGOUT`, `UPDATE`, `CREATE`, `DELETE`, `VIEW`
-- Do not write raw `DB::insert()` or `AgentLog::create()` for logging — always use `LogHelper::logSystem()`
+- Do not write raw `DB::insert()` or `AgentLog::create()` for logging - always use `LogHelper::logSystem()`
 
 ### 2.4 Blade Component Usage
 
@@ -186,11 +186,11 @@ All views must extend `layouts.app`: `@extends('layouts.app')`
 
 ### 2.6 Database
 
-- **Migration naming:** `YYYY_MM_DD_HHMMSS_description.php` — use exact timestamp format
-- **Table prefix — STRICT RULE:**
+- **Migration naming:** `YYYY_MM_DD_HHMMSS_description.php` - use exact timestamp format
+- **Table prefix - STRICT RULE:**
   - Tables owned by this agent project **MUST** be prefixed `ag_` (e.g., `ag_logs`, `ag_agents`, `ag_commissions`)
-  - Tables from the happyest project use `hr_` prefix — read-only, never create or alter
-  - Laravel framework internal tables (`migrations`, `users`, `sessions`, `cache`, `jobs`) keep their standard names — they are infrastructure, not business tables
+  - Tables from the happyest project use `hr_` prefix - read-only, never create or alter
+  - Laravel framework internal tables (`migrations`, `users`, `sessions`, `cache`, `jobs`) keep their standard names - they are infrastructure, not business tables
   - **NEVER create a new agent business table without the `ag_` prefix**
 - Always use Eloquent ORM. Do not write raw SQL queries unless absolutely required for performance
 - Foreign key columns follow convention: `{model}_id` (e.g., `user_id`, `agent_id`)
@@ -205,7 +205,7 @@ All views must extend `layouts.app`: `@extends('layouts.app')`
 
 ## 3. Deployment Constraints & Anti-Patterns
 
-> **CRITICAL — READ BEFORE SUGGESTING ANY CHANGE**
+> **CRITICAL - READ BEFORE SUGGESTING ANY CHANGE**
 >
 > This project is deployed manually via **FileZilla FTP/SFTP**. There is no CI/CD pipeline.
 > Every change you suggest must be safe to upload as individual files without breaking the live system.
@@ -222,29 +222,29 @@ All views must extend `layouts.app`: `@extends('layouts.app')`
 - `database/migrations/*.php` (upload first, then run `php artisan migrate` on server via SSH or admin panel)
 
 **Files that require extreme caution:**
-- `config/*.php` — changes here affect the entire application
-- `app/Http/Middleware/*.php` — auth middleware change locks out all users if wrong
-- `bootstrap/app.php` — application bootstrap, one error = total downtime
+- `config/*.php` - changes here affect the entire application
+- `app/Http/Middleware/*.php` - auth middleware change locks out all users if wrong
+- `bootstrap/app.php` - application bootstrap, one error = total downtime
 
 ### 3.2 Absolute Prohibitions for Production
 
 **NEVER suggest or do any of the following for production:**
 
-1. **`composer require <package>`** — Adding packages requires uploading the entire `vendor/` folder (hundreds of MB). Instead, use only existing packages already in `composer.json`.
+1. **`composer require <package>`** - Adding packages requires uploading the entire `vendor/` folder (hundreds of MB). Instead, use only existing packages already in `composer.json`.
 
-2. **`npm install` or `npm ci` on production** — Node.js and npm are not available on most shared hosting. Build assets locally (`npm run build`) and upload only the compiled `public/css/` directory.
+2. **`npm install` or `npm ci` on production** - Node.js and npm are not available on most shared hosting. Build assets locally (`npm run build`) and upload only the compiled `public/css/` directory.
 
-3. **Restructuring directories** — Never move, rename, or delete existing directories (`app/`, `public/`, `resources/`, `routes/`, `storage/`, `bootstrap/`). FileZilla cannot detect deletions on the server.
+3. **Restructuring directories** - Never move, rename, or delete existing directories (`app/`, `public/`, `resources/`, `routes/`, `storage/`, `bootstrap/`). FileZilla cannot detect deletions on the server.
 
-4. **Changing `.env` content via code** — Never hardcode production credentials. Never suggest editing `.env` on the server through any automated means. Production `.env` is managed manually on the server and must never be overwritten by uploads.
+4. **Changing `.env` content via code** - Never hardcode production credentials. Never suggest editing `.env` on the server through any automated means. Production `.env` is managed manually on the server and must never be overwritten by uploads.
 
-5. **Uploading `vendor/`** — Never suggest uploading `vendor/` directory. It's over 100MB and must be managed via SSH + `composer install` directly on server if ever needed.
+5. **Uploading `vendor/`** - Never suggest uploading `vendor/` directory. It's over 100MB and must be managed via SSH + `composer install` directly on server if ever needed.
 
-6. **Uploading `node_modules/`** — Never upload this directory. It has no place on the production server.
+6. **Uploading `node_modules/`** - Never upload this directory. It has no place on the production server.
 
-7. **Uploading `.env`** — The local `.env` must never be uploaded. The production server has its own `.env` with real database credentials, app keys, and production URLs.
+7. **Uploading `.env`** - The local `.env` must never be uploaded. The production server has its own `.env` with real database credentials, app keys, and production URLs.
 
-8. **Uploading `storage/`** — The `storage/` directory contains runtime data (logs, sessions, cache). Overwriting it will wipe active sessions and logs.
+8. **Uploading `storage/`** - The `storage/` directory contains runtime data (logs, sessions, cache). Overwriting it will wipe active sessions and logs.
 
 ### 3.3 Config Separation (Local vs Production)
 
@@ -273,16 +273,16 @@ Migrations on production must be run **manually** via SSH or a database admin pa
 These rules prevent the AI from inventing changes outside the project's scope:
 
 1. **Do not install new Laravel packages** without explicit user request listing the exact package name
-2. **Do not refactor working code** while fixing a bug — fix only the reported issue
+2. **Do not refactor working code** while fixing a bug - fix only the reported issue
 3. **Do not add unnecessary abstraction** (interfaces, contracts, repositories, service providers) unless the user specifically asks
-4. **Do not create API endpoints** — this application has no API consumers
-5. **Do not introduce JavaScript frameworks** (Vue, React, Alpine.js) — Blade + Tailwind only
-6. **Do not rename existing route names** — route names are referenced throughout blade files; renaming breaks the app
-7. **Do not change the `ag_logs` table structure** without running a new migration — never alter the Model to map to a different column name without a matching migration
+4. **Do not create API endpoints** - this application has no API consumers
+5. **Do not introduce JavaScript frameworks** (Vue, React, Alpine.js) - Blade + Tailwind only
+6. **Do not rename existing route names** - route names are referenced throughout blade files; renaming breaks the app
+7. **Do not change the `ag_logs` table structure** without running a new migration - never alter the Model to map to a different column name without a matching migration
 8. **Do not add new middleware** without registering it in `bootstrap/app.php`
-9. **Do not generate seeders for production data** — seeders are for local development only
+9. **Do not generate seeders for production data** - seeders are for local development only
 10. **Do not change `vite.config.js`** without also updating any affected blade `@vite()` directives
-11. **Do not place absolute-positioned icons inside `<input>` fields** — adding a left icon requires `pl-10`+ on the input AND the icon must be absolutely positioned; mismatched values cause the icon to overlap the placeholder/typed text. If you need an icon next to an input, place it outside the input in a flex row, or omit it entirely. The password-toggle eye button on the right (`pr-11`) is the only accepted exception because it does not overlap text.
+11. **Do not place absolute-positioned icons inside `<input>` fields** - adding a left icon requires `pl-10`+ on the input AND the icon must be absolutely positioned; mismatched values cause the icon to overlap the placeholder/typed text. If you need an icon next to an input, place it outside the input in a flex row, or omit it entirely. The password-toggle eye button on the right (`pr-11`) is the only accepted exception because it does not overlap text.
 
 ---
 

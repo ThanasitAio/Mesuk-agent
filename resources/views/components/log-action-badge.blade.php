@@ -14,5 +14,5 @@
 @endphp
 
 <span {{ $attributes->merge(['class' => "inline-block $colorClass text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"]) }}>
-    {{ $action ?? '—' }}
+    {{ $action ?? '-' }}
 </span>

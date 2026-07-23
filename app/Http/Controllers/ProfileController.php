@@ -83,7 +83,7 @@ class ProfileController extends Controller
             Storage::disk('happyest_public')->delete($agent->avatar);
         }
 
-        // บันทึกรูปใหม่ — ใช้ disk/path เดียวกับฝั่ง admin (happyest) คือ
+        // บันทึกรูปใหม่ - ใช้ disk/path เดียวกับฝั่ง admin (happyest) คือ
         // public disk + 'agents/avatars' เพื่อให้แสดงผลได้ทั้งสองระบบ
         $path = $request->file('avatar')->store('agents/avatars', 'happyest_public');
 

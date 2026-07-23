@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#468432">
-    <title>@yield('title', 'หน้าหลัก') — ระบบจัดการตัวแทน</title>
+    <title>@yield('title', 'หน้าหลัก') - ระบบจัดการตัวแทน</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/logo-icon.svg') }}">
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -555,7 +555,7 @@
                           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
             </div>
-            ระบบ — ล้าง Cache
+            ระบบ - ล้าง Cache
         </a>
     </div>
     @endif
@@ -671,7 +671,7 @@
         document.body.style.overflow = 'hidden';
         requestAnimationFrame(() => {
             // Tailwind v4 compiles translate-y-full / scale-95 to the native
-            // `translate` / `scale` CSS properties, not `transform` — must
+            // `translate` / `scale` CSS properties, not `transform` - must
             // clear those inline, not `transform`, or the panel stays off-screen.
             panel.style.translate = '0 0';
             panel.style.opacity   = '1';
@@ -784,7 +784,7 @@
     function selectSearch(uid) {
         return {
             open: false, search: '', selected: '', selectedLabel: '',
-            placeholder: '— เลือก —',
+            placeholder: '- เลือก -',
             options: [],
             get filteredOptions() {
                 if (!this.search) return this.options;
