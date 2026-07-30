@@ -45,52 +45,49 @@
 @endphp
 
 {{-- ── Compact header ───────────────────────────────────────────────────────── --}}
-<div class="relative overflow-hidden rounded-xl mb-2 bg-white border border-gray-100 shadow-sm p-2 sm:p-2.5">
+<div class="relative overflow-hidden rounded-xl mb-2.5 sm:mb-3 bg-white border border-gray-100 shadow-sm p-2.5 sm:p-3">
     <div class="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-sky-50 opacity-70"></div>
 
-    <div class="relative flex items-center justify-between gap-2 flex-wrap" style="z-index:2;">
-        {{-- Left: back link --}}
+    <div class="relative flex items-center justify-between gap-2 mb-2">
         <a href="{{ route('meters.index', ['year' => $year, 'month' => $month]) }}"
-           class="inline-flex items-center gap-1 -ml-1 px-1.5 py-1 rounded-lg text-[11px] font-semibold text-gray-500 hover:text-brand-600 hover:bg-gray-50 transition-colors flex-shrink-0">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            <span class="hidden sm:inline">รายการทรัพย์สิน</span>
+           class="inline-flex items-center gap-1 -ml-1 px-1.5 py-1 rounded-lg text-xs font-semibold text-gray-500 hover:text-brand-600 hover:bg-gray-50 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            รายการทรัพย์สิน
         </a>
 
-        {{-- Center: period navigator --}}
-        <div class="flex items-center gap-1.5 flex-shrink-0 order-last sm:order-none w-full sm:w-auto justify-center">
-            <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $prevYear, 'month' => $prevMonth]) }}"
-               class="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-            </a>
-            <p class="text-sm font-bold text-gray-800 leading-tight px-1 whitespace-nowrap">งวด {{ $periodLabel }}</p>
-            <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $nextYear, 'month' => $nextMonth]) }}"
-               class="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            </a>
-        </div>
-
-        {{-- Right: status + delete --}}
-        <div class="flex items-center gap-1.5 flex-shrink-0">
+        <div class="flex items-center gap-1.5 sm:gap-2">
             @if($currentReadings->count() > 0)
-                <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full border text-blue-700 bg-blue-50 border-blue-200 whitespace-nowrap">
-                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span class="inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-full border text-blue-700 bg-blue-50 border-blue-200 whitespace-nowrap">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     {{ $currentReadings->count() }}/{{ $meters->count() }}
                 </span>
                 <button type="button"
                         onclick="openDeleteMeterConfirm()"
-                        class="inline-flex items-center justify-center w-7 h-7 sm:w-auto sm:h-auto sm:gap-1 text-[11px] font-semibold sm:px-2 sm:py-1 rounded-full border text-red-600 bg-white border-gray-200 hover:bg-red-50 hover:border-red-200 transition-colors flex-shrink-0">
+                        class="inline-flex items-center justify-center w-7 h-7 sm:w-auto sm:h-auto sm:gap-1.5 text-xs font-semibold sm:px-2.5 sm:py-1 rounded-full border text-red-600 bg-white border-gray-200 hover:bg-red-50 hover:border-red-200 transition-colors flex-shrink-0">
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
                     </svg>
-                    <span class="hidden sm:inline">ลบ</span>
+                    <span class="hidden sm:inline">ลบข้อมูล</span>
                 </button>
             @else
-                <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full border text-gray-600 bg-gray-50 border-gray-200 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-full border text-gray-600 bg-gray-50 border-gray-200 whitespace-nowrap">
                     <span class="w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0"></span>
                     ยังไม่บันทึก
                 </span>
             @endif
         </div>
+    </div>
+
+    <div class="relative flex items-center justify-center gap-1.5">
+        <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $prevYear, 'month' => $prevMonth]) }}"
+           class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <p class="text-sm font-bold text-gray-800 leading-tight px-1 whitespace-nowrap">งวด {{ $periodLabel }}</p>
+        <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $nextYear, 'month' => $nextMonth]) }}"
+           class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </a>
     </div>
 </div>
 
@@ -100,8 +97,33 @@
     <input type="hidden" name="billing_month" value="{{ $month }}">
 
     {{-- ── Summary strip: common fee + invoice display settings + rent period ── --}}
-    <div class="grid grid-cols-1 gap-2 mb-2 sm:mb-2.5">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-2.5 py-2 sm:px-3 sm:py-2.5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
+        <div class="meter-row-in bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 sm:px-3.5 sm:py-2.5">
+            <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21V7l8-4v18M13 21V9l6 3v9M9 9v.01M9 12v.01M9 15v.01"/>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[11px] text-gray-400 truncate leading-tight">ค่าส่วนกลาง/เดือน</p>
+                    <p class="text-sm font-bold text-gray-800 leading-tight">฿{{ number_format($property->common_fee_per_month ?? 0, 2) }}</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2.5 sm:mt-3 sm:pt-3.5 border-t border-gray-100">
+                <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border {{ $property->show_meter_image_on_invoice ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-400 bg-gray-50 border-gray-200' }}">
+                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16v12H4V6z"/></svg>
+                    รูปภาพบนใบแจ้งหนี้: {{ $property->show_meter_image_on_invoice ? 'แสดง' : 'ไม่แสดง' }}
+                </span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border {{ $property->show_shipping_address_on_invoice ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-400 bg-gray-50 border-gray-200' }}">
+                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    ที่อยู่จัดส่งหน้าถัดไป: {{ $property->show_shipping_address_on_invoice ? 'แสดง' : 'ไม่แสดง' }}
+                </span>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 sm:px-3.5 sm:py-2.5">
             <x-form.month-year
                 name-month="rent_month"
                 name-year="rent_year"
@@ -124,9 +146,9 @@
                 $typeAmountTotal = $typeReadings->sum('amount');
                 $multiMeter      = $typeMeters->count() > 1;
             @endphp
-            <div class="meter-card-in bg-white rounded-xl shadow-sm border {{ $style['ring'] }} p-2 sm:p-2.5 transition-shadow duration-300 hover:shadow-md"
+            <div class="meter-card-in bg-white rounded-xl shadow-sm border {{ $style['ring'] }} p-2.5 sm:p-3.5 transition-shadow duration-300 hover:shadow-md"
                  style="animation-delay: {{ $loop->index * 60 }}ms">
-                <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <div class="flex items-center justify-between mb-2.5 sm:mb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
                         <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br {{ $style['icon'] }} flex items-center justify-center">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -145,7 +167,7 @@
                     @endif
                 </div>
 
-                <div class="space-y-2 sm:space-y-2.5">
+                <div class="space-y-2.5 sm:space-y-3">
                     @foreach($typeMeters as $i => $meter)
                         @php
                             $reading    = $currentReadings[$meter->id] ?? null;
@@ -160,7 +182,7 @@
                             $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
                             $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
                         @endphp
-                        <div class="meter-row-in relative rounded-lg border {{ $style['ring'] }} bg-gray-50/70 p-2 sm:p-2.5 pl-3 sm:pl-3.5 overflow-hidden"
+                        <div class="meter-row-in relative rounded-lg border {{ $style['ring'] }} bg-gray-50/70 p-2.5 pl-3.5 sm:p-3 sm:pl-4 overflow-hidden"
                              style="animation-delay: {{ $i * 70 }}ms"
                              x-data="meterImageRow({
                                  existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
@@ -174,91 +196,85 @@
                                  maxOverride: @js($maxValueInit === null || $maxValueInit === '' ? null : (int) $maxValueInit),
                              })">
                             <span class="meter-accent-bar absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b {{ $style['icon'] }}" style="animation-delay: {{ $i * 70 }}ms"></span>
-                            <div class="flex items-center justify-between mb-1.5 sm:mb-2 flex-wrap gap-1">
-                                <span class="text-[11px] font-medium text-gray-500 flex items-center gap-1.5">
-                                    <span class="meter-badge-pop inline-flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 rounded-full text-[9px] sm:text-[10px] font-bold text-white bg-gradient-to-br {{ $style['icon'] }} shadow-sm"
+                            <div class="flex items-center justify-between mb-2 sm:mb-2.5 flex-wrap gap-1">
+                                <span class="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                                    <span class="meter-badge-pop inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white bg-gradient-to-br {{ $style['icon'] }} shadow-sm"
                                           style="animation-delay: {{ $i * 70 + 80 }}ms">{{ $i + 1 }}</span>
-                                    {{ $style['label'] }}{{ $i + 1 }} · ฿{{ $fmtUnitPrice($meter->price_per_unit) }}/หน่วย
+                                    {{ $style['label'] }} ตัวที่ {{ $i + 1 }} &middot;
+                                    ฿{{ $fmtUnitPrice($meter->price_per_unit) }}/หน่วย
                                 </span>
-                                <span x-show="currentReading > 0" x-cloak class="text-[11px] font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
+                                <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
                             </div>
 
-                            {{-- แสดงข้อมูลมิเตอร์แบบแนวตั้งสำหรับมือถือ และแนวนอนสำหรับเดสก์ท็อป --}}
-                            <div class="space-y-2.5 lg:space-y-0 lg:grid lg:grid-cols-4 lg:gap-3">
+                            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                                 <div>
-                                    <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">เดือนก่อน</label>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">เลขมิเตอร์เดือนก่อน</label>
                                     @if($previous !== null)
                                         <x-form.number
                                             :name="$namePrefix . '[previous_reading_display]'"
                                             :value="$previous"
-                                            class="text-right h-9 text-sm"
+                                            class="text-right"
                                             disabled />
-                                        <p class="text-gray-400 text-[10px] mt-1">ดึงจากเดือนก่อนอัตโนมัติ</p>
+                                        <p class="text-gray-400 text-xs mt-1.5">ดึงจากเดือนก่อนอัตโนมัติ แก้ไขไม่ได้</p>
                                     @else
                                         <x-form.number
                                             :name="$namePrefix . '[previous_reading]'"
                                             :value="$previousInit"
-                                            placeholder="0"
-                                            class="text-right h-9 text-sm"
+                                            placeholder="เลขเดือนก่อน"
+                                            class="text-right"
                                             x-model.number="previousReading"
                                             min="0" />
                                     @endif
                                 </div>
 
-                                <div>
-                                    <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">เลขมิเตอร์ปัจจุบัน</label>
-                                    <x-form.number
-                                        :name="$namePrefix . '[current_reading]'"
-                                        :value="$currentInit"
-                                        placeholder="0"
-                                        class="text-right h-9 text-sm"
-                                        x-model.number="currentReading"
-                                        min="0" />
-                                </div>
+                                <x-form.number
+                                    :name="$namePrefix . '[current_reading]'"
+                                    label="เลขมิเตอร์ปัจจุบัน"
+                                    :value="$currentInit"
+                                    class="text-right"
+                                    x-model.number="currentReading"
+                                    min="0" />
+
+                                <x-form.date
+                                    :name="$namePrefix . '[reading_date]'"
+                                    label="วันที่อ่านมิเตอร์"
+                                    :value="old('readings.' . $meter->id . '.reading_date', optional($reading?->reading_date)->format('Y-m-d') ?: now()->format('Y-m-d'))"
+                                    :max="now()->format('Y-m-d')" />
 
                                 <div>
-                                    <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">วันที่อ่าน</label>
-                                    <x-form.date
-                                        :name="$namePrefix . '[reading_date]'"
-                                        :value="old('readings.' . $meter->id . '.reading_date', optional($reading?->reading_date)->format('Y-m-d'))"
-                                        class="h-9 text-sm"
-                                        :max="now()->format('Y-m-d')" />
-                                </div>
-
-                                <div>
-                                    <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">รูปภาพ</label>
-                                    <label class="flex items-center justify-center gap-1.5 h-9 w-full px-2.5 rounded-lg border {{ $errors->has("readings.{$meter->id}.image") ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300' }} text-[11px] sm:text-xs font-medium text-gray-500 cursor-pointer transition-colors">
-                                        <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16v12H4V6z"/>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">รูปภาพมิเตอร์</label>
+                                    {{-- ปุ่มเลือกรูป - สูงเท่า input อื่นในแถวเดียวกันเสมอ ไม่ว่าจะมีรูปหรือไม่ เพื่อไม่ให้ layout ของแถวเพี้ยน --}}
+                                    <label class="flex items-center justify-center gap-1.5 h-[42px] w-full px-3 rounded-xl border {{ $errors->has("readings.{$meter->id}.image") ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300' }} text-xs font-medium text-gray-500 cursor-pointer transition-colors">
+                                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
                                         </svg>
-                                        <span class="truncate" x-text="previewUrl ? 'เปลี่ยนรูป' : 'เลือกรูป'"></span>
+                                        <span class="truncate" x-text="previewUrl ? 'เปลี่ยนรูปภาพ' : 'เลือกรูปภาพ'"></span>
                                         <input type="file" name="{{ $namePrefix }}[image]" accept="image/jpeg,image/png" class="hidden"
                                                x-ref="fileInput"
                                                @change="onFileChange($event)">
                                     </label>
-                                    <p x-show="sizeError" x-cloak class="text-red-500 text-[10px] mt-1" x-text="sizeError"></p>
+                                    <p x-show="sizeError" x-cloak class="text-red-500 text-xs mt-1.5" x-text="sizeError"></p>
                                     @error("readings.{$meter->id}.image")
-                                        <p class="text-red-500 text-[10px] mt-1">{{ $message }}</p>
+                                        <p class="text-red-500 text-xs mt-1.5">{{ $message }}</p>
                                     @enderror
                                 </div>
                             </div>
 
-                            {{-- พรีวิวรูปกระชับ --}}
+                            {{-- พรีวิวรูปขนาดใหญ่ - อยู่นอก grid ด้านบนเสมอ เพื่อไม่ให้ความสูงของรูปไปดันแถว input อื่นเพี้ยน --}}
                             <template x-if="previewUrl">
-                                <div class="flex items-start gap-2 mt-2 pt-2 border-t border-gray-100">
+                                <div class="flex items-start gap-3 mt-2.5 pt-2.5 sm:mt-3 sm:pt-3 border-t border-gray-100">
                                     <div class="relative flex-shrink-0">
                                         <button type="button" @click="lightboxOpen = true" class="block" title="ดูรูปขนาดใหญ่">
-                                            <img :src="previewUrl" class="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg border border-gray-200 shadow-sm cursor-zoom-in">
+                                            <img :src="previewUrl" class="w-20 h-20 sm:w-28 sm:h-28 object-cover rounded-xl border border-gray-200 shadow-sm cursor-zoom-in">
                                         </button>
                                         <button type="button" @click="clearImage()"
                                                 title="ลบรูปภาพ"
-                                                class="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white shadow hover:bg-red-600 transition-colors">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                class="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-500 text-white shadow hover:bg-red-600 transition-colors">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
                                             </svg>
                                         </button>
                                     </div>
-                                    <p class="text-[10px] text-gray-400 leading-snug pt-1">แตะเพื่อดูขนาดเต็ม</p>
                                 </div>
                             </template>
 
@@ -277,63 +293,56 @@
                                 <img :src="previewUrl" @click.stop class="max-w-full max-h-full rounded-xl shadow-2xl" alt="">
                             </div>
 
-                            <div class="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-gray-100">
+                            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 pt-2.5 sm:mt-3 sm:pt-3 border-t border-gray-100">
                                 <input type="hidden" name="{{ $namePrefix }}[meter_reset]" :value="reset ? 1 : 0">
                                 <button type="button"
                                         @click="toggleReset()"
                                         :class="reset ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
-                                        class="inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
                                     </svg>
-                                    รีเซ็ต
+                                    มิเตอร์รีเซ็ต
                                 </button>
 
                                 <input type="hidden" name="{{ $namePrefix }}[meter_changed]" :value="changed ? 1 : 0">
                                 <button type="button"
                                         @click="toggleChanged()"
                                         :class="changed ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
-                                        class="inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h18M16.5 3L21 7.5m0 0L16.5 12M21 7.5H3"/>
                                     </svg>
-                                    เปลี่ยนมิเตอร์
+                                    เปลี่ยนมิเตอร์ใหม่
                                 </button>
                             </div>
 
-                            <div x-show="changed" x-cloak class="space-y-2 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3 mt-2">
-                                <div>
-                                    <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">เลขมิเตอร์เก่าสุดท้าย</label>
-                                    <x-form.number
-                                        :name="$namePrefix . '[old_meter_final_reading]'"
-                                        :value="$oldFinalInit"
-                                        placeholder="0"
-                                        class="text-right h-9 text-sm"
-                                        x-model.number="oldFinal"
-                                        min="0" />
-                                </div>
-                                <div>
-                                    <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">เลขมิเตอร์ใหม่เริ่มต้น</label>
-                                    <x-form.number
-                                        :name="$namePrefix . '[new_meter_start_reading]'"
-                                        :value="$newStartInit"
-                                        placeholder="0"
-                                        class="text-right h-9 text-sm"
-                                        x-model.number="newStart"
-                                        min="0" />
-                                </div>
+                            <div x-show="changed" x-cloak class="grid grid-cols-2 gap-2.5 sm:gap-3 mt-2.5 sm:mt-3">
+                                <x-form.number
+                                    :name="$namePrefix . '[old_meter_final_reading]'"
+                                    label="เลขมิเตอร์เก่าสุดท้าย"
+                                    :value="$oldFinalInit"
+                                    class="text-right"
+                                    x-model.number="oldFinal"
+                                    min="0" />
+                                <x-form.number
+                                    :name="$namePrefix . '[new_meter_start_reading]'"
+                                    label="เลขมิเตอร์ใหม่เริ่มต้น"
+                                    :value="$newStartInit"
+                                    class="text-right"
+                                    x-model.number="newStart"
+                                    min="0" />
                             </div>
 
-                            <div x-show="reset" x-cloak class="mt-2">
-                                <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">จุดสูงสุดของมิเตอร์ (ถ้าทราบ)</label>
+                            <div x-show="reset" x-cloak class="mt-2.5 sm:mt-3">
                                 <x-form.number
                                     :name="$namePrefix . '[meter_max_value]'"
+                                    label="จุดสูงสุดของมิเตอร์ (ถ้าทราบ)"
                                     :value="$maxValueInit"
-                                    placeholder="ไม่ระบุ จะประมาณอัตโนมัติ"
-                                    class="text-right h-9 text-sm"
+                                    hint="ถ้าไม่ระบุ ระบบจะประมาณจากจำนวนหลักของเลขมิเตอร์เดือนก่อนให้อัตโนมัติ"
+                                    class="text-right"
                                     x-model.number="maxOverride"
                                     min="1" />
-                                <p class="text-[10px] text-gray-400 mt-1">ถ้าไม่ระบุ ระบบจะประมาณให้อัตโนมัติ</p>
                             </div>
                         </div>
                     @endforeach
@@ -341,12 +350,11 @@
             </div>
         @endforeach
 
-        <div class="meter-card-in bg-white rounded-xl shadow-sm border border-gray-100 p-2 sm:p-2.5">
-            <label class="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>
+        <div class="meter-card-in bg-white rounded-xl shadow-sm border border-gray-100 p-2.5 sm:p-3.5">
             <x-form.textarea
                 name="remark"
+                label="หมายเหตุ"
                 rows="2"
-                class="text-sm"
                 :value="old('remark', $currentReadings->first()?->remark ?? '')" />
         </div>
     </div>
