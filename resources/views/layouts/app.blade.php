@@ -9,7 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="{{ asset('images/logo-icon.svg') }}">
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         body { -webkit-tap-highlight-color: transparent; }
@@ -80,6 +80,17 @@
                           d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                 </svg>
                 อสังหาริมทรัพย์
+            </a>
+            @endif
+
+            @if(session('agent_is_manager'))
+            <a href="{{ route('meters.index') }}"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('meters.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                บันทึกมิเตอร์
             </a>
             @endif
 
@@ -323,6 +334,13 @@
                         อสังหาริมทรัพย์
                     </a>
                     @endif
+                    @if(session('agent_is_manager'))
+                    <a href="{{ route('meters.index') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('meters.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        บันทึกมิเตอร์
+                    </a>
+                    @endif
                     @if($rentalRateAllowed)
                     <a href="{{ route('rental-rates.index') }}"
                        class="text-xs font-medium transition-colors
@@ -495,6 +513,12 @@
                 'pattern' => 'properties.*',
                 'label'   => 'อสังหาริมทรัพย์',
                 'icon'    => '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>',
+            ];
+            $extraMenus[] = [
+                'route'   => 'meters.index',
+                'pattern' => 'meters.*',
+                'label'   => 'บันทึกมิเตอร์',
+                'icon'    => '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>',
             ];
         }
         if ($rentalRateAllowed) {
@@ -774,18 +798,22 @@
                     dateFormat: 'Y-m-d',
                     defaultDate: this.v || null,
                     disableMobile: false,
-                    onChange: (selectedDates, dateStr) => { this.v = dateStr; }
+                    onChange: (selectedDates, dateStr) => {
+                        this.v = dateStr;
+                        wrapper.querySelector('[data-input]')?.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
                 });
             }
         };
     }
 
-    // ─── Alpine: Searchable Select ─────────────────────────────────────────────
+    // ─── Alpine: Typeable Searchable Select (combobox) ──────────────────────────
     function selectSearch(uid) {
         return {
             open: false, search: '', selected: '', selectedLabel: '',
             placeholder: '- เลือก -',
             options: [],
+            highlighted: -1,
             get filteredOptions() {
                 if (!this.search) return this.options;
                 const q = this.search.toLowerCase();
@@ -800,11 +828,49 @@
                     .filter(o => o.value !== '')
                     .map(o => ({ value: o.value, label: o.text }));
                 const preselected = native.querySelector('option[selected]');
-                if (preselected) { this.selected = preselected.value; this.selectedLabel = preselected.text; }
+                if (preselected) {
+                    this.selected = preselected.value;
+                    this.selectedLabel = preselected.text;
+                    this.search = preselected.text;
+                }
             },
-            toggle() { this.open = !this.open; if (this.open) this.$nextTick(() => this.$refs.searchInput && this.$refs.searchInput.focus()); },
-            close() { this.open = false; this.search = ''; },
-            select(opt) { this.selected = opt.value; this.selectedLabel = opt.label; this.close(); },
+            notifyChange() {
+                this.$nextTick(() => document.getElementById(uid)?.dispatchEvent(new Event('change', { bubbles: true })));
+            },
+            openList() { if (!this.open) { this.open = true; this.highlighted = -1; } },
+            closeList() {
+                this.open = false;
+                this.highlighted = -1;
+                this.search = this.selectedLabel; // discard unmatched typing, snap back to the current selection
+            },
+            pick(opt) {
+                this.selected = opt.value;
+                this.selectedLabel = opt.label;
+                this.search = opt.label;
+                this.open = false;
+                this.highlighted = -1;
+                this.notifyChange();
+            },
+            clear() {
+                this.selected = '';
+                this.selectedLabel = '';
+                this.search = '';
+                this.open = true;
+                this.highlighted = -1;
+                this.$nextTick(() => this.$refs.searchInput && this.$refs.searchInput.focus());
+                this.notifyChange();
+            },
+            onEnter() {
+                if (!this.open) { this.openList(); return; }
+                const opt = this.filteredOptions[this.highlighted >= 0 ? this.highlighted : 0];
+                if (opt) this.pick(opt);
+            },
+            moveHighlight(delta) {
+                if (!this.open) { this.openList(); return; }
+                const len = this.filteredOptions.length;
+                if (!len) return;
+                this.highlighted = (this.highlighted + delta + len) % len;
+            },
         };
     }
 

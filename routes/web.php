@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MeterReadingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyBillingController;
 use App\Http\Controllers\RentalRateController;
@@ -47,6 +48,13 @@ Route::middleware('auth.agent')->group(function () {
     Route::delete('/billing/{record}/slip/batch/{batchIndex}', [PropertyBillingController::class, 'cancelSlipBatch'])->whereNumber('batchIndex')->name('billing.slip.cancel-batch');
     Route::post('/properties/{property}/toggle-prepay', [PropertyBillingController::class, 'togglePrePay'])->name('properties.togglePrePay');
     Route::get('/invoices/{invoice}/print', [PropertyBillingController::class, 'printInvoice'])->name('invoices.print');
+
+    // Meter Readings (บันทึกมิเตอร์)
+    Route::get('/meters', [MeterReadingController::class, 'index'])->name('meters.index');
+    Route::get('/meters/{property}', [MeterReadingController::class, 'show'])->name('meters.show');
+    Route::post('/meters/{property}', [MeterReadingController::class, 'store'])->name('meters.store');
+    Route::delete('/meters/{property}', [MeterReadingController::class, 'destroy'])->name('meters.destroy');
+    Route::get('/meters/reading/{reading}/image', [MeterReadingController::class, 'viewImage'])->name('meters.image');
 
     // Rental Rate Overview
     Route::get('/rental-rates', [RentalRateController::class, 'index'])->name('rental-rates.index');

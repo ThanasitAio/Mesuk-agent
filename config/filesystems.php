@@ -48,6 +48,19 @@ return [
         ],
 
         /*
+         | Meter reading photos - native to this app (not happyest's data), so unlike
+         | payment_storage/happyest_public below this stays local. Not web-servable;
+         | served only via the ownership-checked MeterReadingController::viewImage()
+         | route, same security posture as payment slips.
+         */
+        'meter_storage' => [
+            'driver' => 'local',
+            'root'   => storage_path('app/private/meters'),
+            'throw'  => false,
+            'report' => false,
+        ],
+
+        /*
          | Shared payment slip storage - must point to the same directory
          | as Happy Realestate's "local" disk root so slips are accessible
          | from both systems.  Override HAPPYEST_STORAGE_PATH in .env for

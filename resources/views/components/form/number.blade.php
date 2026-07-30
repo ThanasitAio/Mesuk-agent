@@ -45,6 +45,8 @@
             @if($max !== null) max="{{ $max }}" @endif
             @if($step !== null) step="{{ $step }}" @endif
             @disabled($disabled)
+            onkeydown="if (['-','+','e','E','.'].includes(event.key)) event.preventDefault()"
+            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
             {{ $attributes->merge(['class' =>
                 'flex-1 min-w-0 py-2.5 bg-transparent focus:outline-none text-gray-800 placeholder-gray-400'
                 . ($prefix ? ' pl-3' : ' pl-4')

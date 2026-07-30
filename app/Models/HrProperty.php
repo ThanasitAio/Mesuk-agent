@@ -62,4 +62,14 @@ class HrProperty extends Model
             ->orderByDesc('is_cover')
             ->orderBy('sort_order');
     }
+
+    public function meters()
+    {
+        return $this->hasMany(HrPropertyMeter::class, 'property_id')->orderBy('sort_order');
+    }
+
+    public function activeMeters()
+    {
+        return $this->meters()->where('is_active', true);
+    }
 }

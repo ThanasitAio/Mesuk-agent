@@ -14,7 +14,7 @@
     $stateClass = $hasError
         ? 'border-red-400 bg-red-50 focus:ring-red-400/30'
         : 'border-gray-300 focus:border-brand-500 focus:ring-brand-500/20';
-    $baseClass  = 'w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 transition resize-none';
+    $baseClass  = 'w-full px-4 py-2.5 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 transition resize-none';
 @endphp
 
 <div>
