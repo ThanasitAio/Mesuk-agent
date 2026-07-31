@@ -96,34 +96,31 @@
     <input type="hidden" name="billing_year" value="{{ $year }}">
     <input type="hidden" name="billing_month" value="{{ $month }}">
 
-    {{-- ── Summary strip: common fee + invoice display settings + rent period ── --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 mb-2.5 sm:mb-3">
-        <div class="meter-row-in bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 sm:px-3.5 sm:py-2.5">
-            <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center">
-                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21V7l8-4v18M13 21V9l6 3v9M9 9v.01M9 12v.01M9 15v.01"/>
-                    </svg>
-                </div>
-                <div class="min-w-0">
-                    <p class="text-[11px] text-gray-400 truncate leading-tight">ค่าส่วนกลาง/เดือน</p>
-                    <p class="text-sm font-bold text-gray-800 leading-tight">฿{{ number_format($property->common_fee_per_month ?? 0, 2) }}</p>
-                </div>
+    {{-- ── Summary strip: common fee + invoice display settings + rent period (รวมเป็นการ์ดเดียวเพื่อลดพื้นที่บนมือถือ) ── --}}
+    <div class="meter-row-in bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 sm:px-3.5 sm:py-2.5 mb-2.5 sm:mb-3">
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21V7l8-4v18M13 21V9l6 3v9M9 9v.01M9 12v.01M9 15v.01"/>
+                </svg>
             </div>
-
-            <div class="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2.5 sm:mt-3 sm:pt-3.5 border-t border-gray-100">
-                <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border {{ $property->show_meter_image_on_invoice ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-400 bg-gray-50 border-gray-200' }}">
-                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16v12H4V6z"/></svg>
-                    รูปภาพบนใบแจ้งหนี้: {{ $property->show_meter_image_on_invoice ? 'แสดง' : 'ไม่แสดง' }}
-                </span>
-                <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border {{ $property->show_shipping_address_on_invoice ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-400 bg-gray-50 border-gray-200' }}">
-                    <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                    ที่อยู่จัดส่งหน้าถัดไป: {{ $property->show_shipping_address_on_invoice ? 'แสดง' : 'ไม่แสดง' }}
-                </span>
+            <div class="min-w-0 mr-auto">
+                <p class="text-[11px] text-gray-400 truncate leading-tight">ค่าส่วนกลาง/เดือน</p>
+                <p class="text-sm font-bold text-gray-800 leading-tight">฿{{ number_format($property->common_fee_per_month ?? 0, 2) }}</p>
             </div>
+            <span title="รูปภาพบนใบแจ้งหนี้: {{ $property->show_meter_image_on_invoice ? 'แสดง' : 'ไม่แสดง' }}"
+                  class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap {{ $property->show_meter_image_on_invoice ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-400 bg-gray-50 border-gray-200' }}">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16v12H4V6z"/></svg>
+                รูปภาพ: {{ $property->show_meter_image_on_invoice ? 'แสดง' : 'ไม่แสดง' }}
+            </span>
+            <span title="ที่อยู่จัดส่งหน้าถัดไป: {{ $property->show_shipping_address_on_invoice ? 'แสดง' : 'ไม่แสดง' }}"
+                  class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap {{ $property->show_shipping_address_on_invoice ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-gray-400 bg-gray-50 border-gray-200' }}">
+                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                ที่อยู่: {{ $property->show_shipping_address_on_invoice ? 'แสดง' : 'ไม่แสดง' }}
+            </span>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 sm:px-3.5 sm:py-2.5">
+        <div class="mt-2.5 pt-2.5 sm:mt-3 sm:pt-3 border-t border-gray-100">
             <x-form.month-year
                 name-month="rent_month"
                 name-year="rent_year"
@@ -146,208 +143,116 @@
                 $typeAmountTotal = $typeReadings->sum('amount');
                 $multiMeter      = $typeMeters->count() > 1;
             @endphp
-            <div class="meter-card-in bg-white rounded-xl shadow-sm border {{ $style['ring'] }} p-2.5 sm:p-3.5 transition-shadow duration-300 hover:shadow-md"
-                 style="animation-delay: {{ $loop->index * 60 }}ms">
-                <div class="flex items-center justify-between mb-2.5 sm:mb-3 flex-wrap gap-2">
-                    <div class="flex items-center gap-2">
-                        <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br {{ $style['icon'] }} flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $style['path'] }}"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $style['badge'] }}">{{ $style['label'] }}</span>
-                            @if($multiMeter)
+            @if($multiMeter)
+                <div class="meter-card-in bg-white rounded-xl shadow-sm border {{ $style['ring'] }} p-2.5 sm:p-3.5 transition-shadow duration-300 hover:shadow-md"
+                     style="animation-delay: {{ $loop->index * 60 }}ms">
+                    <div class="flex items-center justify-between mb-2.5 sm:mb-3 flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br {{ $style['icon'] }} flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $style['path'] }}"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $style['badge'] }}">{{ $style['label'] }}</span>
                                 <span class="text-xs text-gray-400 ml-1">{{ $typeMeters->count() }} จุด</span>
-                            @endif
+                            </div>
                         </div>
+                        @if($typeReadings->isNotEmpty())
+                            <span class="text-xs sm:text-sm font-semibold text-gray-700">{{ number_format($typeUnitsTotal, 2) }} หน่วย &middot; ฿{{ number_format($typeAmountTotal, 2) }}</span>
+                        @endif
                     </div>
-                    @if($typeReadings->isNotEmpty())
-                        <span class="text-xs sm:text-sm font-semibold text-gray-700">{{ number_format($typeUnitsTotal, 2) }} หน่วย &middot; ฿{{ number_format($typeAmountTotal, 2) }}</span>
-                    @endif
+
+                    <div class="space-y-2.5 sm:space-y-3">
+                        @foreach($typeMeters as $i => $meter)
+                            @php
+                                $reading    = $currentReadings[$meter->id] ?? null;
+                                $previous   = $previousReadings[$meter->id] ?? null;
+                                $namePrefix = 'readings[' . $meter->id . ']';
+
+                                $previousInit = $previous !== null
+                                    ? $previous
+                                    : old('readings.' . $meter->id . '.previous_reading', $reading->previous_reading ?? 0);
+                                $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
+                                $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
+                                $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
+                                $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
+                            @endphp
+                            <div class="meter-row-in relative rounded-lg border {{ $style['ring'] }} bg-gray-50/70 p-2.5 pl-3.5 sm:p-3 sm:pl-4 overflow-hidden"
+                                 style="animation-delay: {{ $i * 70 }}ms"
+                                 x-data="meterImageRow({
+                                     existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
+                                     reset: {{ ($reading->meter_reset ?? false) ? 'true' : 'false' }},
+                                     changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
+                                     pricePerUnit: {{ (float) $meter->price_per_unit }},
+                                     previousReading: {{ (int) $previousInit }},
+                                     currentReading: {{ (int) $currentInit }},
+                                     oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
+                                     newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
+                                     maxOverride: @js($maxValueInit === null || $maxValueInit === '' ? null : (int) $maxValueInit),
+                                 })">
+                                <span class="meter-accent-bar absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b {{ $style['icon'] }}" style="animation-delay: {{ $i * 70 }}ms"></span>
+                                <div class="flex items-center justify-between mb-2 sm:mb-2.5 flex-wrap gap-1">
+                                    <span class="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                                        <span class="meter-badge-pop inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white bg-gradient-to-br {{ $style['icon'] }} shadow-sm"
+                                              style="animation-delay: {{ $i * 70 + 80 }}ms">{{ $i + 1 }}</span>
+                                        {{ $style['label'] }} ตัวที่ {{ $i + 1 }} &middot;
+                                        ฿{{ $fmtUnitPrice($meter->price_per_unit) }}/หน่วย
+                                    </span>
+                                    <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
+                                </div>
+
+                                @include('meters.partials.reading-fields')
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
+            @else
+                @php
+                    $meter      = $typeMeters->first();
+                    $reading    = $currentReadings[$meter->id] ?? null;
+                    $previous   = $previousReadings[$meter->id] ?? null;
+                    $namePrefix = 'readings[' . $meter->id . ']';
 
-                <div class="space-y-2.5 sm:space-y-3">
-                    @foreach($typeMeters as $i => $meter)
-                        @php
-                            $reading    = $currentReadings[$meter->id] ?? null;
-                            $previous   = $previousReadings[$meter->id] ?? null;
-                            $namePrefix = 'readings[' . $meter->id . ']';
-
-                            $previousInit = $previous !== null
-                                ? $previous
-                                : old('readings.' . $meter->id . '.previous_reading', $reading->previous_reading ?? 0);
-                            $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
-                            $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
-                            $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
-                            $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
-                        @endphp
-                        <div class="meter-row-in relative rounded-lg border {{ $style['ring'] }} bg-gray-50/70 p-2.5 pl-3.5 sm:p-3 sm:pl-4 overflow-hidden"
-                             style="animation-delay: {{ $i * 70 }}ms"
-                             x-data="meterImageRow({
-                                 existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
-                                 reset: {{ ($reading->meter_reset ?? false) ? 'true' : 'false' }},
-                                 changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
-                                 pricePerUnit: {{ (float) $meter->price_per_unit }},
-                                 previousReading: {{ (int) $previousInit }},
-                                 currentReading: {{ (int) $currentInit }},
-                                 oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
-                                 newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
-                                 maxOverride: @js($maxValueInit === null || $maxValueInit === '' ? null : (int) $maxValueInit),
-                             })">
-                            <span class="meter-accent-bar absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b {{ $style['icon'] }}" style="animation-delay: {{ $i * 70 }}ms"></span>
-                            <div class="flex items-center justify-between mb-2 sm:mb-2.5 flex-wrap gap-1">
-                                <span class="text-xs font-medium text-gray-500 flex items-center gap-1.5">
-                                    <span class="meter-badge-pop inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white bg-gradient-to-br {{ $style['icon'] }} shadow-sm"
-                                          style="animation-delay: {{ $i * 70 + 80 }}ms">{{ $i + 1 }}</span>
-                                    {{ $style['label'] }} ตัวที่ {{ $i + 1 }} &middot;
-                                    ฿{{ $fmtUnitPrice($meter->price_per_unit) }}/หน่วย
-                                </span>
-                                <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
+                    $previousInit = $previous !== null
+                        ? $previous
+                        : old('readings.' . $meter->id . '.previous_reading', $reading->previous_reading ?? 0);
+                    $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
+                    $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
+                    $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
+                    $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
+                @endphp
+                <div class="meter-card-in bg-white rounded-xl shadow-sm border {{ $style['ring'] }} p-2.5 sm:p-3.5 transition-shadow duration-300 hover:shadow-md"
+                     style="animation-delay: {{ $loop->index * 60 }}ms"
+                     x-data="meterImageRow({
+                         existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
+                         reset: {{ ($reading->meter_reset ?? false) ? 'true' : 'false' }},
+                         changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
+                         pricePerUnit: {{ (float) $meter->price_per_unit }},
+                         previousReading: {{ (int) $previousInit }},
+                         currentReading: {{ (int) $currentInit }},
+                         oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
+                         newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
+                         maxOverride: @js($maxValueInit === null || $maxValueInit === '' ? null : (int) $maxValueInit),
+                     })">
+                    <div class="flex items-center justify-between mb-2.5 sm:mb-3 flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br {{ $style['icon'] }} flex items-center justify-center">
+                                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $style['path'] }}"/>
+                                </svg>
                             </div>
-
-                            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">เลขมิเตอร์เดือนก่อน</label>
-                                    @if($previous !== null)
-                                        <x-form.number
-                                            :name="$namePrefix . '[previous_reading_display]'"
-                                            :value="$previous"
-                                            class="text-right"
-                                            disabled />
-                                        <p class="text-gray-400 text-xs mt-1.5">ดึงจากเดือนก่อนอัตโนมัติ แก้ไขไม่ได้</p>
-                                    @else
-                                        <x-form.number
-                                            :name="$namePrefix . '[previous_reading]'"
-                                            :value="$previousInit"
-                                            placeholder="เลขเดือนก่อน"
-                                            class="text-right"
-                                            x-model.number="previousReading"
-                                            min="0" />
-                                    @endif
-                                </div>
-
-                                <x-form.number
-                                    :name="$namePrefix . '[current_reading]'"
-                                    label="เลขมิเตอร์ปัจจุบัน"
-                                    :value="$currentInit"
-                                    class="text-right"
-                                    x-model.number="currentReading"
-                                    min="0" />
-
-                                <x-form.date
-                                    :name="$namePrefix . '[reading_date]'"
-                                    label="วันที่อ่านมิเตอร์"
-                                    :value="old('readings.' . $meter->id . '.reading_date', optional($reading?->reading_date)->format('Y-m-d') ?: now()->format('Y-m-d'))"
-                                    :max="now()->format('Y-m-d')" />
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">รูปภาพมิเตอร์</label>
-                                    {{-- ปุ่มเลือกรูป - สูงเท่า input อื่นในแถวเดียวกันเสมอ ไม่ว่าจะมีรูปหรือไม่ เพื่อไม่ให้ layout ของแถวเพี้ยน --}}
-                                    <label class="flex items-center justify-center gap-1.5 h-[42px] w-full px-3 rounded-xl border {{ $errors->has("readings.{$meter->id}.image") ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300' }} text-xs font-medium text-gray-500 cursor-pointer transition-colors">
-                                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
-                                        </svg>
-                                        <span class="truncate" x-text="previewUrl ? 'เปลี่ยนรูปภาพ' : 'เลือกรูปภาพ'"></span>
-                                        <input type="file" name="{{ $namePrefix }}[image]" accept="image/jpeg,image/png" class="hidden"
-                                               x-ref="fileInput"
-                                               @change="onFileChange($event)">
-                                    </label>
-                                    <p x-show="sizeError" x-cloak class="text-red-500 text-xs mt-1.5" x-text="sizeError"></p>
-                                    @error("readings.{$meter->id}.image")
-                                        <p class="text-red-500 text-xs mt-1.5">{{ $message }}</p>
-                                    @enderror
-                                </div>
-                            </div>
-
-                            {{-- พรีวิวรูปขนาดใหญ่ - อยู่นอก grid ด้านบนเสมอ เพื่อไม่ให้ความสูงของรูปไปดันแถว input อื่นเพี้ยน --}}
-                            <template x-if="previewUrl">
-                                <div class="flex items-start gap-3 mt-2.5 pt-2.5 sm:mt-3 sm:pt-3 border-t border-gray-100">
-                                    <div class="relative flex-shrink-0">
-                                        <button type="button" @click="lightboxOpen = true" class="block" title="ดูรูปขนาดใหญ่">
-                                            <img :src="previewUrl" class="w-20 h-20 sm:w-28 sm:h-28 object-cover rounded-xl border border-gray-200 shadow-sm cursor-zoom-in">
-                                        </button>
-                                        <button type="button" @click="clearImage()"
-                                                title="ลบรูปภาพ"
-                                                class="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-500 text-white shadow hover:bg-red-600 transition-colors">
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </template>
-
-                            {{-- Lightbox popup แสดงรูปเต็มขนาด - ไม่เปิดแท็บใหม่ --}}
-                            <div x-show="lightboxOpen" x-cloak
-                                 @click="lightboxOpen = false"
-                                 @keydown.escape.window="lightboxOpen = false"
-                                 x-transition.opacity
-                                 class="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4">
-                                <button type="button" @click.stop="lightboxOpen = false"
-                                        class="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                    </svg>
-                                </button>
-                                <img :src="previewUrl" @click.stop class="max-w-full max-h-full rounded-xl shadow-2xl" alt="">
-                            </div>
-
-                            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 pt-2.5 sm:mt-3 sm:pt-3 border-t border-gray-100">
-                                <input type="hidden" name="{{ $namePrefix }}[meter_reset]" :value="reset ? 1 : 0">
-                                <button type="button"
-                                        @click="toggleReset()"
-                                        :class="reset ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
-                                        class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
-                                    </svg>
-                                    มิเตอร์รีเซ็ต
-                                </button>
-
-                                <input type="hidden" name="{{ $namePrefix }}[meter_changed]" :value="changed ? 1 : 0">
-                                <button type="button"
-                                        @click="toggleChanged()"
-                                        :class="changed ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
-                                        class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h18M16.5 3L21 7.5m0 0L16.5 12M21 7.5H3"/>
-                                    </svg>
-                                    เปลี่ยนมิเตอร์ใหม่
-                                </button>
-                            </div>
-
-                            <div x-show="changed" x-cloak class="grid grid-cols-2 gap-2.5 sm:gap-3 mt-2.5 sm:mt-3">
-                                <x-form.number
-                                    :name="$namePrefix . '[old_meter_final_reading]'"
-                                    label="เลขมิเตอร์เก่าสุดท้าย"
-                                    :value="$oldFinalInit"
-                                    class="text-right"
-                                    x-model.number="oldFinal"
-                                    min="0" />
-                                <x-form.number
-                                    :name="$namePrefix . '[new_meter_start_reading]'"
-                                    label="เลขมิเตอร์ใหม่เริ่มต้น"
-                                    :value="$newStartInit"
-                                    class="text-right"
-                                    x-model.number="newStart"
-                                    min="0" />
-                            </div>
-
-                            <div x-show="reset" x-cloak class="mt-2.5 sm:mt-3">
-                                <x-form.number
-                                    :name="$namePrefix . '[meter_max_value]'"
-                                    label="จุดสูงสุดของมิเตอร์ (ถ้าทราบ)"
-                                    :value="$maxValueInit"
-                                    hint="ถ้าไม่ระบุ ระบบจะประมาณจากจำนวนหลักของเลขมิเตอร์เดือนก่อนให้อัตโนมัติ"
-                                    class="text-right"
-                                    x-model.number="maxOverride"
-                                    min="1" />
-                            </div>
+                            <span class="text-xs font-medium text-gray-500 flex items-center gap-1.5 flex-wrap">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $style['badge'] }}">{{ $style['label'] }}</span>
+                                ฿{{ $fmtUnitPrice($meter->price_per_unit) }}/หน่วย
+                            </span>
                         </div>
-                    @endforeach
+                        <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
+                    </div>
+
+                    @include('meters.partials.reading-fields')
                 </div>
-            </div>
+            @endif
         @endforeach
 
         <div class="meter-card-in bg-white rounded-xl shadow-sm border border-gray-100 p-2.5 sm:p-3.5">
@@ -536,8 +441,8 @@
         updateRemarkFromDates();
     });
 
-    // วันที่อ่านมิเตอร์ตั้งค่าเริ่มต้นเป็นวันนี้ให้อัตโนมัติ (ลดการแตะ) - เติมหมายเหตุให้ตรงกัน
-    // ตั้งแต่โหลดหน้า แต่ไม่ทับหมายเหตุเดิมที่ผู้ใช้เคยกรอกไว้ก่อนหน้า
+    // ถ้ามีวันที่อ่านมิเตอร์ถูกกรอกไว้แล้วตั้งแต่โหลดหน้า (เช่นค่าที่บันทึกไว้เดิม) ให้เติมหมายเหตุให้ตรงกัน
+    // แต่ไม่ทับหมายเหตุเดิมที่ผู้ใช้เคยกรอกไว้ก่อนหน้า
     document.addEventListener('DOMContentLoaded', function () {
         const remarkEl = document.getElementById('remark');
         if (remarkEl && ! remarkEl.value) {

@@ -263,41 +263,41 @@
                 {{-- Utility breakdown --}}
                 <div class="mx-3 mb-2 rounded-lg overflow-hidden border border-gray-100">
                     {{-- Row: ไฟฟ้า --}}
-                    <div class="flex items-center justify-between px-3 py-2 bg-amber-50/40 border-b border-gray-100/80">
-                        <div class="flex items-center gap-1.5">
-                            <span class="w-5 h-5 rounded-md bg-amber-100 flex items-center justify-center text-[11px]">⚡</span>
-                            <span class="text-[11px] font-medium text-gray-600">ไฟฟ้า</span>
+                    <div class="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2 bg-amber-50/40 border-b border-gray-100/80">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="w-5 h-5 rounded-md bg-amber-100 flex items-center justify-center text-[11px] flex-shrink-0">⚡</span>
+                            <span class="text-[11px] font-medium text-gray-600 truncate">ไฟฟ้า</span>
                         </div>
-                        <div class="flex items-center gap-3 tabular-nums text-[11px]">
-                            <span class="text-gray-500">{{ number_format($row->electric_units, 0) }} <span class="text-gray-400">หน่วย</span></span>
-                            <span class="font-semibold text-gray-800 min-w-[52px] text-right">{{ number_format($row->electric_amount, 0) }} ฿</span>
+                        <div class="text-right leading-tight tabular-nums">
+                            <p class="text-[10px] text-gray-400">{{ number_format($row->electric_units, 0) }} หน่วย</p>
+                            <p class="text-xs font-semibold text-gray-800">{{ number_format($row->electric_amount, 0) }} ฿</p>
                         </div>
                     </div>
                     {{-- Row: น้ำ --}}
-                    <div class="flex items-center justify-between px-3 py-2 bg-blue-50/30 border-b border-gray-100/80">
-                        <div class="flex items-center gap-1.5">
-                            <span class="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center text-[11px]">💧</span>
-                            <span class="text-[11px] font-medium text-gray-600">น้ำ</span>
+                    <div class="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2 bg-blue-50/30 border-b border-gray-100/80">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="w-5 h-5 rounded-md bg-blue-100 flex items-center justify-center text-[11px] flex-shrink-0">💧</span>
+                            <span class="text-[11px] font-medium text-gray-600 truncate">น้ำ</span>
                         </div>
-                        <div class="flex items-center gap-3 tabular-nums text-[11px]">
-                            <span class="text-gray-500">{{ number_format($row->water_units, 0) }} <span class="text-gray-400">หน่วย</span></span>
-                            <span class="font-semibold text-gray-800 min-w-[52px] text-right">{{ number_format($row->water_amount, 0) }} ฿</span>
+                        <div class="text-right leading-tight tabular-nums">
+                            <p class="text-[10px] text-gray-400">{{ number_format($row->water_units, 0) }} หน่วย</p>
+                            <p class="text-xs font-semibold text-gray-800">{{ number_format($row->water_amount, 0) }} ฿</p>
                         </div>
                     </div>
                     {{-- Row: ส่วนกลาง --}}
-                    <div class="flex items-center justify-between px-3 py-2 bg-gray-50/50 border-b border-gray-100/80">
-                        <div class="flex items-center gap-1.5">
-                            <span class="w-5 h-5 rounded-md bg-gray-100 flex items-center justify-center">
+                    <div class="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2 bg-gray-50/50 border-b border-gray-100/80">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="w-5 h-5 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
                                 <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                             </span>
-                            <span class="text-[11px] font-medium text-gray-600">ส่วนกลาง</span>
+                            <span class="text-[11px] font-medium text-gray-600 truncate">ส่วนกลาง</span>
                         </div>
-                        <span class="font-semibold text-gray-800 tabular-nums text-[11px] min-w-[52px] text-right">{{ $row->property->common_fee_per_month ? number_format($row->property->common_fee_per_month, 0) . ' ฿' : '-' }}</span>
+                        <span class="text-xs font-semibold text-gray-800 tabular-nums text-right">{{ $row->property->common_fee_per_month ? number_format($row->property->common_fee_per_month, 0) . ' ฿' : '-' }}</span>
                     </div>
                     {{-- Row: รวม --}}
-                    <div class="flex items-center justify-between px-3 py-2" style="background: linear-gradient(135deg, rgba(42,79,31,0.06) 0%, rgba(42,79,31,0.02) 100%);">
+                    <div class="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2" style="background: linear-gradient(135deg, rgba(42,79,31,0.06) 0%, rgba(42,79,31,0.02) 100%);">
                         <span class="text-[11px] font-bold text-gray-700">รวมทั้งหมด</span>
-                        <span class="text-sm font-black text-brand-700 tabular-nums">{{ number_format($row->total_amount, 0) }} ฿</span>
+                        <span class="text-sm font-black text-brand-700 tabular-nums text-right">{{ number_format($row->total_amount, 0) }} ฿</span>
                     </div>
                 </div>
 
