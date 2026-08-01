@@ -104,11 +104,11 @@ class ProfileController extends Controller
 
         $request->validate([
             'current_password' => 'required|string',
-            'password'         => 'required|string|min:6|confirmed',
+            'password'         => 'required|string|min:4|confirmed',
         ], [
             'current_password.required' => 'กรุณากรอกรหัสผ่านปัจจุบัน',
             'password.required'         => 'กรุณากรอกรหัสผ่านใหม่',
-            'password.min'              => 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร',
+            'password.min'              => 'รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร',
             'password.confirmed'        => 'รหัสผ่านใหม่ไม่ตรงกัน',
         ]);
 

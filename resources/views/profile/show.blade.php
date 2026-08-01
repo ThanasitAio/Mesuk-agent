@@ -208,7 +208,7 @@
 
                 <x-form.input name="password" type="password"
                               label="รหัสผ่านใหม่"
-                              placeholder="อย่างน้อย 6 ตัวอักษร"
+                              placeholder="อย่างน้อย 4 ตัวอักษร"
                               required autocomplete="new-password" />
 
                 <x-form.input name="password_confirmation" type="password"
