@@ -42,7 +42,7 @@ class PropertyBillingController extends Controller
 
         $property->load(['owner', 'imageMedia']);
 
-        $booking = $property->activeBooking()->with(['customer', 'paymentRecords'])->first();
+        $booking = $property->activeBooking()->with(['customer', 'paymentRecords', 'invoices'])->first();
 
         if (! $booking) {
             return redirect()->route('properties.index')
@@ -110,7 +110,7 @@ class PropertyBillingController extends Controller
 
     public function uploadSlip(Request $request, HrPaymentRecord $record)
     {
-        $record->load('booking.paymentRecords');
+        $record->load('booking.paymentRecords', 'booking.invoices');
         $booking = $record->booking;
         abort_if(! $booking, 404, 'ไม่พบข้อมูลการจอง');
 
@@ -119,6 +119,10 @@ class PropertyBillingController extends Controller
             ->firstOrFail();
 
         if (! $record->canUploadSlip($booking)) {
+            if ($record->payment_type === 'monthly_rent' && ! $record->hasIssuedInvoice($booking)) {
+                return back()->with('error', 'ยังไม่เปิดใบแจ้งหนี้สำหรับค่าเช่างวดนี้ ไม่สามารถแนบสลิปได้');
+            }
+
             return back()->with('error', 'รายการนี้ไม่สามารถอัพโหลดสลิปได้ในขั้นตอนปัจจุบัน');
         }
 

@@ -135,7 +135,33 @@ class HrPaymentRecord extends Model
         ]);
     }
 
-    public function canUploadSlip(?HrBooking $booking = null): bool
+    /**
+     * ค่าเช่ารายเดือนต้องมีใบแจ้งหนี้ (hr_invoices, status=approved) ของงวดนั้นก่อนถึงจะแนบสลิปได้
+     * mirror ของ resolveInvoiceMatch() ฝั่ง happyest - ประเภทอื่น (มัดจำ/ค่าดำเนินการ) ไม่ต้องมีใบแจ้งหนี้
+     */
+    public function hasIssuedInvoice(?HrBooking $booking = null): bool
+    {
+        if ($this->payment_type !== 'monthly_rent' || ! $this->due_date) {
+            return true;
+        }
+
+        $booking = $booking ?? $this->booking;
+        if (! $booking) {
+            return false;
+        }
+
+        $invoices = $booking->relationLoaded('invoices')
+            ? $booking->invoices
+            : $booking->invoices()->get();
+
+        $billingMonth = $this->due_date->format('Y-m');
+
+        return $invoices->contains(fn ($inv) => $inv->invoice_type === 'monthly_rent'
+            && $inv->status === 'approved'
+            && $inv->billing_month === $billingMonth);
+    }
+
+    public function canUploadSlip(?HrBooking $booking = null, bool $ignoreInvoiceCheck = false): bool
     {
         if (! in_array($this->payment_status, ['pending', 'failed', 'pending_verification'], true)) {
             return false;
@@ -176,6 +202,10 @@ class HrPaymentRecord extends Model
             if ($firstPendingRent && $firstPendingRent->id !== $this->id) {
                 return false;
             }
+        }
+
+        if (! $ignoreInvoiceCheck && ! $this->hasIssuedInvoice($booking)) {
+            return false;
         }
 
         return true;

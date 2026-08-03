@@ -739,6 +739,9 @@
                         $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
                         $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : $record->amount;
                         $canUpload     = $meta['can_upload'] ?? false;
+                        $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
+                            && ! $canUpload
+                            && $record->canUploadSlip($booking, ignoreInvoiceCheck: true);
                         $recToInvestor = $meta['to_investor'] ?? false;
                         $recRecipient  = $meta['recipient_name'] ?? $companyName;
                         $recRecipientBadge = $recToInvestor
@@ -873,6 +876,10 @@
                                         </svg>
                                         {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                                     </button>
+                                @elseif($rentInvoiceNotOpen)
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl whitespace-nowrap" style="color:#b45309; background:#fffbeb; border:1px solid #fde68a">
+                                        ยังไม่เปิดใบแจ้งหนี้
+                                    </span>
                                 @endif
                                 @if($record->payment_status === 'pending_verification')
                                     <div class="inline-flex flex-col items-center gap-1.5">
@@ -987,6 +994,9 @@
                 $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
                 $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : $record->amount;
                 $canUpload     = $meta['can_upload'] ?? false;
+                $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
+                    && ! $canUpload
+                    && $record->canUploadSlip($booking, ignoreInvoiceCheck: true);
                 $recToInvestor = $meta['to_investor'] ?? false;
                 $recRecipient  = $meta['recipient_name'] ?? $companyName;
                 $recRecipientBadge = $recToInvestor
@@ -1099,6 +1109,12 @@
                                 </svg>
                                 {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                             </button>
+                        </div>
+                    @elseif($rentInvoiceNotOpen)
+                        <div class="flex flex-col items-end gap-2 flex-shrink-0">
+                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-2 rounded-xl whitespace-nowrap" style="color:#b45309; background:#fffbeb; border:1px solid #fde68a">
+                                ยังไม่เปิดใบแจ้งหนี้
+                            </span>
                         </div>
                     @endif
                     @if($record->payment_status === 'pending_verification')
