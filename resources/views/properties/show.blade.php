@@ -723,6 +723,9 @@
                             ? $recInv['company']->invoice_code . ' / ' . $recInv['investor']->invoice_code
                             : ($hasInvoice ? $recordInvoice->invoice_code : null);
                         if ($hasInvoice) { $rowBg = 'background:rgba(242,251,234,0.55)'; $barColor = '#86efac'; }
+                        $rentAmountHidden = $record->payment_type === 'monthly_rent'
+                            && ! $hasInvoice
+                            && in_array($record->payment_status, ['pending', 'failed'], true);
                         $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                                       && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
                         $landTax    = (float) ($record->land_tax_amount   ?? 0);
@@ -810,20 +813,24 @@
 
                         {{-- Amount --}}
                         <td class="px-4 py-3.5 text-right">
-                            @if($meta['is_phase2_combo'] ?? false)
-                                <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span></p>
-                                <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวม 2 รายการ</p>
+                            @if($rentAmountHidden)
+                                <p class="text-xs font-semibold whitespace-nowrap" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                             @else
-                                <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ number_format($displayAmount, 0) }}</p>
-                            @endif
-                            <p class="text-[10px] text-gray-400 mt-0.5">บาท</p>
-                            @if($hasBreakdown)
-                                <div class="mt-1.5 space-y-0.5 text-right">
-                                    @if($baseRent > 0)<p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ number_format($baseRent, 0) }}</p>@endif
-                                    @if($landTax > 0)<p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>@endif
-                                    @if($stampDuty > 0)<p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>@endif
-                                    @if($whtAmount > 0)<p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>@endif
-                                </div>
+                                @if($meta['is_phase2_combo'] ?? false)
+                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span></p>
+                                    <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวม 2 รายการ</p>
+                                @else
+                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ number_format($displayAmount, 0) }}</p>
+                                @endif
+                                <p class="text-[10px] text-gray-400 mt-0.5">บาท</p>
+                                @if($hasBreakdown)
+                                    <div class="mt-1.5 space-y-0.5 text-right">
+                                        @if($baseRent > 0)<p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ number_format($baseRent, 0) }}</p>@endif
+                                        @if($landTax > 0)<p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>@endif
+                                        @if($stampDuty > 0)<p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>@endif
+                                        @if($whtAmount > 0)<p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>@endif
+                                    </div>
+                                @endif
                             @endif
                         </td>
 
@@ -979,6 +986,9 @@
                     : ($hasInvoice ? $recordInvoice->invoice_code : null);
                 if ($hasInvoice) { $barClass = 'bg-brand-400'; }
                 $barWidth = $hasInvoice ? 'w-1.5' : 'w-1';
+                $rentAmountHidden = $record->payment_type === 'monthly_rent'
+                    && ! $hasInvoice
+                    && in_array($record->payment_status, ['pending', 'failed'], true);
                 $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                               && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
                 $landTax    = (float) ($record->land_tax_amount   ?? 0);
@@ -1062,28 +1072,32 @@
                 {{-- Bottom row: amount + action --}}
                 <div class="flex items-end justify-between pl-1">
                     <div>
-                        @if($meta['is_phase2_combo'] ?? false)
-                            <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                                <span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span><span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
-                            </p>
-                            <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
+                        @if($rentAmountHidden)
+                            <p class="text-sm font-semibold" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                         @else
-                            <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                                {{ number_format($displayAmount, 0) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
-                            </p>
-                        @endif
-                        @if($hasBreakdown)
-                            <div class="mt-1.5 space-y-0.5">
-                                @if($landTax > 0)
-                                    <p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>
-                                @endif
-                                @if($stampDuty > 0)
-                                    <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>
-                                @endif
-                                @if($whtAmount > 0)
-                                    <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>
-                                @endif
-                            </div>
+                            @if($meta['is_phase2_combo'] ?? false)
+                                <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
+                                    <span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span><span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
+                                </p>
+                                <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
+                            @else
+                                <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
+                                    {{ number_format($displayAmount, 0) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
+                                </p>
+                            @endif
+                            @if($hasBreakdown)
+                                <div class="mt-1.5 space-y-0.5">
+                                    @if($landTax > 0)
+                                        <p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>
+                                    @endif
+                                    @if($stampDuty > 0)
+                                        <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>
+                                    @endif
+                                    @if($whtAmount > 0)
+                                        <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>
+                                    @endif
+                                </div>
+                            @endif
                         @endif
                         @if($record->due_date)
                             <p class="text-xs mt-1.5 {{ $isOverdue ? 'text-red-600 font-bold' : 'text-gray-400' }}">
