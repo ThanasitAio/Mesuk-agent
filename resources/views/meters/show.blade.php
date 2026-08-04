@@ -56,7 +56,25 @@
         </a>
 
         <div class="flex items-center gap-1.5 sm:gap-2">
-            @if($currentReadings->count() > 0)
+            @if($alreadyInvoiced)
+                <span class="inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-full border text-indigo-700 bg-indigo-50 border-indigo-200 whitespace-nowrap">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    ออกใบแจ้งหนี้แล้ว
+                </span>
+            @elseif($allConfirmed)
+                <span class="inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-full border text-green-700 bg-green-50 border-green-200 whitespace-nowrap">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    ยืนยันแล้ว
+                </span>
+                <button type="button"
+                        onclick="openDeleteMeterConfirm()"
+                        class="inline-flex items-center justify-center w-7 h-7 sm:w-auto sm:h-auto sm:gap-1.5 text-xs font-semibold sm:px-2.5 sm:py-1 rounded-full border text-red-600 bg-white border-gray-200 hover:bg-red-50 hover:border-red-200 transition-colors flex-shrink-0">
+                    <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
+                    </svg>
+                    <span class="hidden sm:inline">ลบข้อมูล</span>
+                </button>
+            @elseif($currentReadings->count() > 0)
                 <span class="inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-full border text-blue-700 bg-blue-50 border-blue-200 whitespace-nowrap">
                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                     {{ $currentReadings->count() }}/{{ $meters->count() }}
@@ -129,6 +147,7 @@
                 :value-year="$rentYear"
                 :year-from="2025"
                 :year-to="now()->year + 1"
+                :disabled="$alreadyInvoiced"
                 required
             />
         </div>
@@ -260,30 +279,90 @@
                 name="remark"
                 label="หมายเหตุ"
                 rows="2"
-                :value="old('remark', $currentReadings->first()?->remark ?? '')" />
+                :value="old('remark', $currentReadings->first()?->remark ?? '')"
+                :disabled="$alreadyInvoiced" />
         </div>
     </div>
 
-    {{-- ปุ่มบันทึก - เดสก์ท็อปใช้ปุ่มปกติท้ายฟอร์ม --}}
-    <div class="mt-4 hidden lg:flex justify-end">
+    {{--
+        ปุ่ม "ยืนยันข้อมูล" ใช้ formaction/formmethod ยิงไป meters.confirm แทนที่จะเป็น <form> แยก -
+        เพราะปุ่มลอย (fixed) ที่อยู่ด้านล่างสุดของหน้าจอมือถือจะบังปุ่มที่อยู่นอกฟอร์มนี้เสมอ (ทดสอบแล้วกดไม่ติด
+        เพราะโดนแถบ "บันทึกข้อมูลมิเตอร์" ทับ) การอยู่ในฟอร์มเดียวกันทำให้ทั้งสองปุ่มอยู่ใน tap target
+        ที่ไม่ทับกันแน่นอน และใช้ CSRF token เดียวกับฟอร์มหลักได้เลย
+    --}}
+    @unless($alreadyInvoiced)
+    {{-- ปุ่มบันทึก/ยืนยัน - เดสก์ท็อปใช้ปุ่มปกติท้ายฟอร์ม --}}
+    <div class="mt-4 hidden lg:flex justify-end gap-2">
+        @if($allRecorded && !$allConfirmed)
+        <button type="submit"
+                formaction="{{ route('meters.confirm', ['property' => $property->id, 'year' => $year, 'month' => $month]) }}"
+                formmethod="POST"
+                class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            ยืนยันข้อมูล
+        </button>
+        @endif
         <x-btn type="submit" variant="primary">บันทึกข้อมูลมิเตอร์</x-btn>
     </div>
 
-    {{-- ปุ่มบันทึกลอย (มือถือ) - อยู่เหนือแถบเมนูล่างเสมอ กดบันทึกได้ทันทีโดยไม่ต้องเลื่อนหน้าจอ --}}
-    <div class="lg:hidden fixed inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]"
+    {{-- ปุ่มบันทึก/ยืนยันลอย (มือถือ) - อยู่เหนือแถบเมนูล่างเสมอ กดได้ทันทีโดยไม่ต้องเลื่อนหน้าจอ --}}
+    <div class="lg:hidden fixed inset-x-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-2.5 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex gap-2"
          style="bottom: calc(64px + env(safe-area-inset-bottom, 0px));">
+        @if($allRecorded && !$allConfirmed)
         <button type="submit"
-                class="w-full flex items-center justify-center gap-2 bg-brand-600 active:bg-brand-700 text-white font-semibold text-sm py-3 rounded-xl transition-colors tap-effect shadow-sm">
+                formaction="{{ route('meters.confirm', ['property' => $property->id, 'year' => $year, 'month' => $month]) }}"
+                formmethod="POST"
+                class="flex-1 flex items-center justify-center gap-2 bg-emerald-600 active:bg-emerald-700 text-white font-semibold text-sm py-3 rounded-xl transition-colors tap-effect shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            ยืนยันข้อมูล
+        </button>
+        @endif
+        <button type="submit"
+                class="flex-1 flex items-center justify-center gap-2 bg-brand-600 active:bg-brand-700 text-white font-semibold text-sm py-3 rounded-xl transition-colors tap-effect shadow-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
-            บันทึกข้อมูลมิเตอร์
+            บันทึก
         </button>
     </div>
     <div class="lg:hidden" style="height: 84px;" aria-hidden="true"></div>
+    @endunless
 </form>
 
-@if($currentReadings->count() > 0)
+{{-- ── Confirm / status banner (informational only - action buttons are above, inside the form) ── --}}
+@if($alreadyInvoiced)
+    <div class="mt-2.5 sm:mt-3 rounded-2xl border border-indigo-200 bg-indigo-50 shadow-sm px-4 py-3.5 sm:px-5 sm:py-4">
+        <div class="flex items-start gap-3">
+            <div class="flex-shrink-0 w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+            </div>
+            <div class="min-w-0">
+                <p class="text-sm font-bold text-indigo-900 leading-tight">ออกใบแจ้งหนี้แล้ว &middot; ข้อมูลถูกล็อก</p>
+                <p class="text-xs text-indigo-700/80 leading-relaxed mt-1">
+                    ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ข้อมูลมิเตอร์งวดนี้ถูกล็อกไว้ ไม่สามารถแก้ไข ลบ หรือยืนยันซ้ำได้
+                </p>
+            </div>
+        </div>
+    </div>
+@elseif($allConfirmed)
+    <div class="mt-2.5 sm:mt-3 flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-xl px-3.5 py-3">
+        <svg class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        <p class="text-xs text-green-700 leading-relaxed">
+            ยืนยันข้อมูลมิเตอร์งวดนี้แล้ว พร้อมให้แอดมินออกใบแจ้งหนี้น้ำ/ไฟ
+        </p>
+    </div>
+@elseif($allRecorded)
+    <div class="mt-2.5 sm:mt-3 flex items-start gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-3">
+        <svg class="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        <p class="text-xs text-emerald-700 leading-relaxed">
+            <span class="font-semibold">บันทึกข้อมูลมิเตอร์ครบทุกตัวแล้ว</span> — กด "ยืนยันข้อมูล" ด้านล่างเพื่อให้พร้อมออกใบแจ้งหนี้ที่หน้าแอดมิน
+        </p>
+    </div>
+@endif
+
+@if($currentReadings->count() > 0 && !$alreadyInvoiced)
 {{-- ── Delete Meter Readings Confirm Modal ── --}}
 <x-confirm-modal
     id="delete-meter-confirm"

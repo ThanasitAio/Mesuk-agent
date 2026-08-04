@@ -53,6 +53,7 @@ Route::middleware('auth.agent')->group(function () {
     Route::get('/meters', [MeterReadingController::class, 'index'])->name('meters.index');
     Route::get('/meters/{property}', [MeterReadingController::class, 'show'])->name('meters.show');
     Route::post('/meters/{property}', [MeterReadingController::class, 'store'])->name('meters.store');
+    Route::post('/meters/{property}/confirm', [MeterReadingController::class, 'confirm'])->name('meters.confirm');
     Route::delete('/meters/{property}', [MeterReadingController::class, 'destroy'])->name('meters.destroy');
     Route::get('/meters/reading/{reading}/image', [MeterReadingController::class, 'viewImage'])->name('meters.image');
 

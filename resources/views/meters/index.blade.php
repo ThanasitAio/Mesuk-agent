@@ -31,15 +31,51 @@
     $unrecordedCount = $totalCount - $recordedCount;
 
     $statusFor = function ($row) {
-        if ($row->recorded_count > 0) {
-            return ['label' => "บันทึกแล้ว {$row->recorded_count}/{$row->meter_count}", 'classes' => 'text-blue-700 bg-blue-50 border-blue-200'];
+        if ($row->already_invoiced) {
+            return [
+                'label'   => 'ออกใบแจ้งหนี้แล้ว',
+                'short'   => 'ออกบิลแล้ว',
+                'classes' => 'text-indigo-700 bg-indigo-50 border border-indigo-200',
+                'icon'    => 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
+            ];
         }
 
-        return ['label' => 'ยังไม่บันทึก', 'classes' => 'text-gray-600 bg-gray-50 border-gray-200'];
+        if ($row->meter_count > 0 && $row->recorded_count === $row->meter_count) {
+            return [
+                'label'   => 'บันทึกครบทุกจุด',
+                'short'   => 'ครบแล้ว',
+                'classes' => 'text-emerald-700 bg-emerald-50 border border-emerald-200',
+                'icon'    => 'M5 13l4 4L19 7',
+            ];
+        }
+
+        if ($row->recorded_count > 0) {
+            return [
+                'label'   => "บันทึกแล้ว {$row->recorded_count}/{$row->meter_count}",
+                'short'   => "{$row->recorded_count}/{$row->meter_count}",
+                'classes' => 'text-blue-700 bg-blue-50 border border-blue-200',
+                'icon'    => 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+            ];
+        }
+
+        return [
+            'label'   => 'ยังไม่บันทึก',
+            'short'   => 'ยังไม่บันทึก',
+            'classes' => 'text-gray-600 bg-gray-100 border border-gray-200',
+            'icon'    => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+        ];
     };
 
     $progressFor = function ($row) {
         return $row->meter_count > 0 ? min(100, round(($row->recorded_count / $row->meter_count) * 100)) : 0;
+    };
+
+    $progressColorFor = function ($row) {
+        if ($row->meter_count > 0 && $row->recorded_count === $row->meter_count) {
+            return 'bg-emerald-500';
+        }
+
+        return $row->recorded_count > 0 ? 'bg-blue-500' : 'bg-amber-400';
     };
 
     // ─── ข้อความค้นหา (รหัส/ชื่อทรัพย์/ชื่อลูกค้า) เตรียมไว้ล่วงหน้าเพื่อกรองฝั่ง client ───
@@ -234,18 +270,30 @@
                         @if($row->property->property_code)
                             <div class="flex items-center gap-2">
                                 <p class="font-mono font-bold text-sm text-gray-800 truncate leading-snug">{{ $row->property->property_code }}</p>
-                                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-md border flex-shrink-0 {{ $status['classes'] }}">{{ $row->recorded_count > 0 ? $row->recorded_count.'/'.$row->meter_count : 'รอ' }}</span>
+                                <span class="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 {{ $status['classes'] }}">
+                                    <svg class="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $status['icon'] }}"/></svg>
+                                    {{ $status['short'] }}
+                                </span>
                             </div>
                             <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title }}</p>
                         @else
                             <div class="flex items-center gap-2">
                                 <p class="text-sm font-semibold text-gray-800 truncate">{{ $row->property->title }}</p>
-                                <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-md border flex-shrink-0 {{ $status['classes'] }}">{{ $row->recorded_count > 0 ? $row->recorded_count.'/'.$row->meter_count : 'รอ' }}</span>
+                                <span class="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 {{ $status['classes'] }}">
+                                    <svg class="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $status['icon'] }}"/></svg>
+                                    {{ $status['short'] }}
+                                </span>
                             </div>
                         @endif
                         <p class="text-[10px] text-gray-400 mt-0.5 tabular-nums">มิเตอร์: น้ำ {{ $row->water_count }} · ไฟ {{ $row->electric_count }}</p>
                     </div>
-                    @if($row->recorded_count > 0)
+                    @if($row->already_invoiced)
+                        <span title="ออกใบแจ้งหนี้แล้ว ล็อกการลบ" class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-indigo-300">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                        </span>
+                    @elseif($row->recorded_count > 0)
                         <button type="button"
                                 @click.prevent.stop="openDeleteMeterConfirm('{{ route('meters.destroy', ['property' => $row->property->id, 'year' => $year, 'month' => $month, 'scope' => 'rent']) }}', '{{ $row->property->property_code ?: $row->property->title }}')"
                                 class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors">
@@ -304,7 +352,7 @@
                 {{-- Progress bar --}}
                 <div class="flex items-center gap-2 px-3 pb-3">
                     <div class="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full rounded-full transition-all duration-700 ease-out {{ $row->recorded_count > 0 ? 'bg-blue-500' : 'bg-amber-400' }}"
+                        <div class="h-full rounded-full transition-all duration-700 ease-out {{ $progressColorFor($row) }}"
                              style="width: {{ $progress }}%"></div>
                     </div>
                     <span class="text-[10px] text-gray-400 tabular-nums flex-shrink-0">{{ $progress }}%</span>
@@ -370,18 +418,28 @@
                         <td class="px-5 py-3.5">
                             <div class="flex items-center gap-2">
                                 <div class="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full transition-all duration-700 ease-out {{ $row->recorded_count > 0 ? 'bg-blue-500' : 'bg-amber-400' }}"
+                                    <div class="h-full rounded-full transition-all duration-700 ease-out {{ $progressColorFor($row) }}"
                                          style="width: {{ $progress }}%"></div>
                                 </div>
                                 <span class="text-xs text-gray-500 tabular-nums">{{ $row->recorded_count }}/{{ $row->meter_count }}</span>
                             </div>
                         </td>
                         <td class="px-5 py-3.5">
-                            <span class="text-xs font-medium px-2.5 py-1 rounded-full border {{ $status['classes'] }}">{{ $status['label'] }}</span>
+                            <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-full {{ $status['classes'] }}">
+                                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $status['icon'] }}"/></svg>
+                                {{ $status['label'] }}
+                            </span>
                         </td>
                         <td class="px-5 py-3.5 text-right">
                             <div class="inline-flex items-center gap-3">
-                                @if($row->recorded_count > 0)
+                                @if($row->already_invoiced)
+                                    <span title="ออกใบแจ้งหนี้แล้ว ล็อกการลบ" class="inline-flex items-center gap-1 text-indigo-300 text-sm font-medium">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                        </svg>
+                                        ล็อก
+                                    </span>
+                                @elseif($row->recorded_count > 0)
                                     <button type="button"
                                             @click="openDeleteMeterConfirm('{{ route('meters.destroy', ['property' => $row->property->id, 'year' => $year, 'month' => $month, 'scope' => 'rent']) }}', '{{ $row->property->property_code ?: $row->property->title }}')"
                                             class="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 text-sm font-medium transition-colors">

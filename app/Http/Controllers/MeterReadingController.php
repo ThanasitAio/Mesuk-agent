@@ -34,7 +34,7 @@ class MeterReadingController extends Controller
             ->get()
             ->groupBy('property_id');
 
-        $rows = $properties->map(function ($property) use ($readingsByProperty) {
+        $rows = $properties->map(function ($property) use ($readingsByProperty, $year, $month) {
             $meterCount     = $property->activeMeters->count();
             $waterCount     = $property->activeMeters->where('meter_type', 'water')->count();
             $electricCount  = $property->activeMeters->where('meter_type', 'electric')->count();
@@ -55,6 +55,10 @@ class MeterReadingController extends Controller
                 'water_amount'     => $waterAmt,
                 'electric_amount'  => $electricAmt,
                 'total_amount'     => $waterAmt + $electricAmt + $commonFee,
+                // $year/$month on this page IS the rent period (rows are grouped via
+                // forRentPeriod above), unlike show() where rentYear/rentMonth is derived
+                // separately from the calendar billing period.
+                'already_invoiced' => $this->hasIssuedUtilityInvoice($property->id, $year, $month),
             ];
         });
 
@@ -97,6 +101,10 @@ class MeterReadingController extends Controller
         $rentYear  = $existingRentPeriod->rent_year  ?? $year;
         $rentMonth = $existingRentPeriod->rent_month ?? $month;
 
+        $allRecorded     = $currentReadings->count() === $meters->count();
+        $allConfirmed    = $allRecorded && $currentReadings->every(fn ($r) => $r->status === 'confirmed');
+        $alreadyInvoiced = $this->hasIssuedUtilityInvoice($property->id, $rentYear, $rentMonth);
+
         logSystem(
             userType: 'agent',
             userId: session('agent_id'),
@@ -107,7 +115,7 @@ class MeterReadingController extends Controller
 
         return view('meters.show', compact(
             'property', 'meters', 'currentReadings', 'previousReadings', 'year', 'month',
-            'rentYear', 'rentMonth'
+            'rentYear', 'rentMonth', 'allRecorded', 'allConfirmed', 'alreadyInvoiced'
         ));
     }
 
@@ -144,6 +152,10 @@ class MeterReadingController extends Controller
         $month = (int) $validated['billing_month'];
         $rentYear  = (int) $validated['rent_year'];
         $rentMonth = (int) $validated['rent_month'];
+
+        if ($this->hasIssuedUtilityInvoice($property->id, $rentYear, $rentMonth)) {
+            return back()->with('error', 'ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ไม่สามารถแก้ไขข้อมูลมิเตอร์ได้')->withInput();
+        }
 
         // IDOR guard: re-verify every submitted meter id truly belongs to THIS
         // already-ownership-verified property, never trust the posted array keys.
@@ -265,7 +277,12 @@ class MeterReadingController extends Controller
                         'amount'                   => $entry['units_used'] * (float) $meter->price_per_unit,
                         'image_path'               => $entry['new_image_path'] ?: ($existing->image_path ?? null),
                         'remark'                   => $remark,
-                        'status'                   => 'draft',
+                        // บันทึก = ยืนยันทันที (ไม่มีขั้นตอนกดยืนยันแยกอีกต่อไป) - ตามที่ผู้ดูแลระบบขอ
+                        // เพื่อลดขั้นตอนของผู้บริหารโครงการ ยังแก้ไขซ้ำได้ตามปกติจนกว่าจะออกใบแจ้งหนี้แล้ว
+                        // (ดู hasIssuedUtilityInvoice() guard ด้านบน)
+                        'status'                   => 'confirmed',
+                        'confirmed_at'             => now(),
+                        'confirmed_by'             => session('agent_id'),
                         'created_by'               => $existing->created_by ?? session('agent_id'),
                         'updated_by'               => session('agent_id'),
                     ]
@@ -287,7 +304,7 @@ class MeterReadingController extends Controller
 
         return redirect()
             ->route('meters.show', ['property' => $property->id, 'year' => $year, 'month' => $month])
-            ->with('success', 'บันทึกข้อมูลมิเตอร์เรียบร้อยแล้ว');
+            ->with('success', 'บันทึกและยืนยันข้อมูลมิเตอร์เรียบร้อยแล้ว');
     }
 
     /**
@@ -319,6 +336,12 @@ class MeterReadingController extends Controller
             return back()->with('error', 'ไม่พบข้อมูลมิเตอร์ของงวดนี้');
         }
 
+        $anyRentYear  = $readings->first()->rent_year;
+        $anyRentMonth = $readings->first()->rent_month;
+        if ($this->hasIssuedUtilityInvoice($property->id, $anyRentYear, $anyRentMonth)) {
+            return back()->with('error', 'ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ไม่สามารถลบข้อมูลมิเตอร์ได้');
+        }
+
         $imagePaths = $readings->pluck('image_path')->filter();
 
         $deleteQuery = MeterReading::forProperty($property->id);
@@ -338,6 +361,81 @@ class MeterReadingController extends Controller
         );
 
         return back()->with('success', 'ลบข้อมูลมิเตอร์เรียบร้อยแล้ว ต้องบันทึกใหม่');
+    }
+
+    /**
+     * Manual fallback for rows saved before store() started auto-confirming on save
+     * (or any other way a row ends up stuck at 'draft'). Marks every reading recorded
+     * for one property/calendar-period as confirmed, once every active meter has a
+     * reading - this is the status happyest's utility-invoice feature requires before
+     * a property becomes invoiceable. Scoped by calendar period (forPeriod), matching
+     * what's actually on screen when the button is clicked.
+     */
+    public function confirm(Request $request, HrProperty $property)
+    {
+        if ($property->manager_agent_code !== session('agent_code')) {
+            abort(403, 'คุณไม่มีสิทธิ์เข้าถึงอสังหาริมทรัพย์นี้');
+        }
+
+        $year  = (int) $request->query('year', now()->year);
+        $month = (int) $request->query('month', now()->month);
+
+        $activeMeterIds = $property->activeMeters()->pluck('id');
+        if ($activeMeterIds->isEmpty()) {
+            return back()->with('error', 'อสังหาริมทรัพย์นี้ยังไม่มีมิเตอร์ที่เปิดใช้งาน');
+        }
+
+        $readings = MeterReading::forProperty($property->id)->forPeriod($year, $month)->get();
+
+        $missingCount = $activeMeterIds->diff($readings->pluck('property_meter_id'))->count();
+        if ($missingCount > 0) {
+            return back()->with('error', 'กรุณาบันทึกข้อมูลมิเตอร์ให้ครบทุกตัวก่อนยืนยัน');
+        }
+
+        $anyRentYear  = $readings->first()?->rent_year;
+        $anyRentMonth = $readings->first()?->rent_month;
+        if ($this->hasIssuedUtilityInvoice($property->id, $anyRentYear, $anyRentMonth)) {
+            return back()->with('error', 'ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ไม่สามารถยืนยันซ้ำได้');
+        }
+
+        MeterReading::forProperty($property->id)->forPeriod($year, $month)->update([
+            'status'       => 'confirmed',
+            'confirmed_at' => now(),
+            'confirmed_by' => session('agent_id'),
+        ]);
+
+        logSystem(
+            userType: 'agent',
+            userId: session('agent_id'),
+            module: 'Meter',
+            action: 'CONFIRM',
+            description: "ยืนยันข้อมูลมิเตอร์ {$property->title} งวด {$month}/{$year}"
+        );
+
+        return redirect()
+            ->route('meters.show', ['property' => $property->id, 'year' => $year, 'month' => $month])
+            ->with('success', 'ยืนยันข้อมูลมิเตอร์เรียบร้อยแล้ว พร้อมออกใบแจ้งหนี้');
+    }
+
+    /**
+     * Soft cross-app read of happyest's hr_invoices (same shared MySQL DB, no FK - same
+     * precedent as ag_meter_readings' own soft references). Blocks agents from silently
+     * changing/deleting meter numbers after the admin side has already issued a utility
+     * invoice from them, which would otherwise leave the invoice showing stale figures.
+     */
+    private function hasIssuedUtilityInvoice(int $propertyId, ?int $rentYear, ?int $rentMonth): bool
+    {
+        if (! $rentYear || ! $rentMonth) {
+            return false;
+        }
+
+        return DB::table('hr_invoices')
+            ->where('property_id', $propertyId)
+            ->where('invoice_type', 'utility')
+            ->where('billing_month', sprintf('%04d-%02d', $rentYear, $rentMonth))
+            ->whereNotIn('status', ['cancelled', 'voided'])
+            ->whereNull('deleted_at')
+            ->exists();
     }
 
     public function viewImage(MeterReading $reading)

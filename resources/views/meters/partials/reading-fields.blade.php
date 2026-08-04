@@ -17,6 +17,7 @@
                 placeholder="เลขเดือนก่อน"
                 class="text-right"
                 x-model.number="previousReading"
+                :disabled="$alreadyInvoiced"
                 min="0" />
         @endif
     </div>
@@ -27,25 +28,28 @@
         :value="$currentInit"
         class="text-right"
         x-model.number="currentReading"
+        :disabled="$alreadyInvoiced"
         min="0" />
 
     <x-form.date
         :name="$namePrefix . '[reading_date]'"
         label="วันที่อ่านมิเตอร์"
         :value="old('readings.' . $meter->id . '.reading_date', optional($reading?->reading_date)->format('Y-m-d'))"
-        :max="now()->format('Y-m-d')" />
+        :max="now()->format('Y-m-d')"
+        :disabled="$alreadyInvoiced" />
 
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">รูปภาพมิเตอร์</label>
         {{-- ปุ่มเลือกรูป - สูงเท่า input อื่นในแถวเดียวกันเสมอ ไม่ว่าจะมีรูปหรือไม่ เพื่อไม่ให้ layout ของแถวเพี้ยน --}}
-        <label class="flex items-center justify-center gap-1.5 h-[42px] w-full px-3 rounded-xl border {{ $errors->has("readings.{$meter->id}.image") ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300' }} text-xs font-medium text-gray-500 cursor-pointer transition-colors">
+        <label class="flex items-center justify-center gap-1.5 h-[42px] w-full px-3 rounded-xl border {{ $errors->has("readings.{$meter->id}.image") ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300' }} text-xs font-medium text-gray-500 transition-colors {{ $alreadyInvoiced ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer' }}">
             <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/>
             </svg>
             <span class="truncate" x-text="previewUrl ? 'เปลี่ยนรูปภาพ' : 'เลือกรูปภาพ'"></span>
             <input type="file" name="{{ $namePrefix }}[image]" accept="image/jpeg,image/png" class="hidden"
                    x-ref="fileInput"
-                   @change="onFileChange($event)">
+                   @change="onFileChange($event)"
+                   @disabled($alreadyInvoiced)>
         </label>
         <p x-show="sizeError" x-cloak class="text-red-500 text-xs mt-1.5" x-text="sizeError"></p>
         @error("readings.{$meter->id}.image")
@@ -63,7 +67,8 @@
             </button>
             <button type="button" @click="clearImage()"
                     title="ลบรูปภาพ"
-                    class="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-500 text-white shadow hover:bg-red-600 transition-colors">
+                    @disabled($alreadyInvoiced)
+                    class="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-500 text-white shadow hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -92,6 +97,7 @@
     <button type="button"
             @click="toggleReset()"
             :class="reset ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
+            @disabled($alreadyInvoiced)
             class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
@@ -103,6 +109,7 @@
     <button type="button"
             @click="toggleChanged()"
             :class="changed ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
+            @disabled($alreadyInvoiced)
             class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h18M16.5 3L21 7.5m0 0L16.5 12M21 7.5H3"/>
@@ -118,6 +125,7 @@
         :value="$oldFinalInit"
         class="text-right"
         x-model.number="oldFinal"
+        :disabled="$alreadyInvoiced"
         min="0" />
     <x-form.number
         :name="$namePrefix . '[new_meter_start_reading]'"
@@ -125,6 +133,7 @@
         :value="$newStartInit"
         class="text-right"
         x-model.number="newStart"
+        :disabled="$alreadyInvoiced"
         min="0" />
 </div>
 
@@ -136,5 +145,6 @@
         hint="ถ้าไม่ระบุ ระบบจะประมาณจากจำนวนหลักของเลขมิเตอร์เดือนก่อนให้อัตโนมัติ"
         class="text-right"
         x-model.number="maxOverride"
+        :disabled="$alreadyInvoiced"
         min="1" />
 </div>
