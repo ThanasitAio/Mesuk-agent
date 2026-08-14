@@ -172,10 +172,6 @@ class HrPaymentRecord extends Model
             return false;
         }
 
-        $records = $booking->relationLoaded('paymentRecords')
-            ? $booking->paymentRecords
-            : $booking->paymentRecords()->get();
-
         $isPhase2Deposit = $this->isPhase2Deposit();
 
         if (
@@ -188,20 +184,6 @@ class HrPaymentRecord extends Model
 
         if (! $isPhase2Deposit && ! in_array($this->payment_type, $booking->allowedPaymentTypesForCurrentPhase(), true)) {
             return false;
-        }
-
-        if ($this->payment_type === 'monthly_rent') {
-            // รวม pending_verification ด้วย - เดือนที่กำลังรอตรวจสลิปอยู่ยังนับเป็น "เดือนแรกที่ยังไม่จบ"
-            // เพื่อให้แนบสลิปเพิ่ม (อีกรอบโอน) ของเดือนเดียวกันได้ ไม่โดนบล็อกว่าเป็นการ "ข้ามเดือน"
-            $firstPendingRent = $records
-                ->where('payment_type', 'monthly_rent')
-                ->whereIn('payment_status', ['pending', 'failed', 'pending_verification'])
-                ->sortBy('due_date')
-                ->first();
-
-            if ($firstPendingRent && $firstPendingRent->id !== $this->id) {
-                return false;
-            }
         }
 
         if (! $ignoreInvoiceCheck && ! $this->hasIssuedInvoice($booking)) {
