@@ -304,7 +304,7 @@ class MeterReadingController extends Controller
         );
 
         return redirect()
-            ->route('meters.show', ['property' => $property->id, 'year' => $year, 'month' => $month])
+            ->route('meters.index', ['year' => $year, 'month' => $month])
             ->with('success', 'บันทึกและยืนยันข้อมูลมิเตอร์เรียบร้อยแล้ว');
     }
 
