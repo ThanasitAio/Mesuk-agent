@@ -212,6 +212,17 @@ class MeterReadingController extends Controller
                 'meter_max_value'         => $data['meter_max_value'] ?? null,
             ]);
 
+            // เคยบันทึกงวดนี้ไว้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ครั้งล่าสุด ไม่ดึงจาก
+            // hr_property_meters.price_per_unit (master) ซ้ำอีก เพื่อไม่ให้ราคาของงวดที่บันทึก
+            // แล้วขยับตามเวลาที่แอดมินแก้ราคา master ทีหลัง ใช้ราคา master เฉพาะการบันทึกครั้งแรกเท่านั้น
+            $existingForPeriod = MeterReading::where('property_meter_id', $meterId)
+                ->forPeriod($year, $month)
+                ->first();
+
+            $pricePerUnit = $existingForPeriod && $existingForPeriod->price_per_unit !== null
+                ? $existingForPeriod->price_per_unit
+                : $meter->price_per_unit;
+
             $entries[$meterId] = [
                 'meter'                    => $meter,
                 'previous_reading'         => $previousReading,
@@ -223,6 +234,7 @@ class MeterReadingController extends Controller
                 'new_meter_start_reading'  => $data['new_meter_start_reading'] ?? null,
                 'meter_max_value'          => $data['meter_max_value'] ?? null,
                 'units_used'               => $calc['units_used'],
+                'price_per_unit'           => $pricePerUnit,
                 'image'                    => $request->file("readings.$meterId.image"),
                 'new_image_path'           => null,
             ];
@@ -274,8 +286,8 @@ class MeterReadingController extends Controller
                         'new_meter_start_reading'  => $entry['new_meter_start_reading'],
                         'meter_max_value'          => $entry['meter_max_value'],
                         'units_used'               => $entry['units_used'],
-                        'price_per_unit'           => $meter->price_per_unit,
-                        'amount'                   => $entry['units_used'] * (float) $meter->price_per_unit,
+                        'price_per_unit'           => $entry['price_per_unit'],
+                        'amount'                   => $entry['units_used'] * (float) $entry['price_per_unit'],
                         'image_path'               => $entry['new_image_path'] ?: ($existing->image_path ?? null),
                         'remark'                   => $remark,
                         // บันทึก = ยืนยันทันที (ไม่มีขั้นตอนกดยืนยันแยกอีกต่อไป) - ตามที่ผู้ดูแลระบบขอ

@@ -217,6 +217,9 @@
                                 $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
                                 $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
                                 $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
+                                // เคยบันทึกมิเตอร์งวดนี้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ (snapshot ใน ag_meter_readings)
+                                // ไม่ใช้ราคาจาก master (hr_property_meters) ซ้ำ เพื่อไม่ให้ราคาขยับถ้าแอดมินแก้ราคา master ทีหลัง
+                                $effectiveUnitPrice = $reading?->price_per_unit ?? $meter->price_per_unit;
                             @endphp
                             <div class="meter-row-in relative rounded-lg border {{ $style['ring'] }} bg-gray-50/70 p-2.5 pl-3.5 sm:p-3 sm:pl-4 overflow-hidden"
                                  style="animation-delay: {{ $i * 70 }}ms"
@@ -224,7 +227,7 @@
                                      existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
                                      reset: {{ ($reading->meter_reset ?? false) ? 'true' : 'false' }},
                                      changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
-                                     pricePerUnit: {{ (float) $meter->price_per_unit }},
+                                     pricePerUnit: {{ (float) $effectiveUnitPrice }},
                                      previousReading: {{ (int) $previousInit }},
                                      currentReading: {{ (int) $currentInit }},
                                      oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
@@ -237,7 +240,7 @@
                                         <span class="meter-badge-pop inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold text-white bg-gradient-to-br {{ $style['icon'] }} shadow-sm"
                                               style="animation-delay: {{ $i * 70 + 80 }}ms">{{ $i + 1 }}</span>
                                         {{ $style['label'] }} ตัวที่ {{ $i + 1 }} &middot;
-                                        ฿{{ $fmtUnitPrice($meter->price_per_unit) }}/หน่วย
+                                        ฿{{ $fmtUnitPrice($effectiveUnitPrice) }}/หน่วย
                                     </span>
                                     <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
                                 </div>
@@ -261,6 +264,9 @@
                     $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
                     $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
                     $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
+                    // เคยบันทึกมิเตอร์งวดนี้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ (snapshot ใน ag_meter_readings)
+                    // ไม่ใช้ราคาจาก master (hr_property_meters) ซ้ำ เพื่อไม่ให้ราคาขยับถ้าแอดมินแก้ราคา master ทีหลัง
+                    $effectiveUnitPrice = $reading?->price_per_unit ?? $meter->price_per_unit;
                 @endphp
                 <div class="meter-card-in bg-white rounded-xl shadow-sm border {{ $style['ring'] }} p-2.5 sm:p-3.5 transition-shadow duration-300 hover:shadow-md"
                      style="animation-delay: {{ $loop->index * 60 }}ms"
@@ -268,7 +274,7 @@
                          existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
                          reset: {{ ($reading->meter_reset ?? false) ? 'true' : 'false' }},
                          changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
-                         pricePerUnit: {{ (float) $meter->price_per_unit }},
+                         pricePerUnit: {{ (float) $effectiveUnitPrice }},
                          previousReading: {{ (int) $previousInit }},
                          currentReading: {{ (int) $currentInit }},
                          oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
@@ -284,7 +290,7 @@
                             </div>
                             <span class="text-xs font-medium text-gray-500 flex items-center gap-1.5 flex-wrap">
                                 <span class="text-xs font-semibold px-2 py-0.5 rounded-full {{ $style['badge'] }}">{{ $style['label'] }}</span>
-                                ฿{{ $fmtUnitPrice($meter->price_per_unit) }}/หน่วย
+                                ฿{{ $fmtUnitPrice($effectiveUnitPrice) }}/หน่วย
                             </span>
                         </div>
                         <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
