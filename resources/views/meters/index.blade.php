@@ -70,6 +70,12 @@
         return \Illuminate\Support\Str::limit($title, 25, '...');
     };
 
+    // แสดงทศนิยม 2 ตำแหน่งเสมอ ยกเว้นค่าที่เป็นจำนวนเต็มจริงๆ ให้แสดงแบบไม่มีทศนิยม
+    $fmtNum = function ($value) {
+        $value = (float) $value;
+        return $value == floor($value) ? number_format($value, 0) : number_format($value, 2);
+    };
+
     // ─── สถานะพื้นที่ (hr_property_statuses - ชื่อ/สีกำหนดเองได้จากแอดมิน จึงใช้สีจริงจาก DB) ───
     $propertyStatusFor = function ($row) {
         $ps = $row->property->propertyStatus;
@@ -375,8 +381,8 @@
                             <span class="text-[11px] font-medium text-gray-600 truncate">ไฟฟ้า</span>
                         </div>
                         <div class="text-right leading-tight tabular-nums">
-                            <p class="text-[10px] text-gray-400">{{ number_format($row->electric_units, 0) }} หน่วย</p>
-                            <p class="text-xs font-semibold text-gray-800">{{ number_format($row->electric_amount, 0) }} ฿</p>
+                            <p class="text-[10px] text-gray-400">{{ $fmtNum($row->electric_units) }} หน่วย</p>
+                            <p class="text-xs font-semibold text-gray-800">{{ $fmtNum($row->electric_amount) }} ฿</p>
                         </div>
                     </div>
                     {{-- Row: น้ำ --}}
@@ -386,8 +392,8 @@
                             <span class="text-[11px] font-medium text-gray-600 truncate">น้ำ</span>
                         </div>
                         <div class="text-right leading-tight tabular-nums">
-                            <p class="text-[10px] text-gray-400">{{ number_format($row->water_units, 0) }} หน่วย</p>
-                            <p class="text-xs font-semibold text-gray-800">{{ number_format($row->water_amount, 0) }} ฿</p>
+                            <p class="text-[10px] text-gray-400">{{ $fmtNum($row->water_units) }} หน่วย</p>
+                            <p class="text-xs font-semibold text-gray-800">{{ $fmtNum($row->water_amount) }} ฿</p>
                         </div>
                     </div>
                     {{-- Row: ส่วนกลาง --}}
@@ -398,12 +404,12 @@
                             </span>
                             <span class="text-[11px] font-medium text-gray-600 truncate">ส่วนกลาง</span>
                         </div>
-                        <span class="text-xs font-semibold text-gray-800 tabular-nums text-right">{{ $row->property->common_fee_per_month ? number_format($row->property->common_fee_per_month, 0) . ' ฿' : '-' }}</span>
+                        <span class="text-xs font-semibold text-gray-800 tabular-nums text-right">{{ $row->property->common_fee_per_month ? $fmtNum($row->property->common_fee_per_month) . ' ฿' : '-' }}</span>
                     </div>
                     {{-- Row: รวม --}}
                     <div class="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2" style="background: linear-gradient(135deg, rgba(42,79,31,0.06) 0%, rgba(42,79,31,0.02) 100%);">
                         <span class="text-[11px] font-bold text-gray-700">รวมทั้งหมด</span>
-                        <span class="text-sm font-black text-brand-700 tabular-nums text-right">{{ number_format($row->total_amount, 0) }} ฿</span>
+                        <span class="text-sm font-black text-brand-700 tabular-nums text-right">{{ $fmtNum($row->total_amount) }} ฿</span>
                     </div>
                 </div>
             </a>
@@ -454,23 +460,23 @@
                             <p class="text-xs text-gray-400">{{ $row->meter_count }} จุด</p>
                         </td>
                         <td class="px-5 py-3.5 text-right tabular-nums">
-                            <p class="text-xs text-gray-600">⚡ <span class="font-medium text-gray-800">{{ number_format($row->electric_units, 0) }}</span> <span class="text-gray-400">หน่วย</span></p>
-                            <p class="text-xs text-gray-600">💧 <span class="font-medium text-gray-800">{{ number_format($row->water_units, 0) }}</span> <span class="text-gray-400">หน่วย</span></p>
+                            <p class="text-xs text-gray-600">⚡ <span class="font-medium text-gray-800">{{ $fmtNum($row->electric_units) }}</span> <span class="text-gray-400">หน่วย</span></p>
+                            <p class="text-xs text-gray-600">💧 <span class="font-medium text-gray-800">{{ $fmtNum($row->water_units) }}</span> <span class="text-gray-400">หน่วย</span></p>
                         </td>
                         <td class="px-5 py-3.5 text-right tabular-nums">
-                            <p class="text-xs text-gray-600">⚡ <span class="font-medium text-gray-800">{{ number_format($row->electric_amount, 0) }}</span> <span class="text-gray-400">฿</span></p>
-                            <p class="text-xs text-gray-600">💧 <span class="font-medium text-gray-800">{{ number_format($row->water_amount, 0) }}</span> <span class="text-gray-400">฿</span></p>
+                            <p class="text-xs text-gray-600">⚡ <span class="font-medium text-gray-800">{{ $fmtNum($row->electric_amount) }}</span> <span class="text-gray-400">฿</span></p>
+                            <p class="text-xs text-gray-600">💧 <span class="font-medium text-gray-800">{{ $fmtNum($row->water_amount) }}</span> <span class="text-gray-400">฿</span></p>
                         </td>
                         <td class="px-5 py-3.5 text-right tabular-nums">
                             @if($row->property->common_fee_per_month)
-                                <span class="font-medium text-gray-800">{{ number_format($row->property->common_fee_per_month, 0) }}</span>
+                                <span class="font-medium text-gray-800">{{ $fmtNum($row->property->common_fee_per_month) }}</span>
                                 <span class="text-xs text-gray-400">฿</span>
                             @else
                                 <span class="text-gray-300">-</span>
                             @endif
                         </td>
                         <td class="px-5 py-3.5 text-right tabular-nums">
-                            <span class="font-bold text-brand-700">{{ number_format($row->total_amount, 0) }}</span>
+                            <span class="font-bold text-brand-700">{{ $fmtNum($row->total_amount) }}</span>
                             <span class="text-xs text-gray-400">฿</span>
                         </td>
                         <td class="px-5 py-3.5">
