@@ -78,8 +78,19 @@
         return $row->recorded_count > 0 ? 'bg-blue-500' : 'bg-amber-400';
     };
 
-    // ─── ข้อความค้นหา (รหัส/ชื่อทรัพย์/ชื่อลูกค้า) เตรียมไว้ล่วงหน้าเพื่อกรองฝั่ง client ───
-    $rows = $rows->map(function ($row) {
+    // ─── สถานะพื้นที่ (hr_property_statuses - ชื่อ/สีกำหนดเองได้จากแอดมิน จึงใช้สีจริงจาก DB) ───
+    $propertyStatusFor = function ($row) {
+        $ps = $row->property->propertyStatus;
+
+        return [
+            'label' => $ps->name ?? 'ไม่ระบุสถานะ',
+            'slug'  => $ps->slug ?? 'unknown',
+            'color' => ($ps->color && preg_match('/^#[0-9A-Fa-f]{6}$/', $ps->color)) ? $ps->color : '#6b7280',
+        ];
+    };
+
+    // ─── ข้อความค้นหา (รหัส/ชื่อทรัพย์/ชื่อลูกค้า) และข้อมูลสถานะพื้นที่/ระบบมิเตอร์ เตรียมไว้ล่วงหน้าเพื่อกรองฝั่ง client ───
+    $rows = $rows->map(function ($row) use ($propertyStatusFor) {
         $tenant = $row->property->activeBooking?->customer;
         $row->search_text = strtolower(
             ($row->property->title ?? '') . ' ' .
@@ -87,24 +98,39 @@
             ($tenant?->full_name ?? '')
         );
 
+        $propStatus = $propertyStatusFor($row);
+        $row->property_status_label = $propStatus['label'];
+        $row->property_status_slug  = $propStatus['slug'];
+        $row->property_status_color = $propStatus['color'];
+        $row->meter_enabled         = (bool) $row->property->is_utility_metering_enabled;
+
         return $row;
     });
+
+    // ตัวเลือกตัวกรองสถานะพื้นที่ - เอาเฉพาะสถานะที่มีอยู่จริงในทรัพย์สินของตัวแทนคนนี้
+    $propertyStatusOptions = $rows->unique('property_status_slug')
+        ->map(fn ($row) => ['slug' => $row->property_status_slug, 'label' => $row->property_status_label])
+        ->sortBy('label')
+        ->values();
 @endphp
 
 <div x-data="{
         search: '',
         recordFilter: 'unrecorded',
+        propertyStatusFilter: 'all',
         items: @js($rows->map(fn ($row) => [
             'search'   => $row->search_text,
             'recorded' => $row->recorded_count > 0,
+            'status'   => $row->property_status_slug,
         ])->values()),
-        matches(search_text, recorded) {
+        matches(search_text, recorded, status_slug) {
             const q = this.search.toLowerCase().trim();
             return (q === '' || search_text.includes(q))
-                && (this.recordFilter === 'all' || (this.recordFilter === 'recorded') === recorded);
+                && (this.recordFilter === 'all' || (this.recordFilter === 'recorded') === recorded)
+                && (this.propertyStatusFilter === 'all' || this.propertyStatusFilter === status_slug);
         },
         get filteredCount() {
-            return this.items.filter(it => this.matches(it.search, it.recorded)).length;
+            return this.items.filter(it => this.matches(it.search, it.recorded, it.status)).length;
         },
         get hasMatches() {
             return this.filteredCount > 0;
@@ -215,6 +241,17 @@
                 ทั้งหมด
             </button>
         </div>
+
+        {{-- สถานะพื้นที่ --}}
+        @if($propertyStatusOptions->count() > 1)
+            <select x-model="propertyStatusFilter"
+                    class="flex-shrink-0 text-xs font-semibold rounded-xl border border-gray-200 bg-white pl-3 pr-8 py-2 sm:py-2.5 text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500">
+                <option value="all">สถานะพื้นที่ทั้งหมด</option>
+                @foreach($propertyStatusOptions as $opt)
+                    <option value="{{ $opt['slug'] }}">{{ $opt['label'] }}</option>
+                @endforeach
+            </select>
+        @endif
         @if($rows->count() > 0)
             <span class="ml-auto text-xs text-gray-400 whitespace-nowrap">
                 พบ <span class="font-semibold text-gray-600" x-text="filteredCount"></span> จาก {{ $rows->count() }} รายการ
@@ -251,9 +288,10 @@
         @foreach($rows as $row)
             @php $status = $statusFor($row); $imgUrl = $resolveImageUrl($row->property); $progress = $progressFor($row); @endphp
             <a href="{{ route('meters.show', ['property' => $row->property->id, 'year' => $year, 'month' => $month]) }}"
-               x-show="matches(@js($row->search_text), @js($row->recorded_count > 0))"
-               class="meter-card-in group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 hover:border-gray-200"
-               style="animation-delay: {{ min($loop->index, 11) * 40 }}ms">
+               x-show="matches(@js($row->search_text), @js($row->recorded_count > 0), @js($row->property_status_slug))"
+               class="meter-card-in group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 {{ $row->meter_enabled ? 'hover:shadow-lg hover:-translate-y-0.5 hover:border-gray-200' : 'opacity-60 grayscale-[40%] pointer-events-none' }}"
+               style="animation-delay: {{ min($loop->index, 11) * 40 }}ms"
+               @unless($row->meter_enabled) tabindex="-1" aria-disabled="true" @endunless>
 
                 {{-- Card header --}}
                 <div class="flex items-center gap-3 p-3 pb-2.5">
@@ -285,9 +323,22 @@
                                 </span>
                             </div>
                         @endif
-                        <p class="text-[10px] text-gray-400 mt-0.5 tabular-nums">มิเตอร์: น้ำ {{ $row->water_count }} · ไฟ {{ $row->electric_count }}</p>
+                        <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border"
+                                  style="color: {{ $row->property_status_color }}; background: {{ $row->property_status_color }}18; border-color: {{ $row->property_status_color }}40;">
+                                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background: {{ $row->property_status_color }};"></span>
+                                {{ $row->property_status_label }}
+                            </span>
+                            <span class="text-[10px] text-gray-400 tabular-nums">มิเตอร์: น้ำ {{ $row->water_count }} · ไฟ {{ $row->electric_count }}</span>
+                        </div>
                     </div>
-                    @if($row->already_invoiced)
+                    @if(! $row->meter_enabled)
+                        <span title="ปิดใช้งานระบบมิเตอร์สำหรับทรัพย์สินนี้ ไม่สามารถบันทึกได้" class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                        </span>
+                    @elseif($row->already_invoiced)
                         <span title="ออกใบแจ้งหนี้แล้ว ล็อกการลบ" class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-indigo-300">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
@@ -367,6 +418,7 @@
             <thead>
                 <tr class="bg-gray-50/60">
                     <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ทรัพย์สิน</th>
+                    <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">สถานะพื้นที่</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">มิเตอร์</th>
                     <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">หน่วยที่ใช้</th>
                     <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ราคาคำนวณ</th>
@@ -380,8 +432,8 @@
             <tbody>
                 @foreach($rows as $row)
                     @php $status = $statusFor($row); $progress = $progressFor($row); @endphp
-                    <tr x-show="matches(@js($row->search_text), @js($row->recorded_count > 0))"
-                        class="meter-row-in border-t border-gray-100 hover:bg-brand-50/30 transition-colors duration-200"
+                    <tr x-show="matches(@js($row->search_text), @js($row->recorded_count > 0), @js($row->property_status_slug))"
+                        class="meter-row-in border-t border-gray-100 hover:bg-brand-50/30 transition-colors duration-200 {{ ! $row->meter_enabled ? 'opacity-60' : '' }}"
                         style="animation-delay: {{ min($loop->index, 11) * 40 }}ms">
                         <td class="px-5 py-3.5">
                             @if($row->property->property_code)
@@ -390,6 +442,13 @@
                             @else
                                 <p class="font-medium text-gray-800">{{ $row->property->title }}</p>
                             @endif
+                        </td>
+                        <td class="px-5 py-3.5">
+                            <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border"
+                                  style="color: {{ $row->property_status_color }}; background: {{ $row->property_status_color }}18; border-color: {{ $row->property_status_color }}40;">
+                                <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background: {{ $row->property_status_color }};"></span>
+                                {{ $row->property_status_label }}
+                            </span>
                         </td>
                         <td class="px-5 py-3.5">
                             <p class="text-sm text-gray-700">น้ำ {{ $row->water_count }} · ไฟ {{ $row->electric_count }}</p>
@@ -432,30 +491,39 @@
                         </td>
                         <td class="px-5 py-3.5 text-right">
                             <div class="inline-flex items-center gap-3">
-                                @if($row->already_invoiced)
-                                    <span title="ออกใบแจ้งหนี้แล้ว ล็อกการลบ" class="inline-flex items-center gap-1 text-indigo-300 text-sm font-medium">
+                                @if(! $row->meter_enabled)
+                                    <span title="ปิดใช้งานระบบมิเตอร์สำหรับทรัพย์สินนี้ ไม่สามารถบันทึกได้" class="inline-flex items-center gap-1 text-gray-300 text-sm font-medium cursor-not-allowed">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                                         </svg>
-                                        ล็อก
+                                        ปิดใช้งานมิเตอร์
                                     </span>
-                                @elseif($row->recorded_count > 0)
-                                    <button type="button"
-                                            @click="openDeleteMeterConfirm('{{ route('meters.destroy', ['property' => $row->property->id, 'year' => $year, 'month' => $month, 'scope' => 'rent']) }}', '{{ $row->property->property_code ?: $row->property->title }}')"
-                                            class="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 text-sm font-medium transition-colors">
+                                @else
+                                    @if($row->already_invoiced)
+                                        <span title="ออกใบแจ้งหนี้แล้ว ล็อกการลบ" class="inline-flex items-center gap-1 text-indigo-300 text-sm font-medium">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                            </svg>
+                                            ล็อก
+                                        </span>
+                                    @elseif($row->recorded_count > 0)
+                                        <button type="button"
+                                                @click="openDeleteMeterConfirm('{{ route('meters.destroy', ['property' => $row->property->id, 'year' => $year, 'month' => $month, 'scope' => 'rent']) }}', '{{ $row->property->property_code ?: $row->property->title }}')"
+                                                class="inline-flex items-center gap-1 text-gray-400 hover:text-red-600 text-sm font-medium transition-colors">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
+                                            </svg>
+                                            ลบ
+                                        </button>
+                                    @endif
+                                    <a href="{{ route('meters.show', ['property' => $row->property->id, 'year' => $year, 'month' => $month]) }}"
+                                       class="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 text-sm font-medium transition-colors">
+                                        บันทึก/ดูข้อมูล
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M4 7h16M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                                         </svg>
-                                        ลบ
-                                    </button>
+                                    </a>
                                 @endif
-                                <a href="{{ route('meters.show', ['property' => $row->property->id, 'year' => $year, 'month' => $month]) }}"
-                                   class="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 text-sm font-medium transition-colors">
-                                    บันทึก/ดูข้อมูล
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                                    </svg>
-                                </a>
                             </div>
                         </td>
                     </tr>
