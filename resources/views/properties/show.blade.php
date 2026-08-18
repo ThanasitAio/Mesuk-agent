@@ -203,6 +203,29 @@
     </div>
 </div>
 
+{{-- ===== Overlapping Booking Notice (ต่อสัญญา - สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว) ===== --}}
+@if($otherActiveBookings->isNotEmpty())
+<div class="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3.5 mb-5">
+    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/>
+        </svg>
+    </div>
+    <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-purple-700">อสังหานี้มีสัญญาซ้อนกันจากการต่อสัญญา (สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว)</p>
+        <p class="text-xs text-purple-500 mt-0.5">กำลังดู: {{ $booking->customer?->full_name ?? '(ไม่ระบุ)' }} ({{ $booking->booking_code }})</p>
+        <div class="flex flex-wrap gap-2 mt-2">
+            @foreach($otherActiveBookings as $otherBooking)
+            <a href="{{ route('properties.show', $property->id) }}?booking={{ $otherBooking->id }}"
+               class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-white border border-purple-200 px-2.5 py-1 rounded-full hover:bg-purple-100 transition-colors">
+                ดูอีกสัญญา: {{ $otherBooking->customer?->full_name ?? '(ไม่ระบุ)' }} ({{ $otherBooking->booking_code }})
+            </a>
+            @endforeach
+        </div>
+    </div>
+</div>
+@endif
+
 {{-- ===== Overdue Alert ===== --}}
 @if($overdueList->count() > 0)
 <div class="flex items-start gap-3 bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl px-4 py-4 mb-5 shadow-lg shadow-red-500/25">

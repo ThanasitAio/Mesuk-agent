@@ -18,6 +18,17 @@ class HrProperty extends Model
             ->latest('id');
     }
 
+    /**
+     * ทุกการจองที่ยัง active อยู่ (ไม่ใช่แค่รายการล่าสุด) — ใช้ตอนมีการต่อสัญญาที่ทำให้เกิด
+     * booking ซ้อนกัน 2 รายการ (สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว) เพื่อไม่ให้ตัวใดตัวหนึ่งถูกซ่อน
+     */
+    public function activeBookings()
+    {
+        return $this->hasMany(HrBooking::class, 'property_id')
+            ->whereNull('deleted_at')
+            ->whereNotIn('status', ['cancelled', 'rejected', 'completed', 'checked_out']);
+    }
+
     public function owner()
     {
         return $this->belongsTo(HrCustomer::class, 'customer_id');

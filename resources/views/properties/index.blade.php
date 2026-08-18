@@ -24,7 +24,6 @@
 @php
     $happyestPublic  = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
     $totalAll        = $withContract->count() + $withoutContract->count();
-    $totalRent       = $withContract->sum(fn($p) => (float) ($p->activeBooking?->monthly_rent ?? 0));
 
     $today          = now()->startOfDay();
     $currentMonthEnd = now()->endOfMonth();
@@ -37,22 +36,6 @@
 
     // แสดงรอแนบสลิปได้ก็ต่อเมื่ออสังหาสถานะไม่ว่าง (property_status_id ไม่ใช่ available)
     $isPropertyVacant = fn($p) => optional($p->propertyStatus)->slug === 'available';
-
-    $totalSlipNeeded = $withContract->filter(function ($p) use ($isPropertyVacant, $duePendingRecords) {
-        $booking = $p->activeBooking;
-        if (! $booking || $booking->status === 'deposit_confirmed' || $isPropertyVacant($p)) {
-            return false;
-        }
-
-        return $duePendingRecords($booking->paymentRecords ?? collect())->isNotEmpty();
-    })->count();
-
-    $totalSlipVerify = $withContract->filter(function ($p) use ($duePendingRecords) {
-        $recs = $p->activeBooking?->paymentRecords ?? collect();
-
-        return $recs->where('payment_status', 'pending_verification')->isNotEmpty()
-            && $duePendingRecords($recs)->isEmpty();
-    })->count();
 
     // ─── Badge color lookup (ใช้ร่วมกันทั้งการ์ดมือถือ และตารางเดสก์ท็อป) ───
     $badgeClasses = [
@@ -94,8 +77,13 @@
     };
 
     // ─── เตรียมข้อมูลแสดงผลล่วงหน้า (คำนวณครั้งเดียว ใช้ได้ทั้งการ์ดมือถือ/ตารางเดสก์ท็อป) ───
-    $contractRows = $withContract->map(function ($property) use ($happyestPublic, $duePendingRecords, $isPropertyVacant, $statusMap, $resolveImageUrl) {
-        $booking       = $property->activeBooking;
+    $contractRows = $withContract->flatMap(function ($property) use ($happyestPublic, $duePendingRecords, $isPropertyVacant, $statusMap, $resolveImageUrl) {
+        // ปกติมี active booking แค่รายการเดียว แต่ช่วงต่อสัญญา (สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว)
+        // อาจซ้อนกัน 2 รายการ - สร้างแยกเป็นคนละแถวเพื่อไม่ให้รายการใดถูกซ่อนไป
+        $bookings      = $property->activeBookings->sortBy('id')->values();
+        $isOverlapping = $bookings->count() > 1;
+
+        return $bookings->map(function ($booking) use ($property, $happyestPublic, $duePendingRecords, $isPropertyVacant, $statusMap, $resolveImageUrl, $isOverlapping) {
         $tenant        = $booking?->customer;
         $bookingStatus = $booking?->status ?? 'pending';
 
@@ -162,6 +150,8 @@
         return (object) [
             'property'          => $property,
             'booking'           => $booking,
+            'bookingId'         => $booking->id,
+            'isOverlapping'     => $isOverlapping,
             'tenant'            => $tenant,
             'tenantPhotoUrl'    => $tenantPhotoUrl,
             'tenantInitial'     => $tenantInitial,
@@ -185,7 +175,8 @@
             'statusLabel'       => $status['label'],
             'statusPulse'       => $status['pulse'],
         ];
-    });
+        });
+    })->values();
 
     $vacantRows = $withoutContract->map(function ($property) use ($resolveImageUrl, $vacantStatusMap) {
         $slug   = optional($property->propertyStatus)->slug ?? 'available';
@@ -210,8 +201,16 @@
         ];
     });
 
+    // ─── รวมยอด/รายการรอสลิป คำนวณจากแถว (ต่อ booking) ไม่ใช่ต่อทรัพย์ เพราะทรัพย์ที่มีสัญญาซ้อนกัน
+    // (ต่อสัญญา) ควรนับภาระของทั้ง 2 สัญญาแยกกัน ───
+    $totalRent        = $contractRows->sum(fn($row) => (float) ($row->booking->monthly_rent ?? 0));
+    $totalSlipNeeded  = $contractRows->where('slipNeeded', true)->count();
+    $totalSlipVerify  = $contractRows->where('slipPendingVerify', true)->count();
+
     // ─── จำนวนแยกตามสถานะจริง (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ───
-    $totalActive       = $withContract->count() + $vacantRows->where('slug', 'unavailable')->count();
+    // นับ "ไม่ว่าง" ตามจำนวนทรัพย์จริง (unique) ไม่ใช่ตามจำนวนแถว เพราะทรัพย์ที่มีสัญญาซ้อนกัน
+    // (ต่อสัญญา) จะมีมากกว่า 1 แถวใน $contractRows แต่ยังนับเป็นทรัพย์เดียว
+    $totalActive       = $contractRows->pluck('property.id')->unique()->count() + $vacantRows->where('slug', 'unavailable')->count();
     $totalAvailable    = $vacantRows->where('slug', 'available')->count();
     $totalBooked       = $vacantRows->where('slug', 'booked')->count();
     $totalFutureProject = $vacantRows->where('slug', 'future_project')->count();
@@ -444,7 +443,7 @@
 <div class="md:hidden space-y-3">
 
     @foreach($contractRows as $row)
-    <a href="{{ route('properties.show', $row->property->id) }}"
+    <a href="{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}"
        x-show="matchRow('active', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
        class="property-row block bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:bg-gray-50 active:scale-[0.99] transition-all">
 
@@ -482,6 +481,9 @@
                     <span class="inline-flex items-center gap-1 text-[10px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full">
                         <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
                     </span>
+                    @if($row->isOverlapping)
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">ต่อสัญญา</span>
+                    @endif
                     @if($row->booking?->monthly_rent)
                     <span class="text-xs font-bold text-gray-700 tabular-nums">{{ number_format($row->booking->monthly_rent, 0) }} <span class="font-normal text-gray-400 text-[10px]">฿/ด.</span></span>
                     @endif
@@ -602,10 +604,10 @@
     @foreach($contractRows as $row)
     <tr x-show="matchRow('active', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
         class="property-row hover:bg-gray-50 cursor-pointer group"
-        onclick="window.location='{{ route('properties.show', $row->property->id) }}'"
+        onclick="window.location='{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}'"
         role="button"
         tabindex="0"
-        @keypress.enter="window.location='{{ route('properties.show', $row->property->id) }}'">
+        @keypress.enter="window.location='{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}'">
 
         {{-- Col 1: ทรัพย์สิน --}}
         <td class="px-5 py-3.5 align-top">
@@ -642,6 +644,9 @@
             <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full whitespace-nowrap">
                 <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
             </span>
+            @if($row->isOverlapping)
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full whitespace-nowrap ml-1">ต่อสัญญา</span>
+            @endif
 
             <div class="mt-2 space-y-1">
                 @if($row->slipNeeded)

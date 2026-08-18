@@ -17,11 +17,11 @@ class PropertyBillingController extends Controller
         $agentCode = session('agent_code');
 
         $properties = HrProperty::where('manager_agent_code', $agentCode)
-            ->with(['propertyStatus', 'activeBooking.customer', 'activeBooking.paymentRecords', 'activeBooking.invoices', 'primaryImageMedia'])
+            ->with(['propertyStatus', 'activeBookings.customer', 'activeBookings.paymentRecords', 'activeBookings.invoices', 'primaryImageMedia'])
             ->get();
 
-        $withContract    = $properties->filter(fn ($p) => $p->activeBooking !== null)->values();
-        $withoutContract = $properties->reject(fn ($p) => $p->activeBooking !== null)->values();
+        $withContract    = $properties->filter(fn ($p) => $p->activeBookings->isNotEmpty())->values();
+        $withoutContract = $properties->reject(fn ($p) => $p->activeBookings->isNotEmpty())->values();
 
         logSystem(
             userType: 'agent',
@@ -34,7 +34,7 @@ class PropertyBillingController extends Controller
         return view('properties.index', compact('withContract', 'withoutContract'));
     }
 
-    public function show(HrProperty $property)
+    public function show(Request $request, HrProperty $property)
     {
         if ($property->manager_agent_code !== session('agent_code')) {
             abort(403, 'คุณไม่มีสิทธิ์เข้าถึงอสังหาริมทรัพย์นี้');
@@ -42,12 +42,23 @@ class PropertyBillingController extends Controller
 
         $property->load(['owner', 'imageMedia']);
 
-        $booking = $property->activeBooking()->with(['customer', 'paymentRecords', 'invoices'])->first();
+        // ปกติจะมี active booking แค่รายการเดียว แต่ช่วงต่อสัญญา (สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว)
+        // อาจมีซ้อนกัน 2 รายการ - ดึงมาทั้งหมดเพื่อให้เลือกดูทีละรายการผ่าน ?booking= ได้ ไม่ซ่อนรายการเดิม
+        $activeBookings = $property->activeBookings()->with(['customer'])->orderBy('id')->get();
+
+        $bookingId = $request->query('booking');
+        $booking = $bookingId
+            ? $activeBookings->firstWhere('id', (int) $bookingId)
+            : $activeBookings->sortByDesc('id')->first();
 
         if (! $booking) {
             return redirect()->route('properties.index')
                 ->with('error', 'อสังหาริมทรัพย์นี้ยังไม่มีการจอง');
         }
+
+        $booking->load(['paymentRecords', 'invoices']);
+
+        $otherActiveBookings = $activeBookings->reject(fn ($b) => $b->id === $booking->id)->values();
 
         $company = HrCompany::getActive();
         $billing = $this->buildBillingContext($booking, $property, $company);
@@ -66,7 +77,7 @@ class PropertyBillingController extends Controller
         );
 
         return view('properties.show', array_merge(
-            compact('property', 'booking', 'company', 'invoices'),
+            compact('property', 'booking', 'company', 'invoices', 'otherActiveBookings'),
             $billing
         ));
     }
