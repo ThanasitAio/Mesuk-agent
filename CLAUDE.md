@@ -173,6 +173,8 @@ Reuse existing components. Do not create raw HTML form inputs when a component e
 
 All views must extend `layouts.app`: `@extends('layouts.app')`
 
+**Client-side filter dropdowns (Alpine `x-model`, no form submit):** use `<x-form.select :searchable="false" x-model="...">` instead of a raw `<select>`. The `searchable="false"` variant renders a plain native `<select>` and forwards all extra attributes (including `x-model`) via `$attributes`, so it binds directly to an Alpine scope for client-side filtering (e.g. `resources/views/meters/index.blade.php` property-status filter). The default `searchable="true"` combobox variant is for real form fields (GET/POST submission), not Alpine-bound filters.
+
 ### 2.5 Naming Conventions
 
 | Type | Convention | Example |

@@ -70,6 +70,10 @@
         return $row->meter_count > 0 ? min(100, round(($row->recorded_count / $row->meter_count) * 100)) : 0;
     };
 
+    $titleShort = function ($title) {
+        return \Illuminate\Support\Str::limit($title, 25, '...');
+    };
+
     $progressColorFor = function ($row) {
         if ($row->meter_count > 0 && $row->recorded_count === $row->meter_count) {
             return 'bg-emerald-500';
@@ -244,13 +248,14 @@
 
         {{-- สถานะพื้นที่ --}}
         @if($propertyStatusOptions->count() > 1)
-            <select x-model="propertyStatusFilter"
-                    class="flex-shrink-0 text-xs font-semibold rounded-xl border border-gray-200 bg-white pl-3 pr-8 py-2 sm:py-2.5 text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500">
-                <option value="all">สถานะพื้นที่ทั้งหมด</option>
-                @foreach($propertyStatusOptions as $opt)
-                    <option value="{{ $opt['slug'] }}">{{ $opt['label'] }}</option>
-                @endforeach
-            </select>
+            <div class="flex-shrink-0 w-full sm:w-56">
+                <x-form.select name="property_status_filter" :searchable="false" x-model="propertyStatusFilter">
+                    <option value="all">สถานะพื้นที่ทั้งหมด</option>
+                    @foreach($propertyStatusOptions as $opt)
+                        <option value="{{ $opt['slug'] }}">{{ $opt['label'] }}</option>
+                    @endforeach
+                </x-form.select>
+            </div>
         @endif
         @if($rows->count() > 0)
             <span class="ml-auto text-xs text-gray-400 whitespace-nowrap">
@@ -313,10 +318,10 @@
                                     {{ $status['short'] }}
                                 </span>
                             </div>
-                            <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title }}</p>
+                            <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $titleShort($row->property->title) }}</p>
                         @else
                             <div class="flex items-center gap-2">
-                                <p class="text-sm font-semibold text-gray-800 truncate">{{ $row->property->title }}</p>
+                                <p class="text-sm font-semibold text-gray-800 truncate">{{ $titleShort($row->property->title) }}</p>
                                 <span class="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 {{ $status['classes'] }}">
                                     <svg class="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $status['icon'] }}"/></svg>
                                     {{ $status['short'] }}
@@ -438,9 +443,9 @@
                         <td class="px-5 py-3.5">
                             @if($row->property->property_code)
                                 <p class="font-mono font-bold text-sm text-gray-800 leading-snug">{{ $row->property->property_code }}</p>
-                                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title }}</p>
+                                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $titleShort($row->property->title) }}</p>
                             @else
-                                <p class="font-medium text-gray-800">{{ $row->property->title }}</p>
+                                <p class="font-medium text-gray-800">{{ $titleShort($row->property->title) }}</p>
                             @endif
                         </td>
                         <td class="px-5 py-3.5">
