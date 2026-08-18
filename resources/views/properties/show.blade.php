@@ -232,7 +232,7 @@
                 </p>
             </div>
             @if($booking->monthly_rent)
-            <p class="text-xs font-bold text-gray-900 tabular-nums flex-shrink-0">{{ number_format($booking->monthly_rent, 0) }}<span class="text-[10px] text-gray-400 font-normal">฿/ด.</span></p>
+            <p class="text-xs font-bold text-gray-900 tabular-nums flex-shrink-0">{{ $fmtAmt($booking->monthly_rent) }}<span class="text-[10px] text-gray-400 font-normal">฿/ด.</span></p>
             @endif
         </div>
 
@@ -248,7 +248,7 @@
                 </p>
             </div>
             @if($otherBooking->monthly_rent)
-            <p class="text-xs font-bold text-gray-600 tabular-nums flex-shrink-0">{{ number_format($otherBooking->monthly_rent, 0) }}<span class="text-[10px] text-gray-400 font-normal">฿/ด.</span></p>
+            <p class="text-xs font-bold text-gray-600 tabular-nums flex-shrink-0">{{ $fmtAmt($otherBooking->monthly_rent) }}<span class="text-[10px] text-gray-400 font-normal">฿/ด.</span></p>
             @endif
         </a>
         @endforeach
@@ -269,7 +269,7 @@
     </div>
     <div class="flex-1 min-w-0">
         <p class="text-sm font-bold text-white">มี {{ $overdueList->count() }} รายการเกินกำหนดชำระ</p>
-        <p class="text-xs text-red-100 mt-0.5">ยอดค้างรวม <span class="font-bold tabular-nums text-white">฿{{ number_format($overdueList->sum('amount'), 0) }}</span> - กรุณาติดต่อผู้เช่าโดยด่วน</p>
+        <p class="text-xs text-red-100 mt-0.5">ยอดค้างรวม <span class="font-bold tabular-nums text-white">฿{{ $fmtAmt($overdueList->sum('amount')) }}</span> - กรุณาติดต่อผู้เช่าโดยด่วน</p>
     </div>
 </div>
 @endif
@@ -358,12 +358,12 @@
     <div class="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-gray-100 border-b border-gray-100">
         <div class="px-4 py-3.5">
             <p class="text-[11px] text-gray-400 mb-1 font-medium">ค่าเช่า/เดือน</p>
-            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($displayMonthlyRent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
+            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ $fmtAmt($displayMonthlyRent) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
         </div>
         <div class="px-4 py-3.5">
             <p class="text-[11px] text-gray-400 mb-1 font-medium">เงินประกัน</p>
             <div class="flex items-center gap-1.5 flex-wrap">
-                <p class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($booking->deposit, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
+                <p class="text-sm font-bold text-gray-900 tabular-nums">{{ $fmtAmt($booking->deposit) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
                 @if($depositType === 'half')
                     <span class="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md leading-none">แบ่ง 2 งวด</span>
                 @endif
@@ -478,7 +478,7 @@
             </svg>
         </div>
         <p class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">ชำระแล้ว</p>
-        <p class="text-sm font-bold text-emerald-700 tabular-nums mt-0.5">฿{{ number_format($totalPaid, 0) }}</p>
+        <p class="text-sm font-bold text-emerald-700 tabular-nums mt-0.5">฿{{ $fmtAmt($totalPaid) }}</p>
     </div>
     <div class="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
         <div class="w-7 h-7 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
@@ -487,7 +487,7 @@
             </svg>
         </div>
         <p class="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">รอตรวจสอบ</p>
-        <p class="text-sm font-bold text-amber-700 tabular-nums mt-0.5">฿{{ number_format($totalVerif, 0) }}</p>
+        <p class="text-sm font-bold text-amber-700 tabular-nums mt-0.5">฿{{ $fmtAmt($totalVerif) }}</p>
     </div>
     <div class="bg-gradient-to-br from-red-50 to-rose-50 border border-red-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
         <div class="w-7 h-7 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
@@ -496,7 +496,7 @@
             </svg>
         </div>
         <p class="text-[10px] font-semibold text-red-600 uppercase tracking-wide">ยังไม่ชำระ</p>
-        <p class="text-sm font-bold text-red-700 tabular-nums mt-0.5">฿{{ number_format($totalPending, 0) }}</p>
+        <p class="text-sm font-bold text-red-700 tabular-nums mt-0.5">฿{{ $fmtAmt($totalPending) }}</p>
     </div>
 </div>
 
@@ -900,18 +900,18 @@
                                 <p class="text-xs font-semibold whitespace-nowrap" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                             @else
                                 @if($meta['is_phase2_combo'] ?? false)
-                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span></p>
+                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($record->amount) }}</span></p>
                                     <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวม 2 รายการ</p>
                                 @else
-                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ number_format($displayAmount, 0) }}</p>
+                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ $fmtAmt($displayAmount) }}</p>
                                 @endif
                                 <p class="text-[10px] text-gray-400 mt-0.5">บาท</p>
                                 @if($hasBreakdown)
                                     <div class="mt-1.5 space-y-0.5 text-right">
-                                        @if($baseRent > 0)<p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ number_format($baseRent, 0) }}</p>@endif
-                                        @if($landTax > 0)<p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>@endif
-                                        @if($stampDuty > 0)<p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>@endif
-                                        @if($whtAmount > 0)<p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>@endif
+                                        @if($baseRent > 0)<p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ $fmtAmt($baseRent) }}</p>@endif
+                                        @if($landTax > 0)<p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ $fmtAmt($landTax) }}</p>@endif
+                                        @if($stampDuty > 0)<p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ $fmtAmt($stampDuty) }}</p>@endif
+                                        @if($whtAmount > 0)<p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>@endif
                                     </div>
                                 @endif
                             @endif
@@ -1160,24 +1160,24 @@
                         @else
                             @if($meta['is_phase2_combo'] ?? false)
                                 <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                                    <span class="combo-join-amount">{{ number_format($displayAmount, 0) }}</span><span class="combo-sep-amount" style="display:none;">{{ number_format($record->amount, 0) }}</span><span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
+                                    <span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($record->amount) }}</span><span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
                                 </p>
                                 <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
                             @else
                                 <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                                    {{ number_format($displayAmount, 0) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
+                                    {{ $fmtAmt($displayAmount) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
                                 </p>
                             @endif
                             @if($hasBreakdown)
                                 <div class="mt-1.5 space-y-0.5">
                                     @if($landTax > 0)
-                                        <p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ number_format($landTax, 0) }}</p>
+                                        <p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ $fmtAmt($landTax) }}</p>
                                     @endif
                                     @if($stampDuty > 0)
-                                        <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ number_format($stampDuty, 0) }}</p>
+                                        <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ $fmtAmt($stampDuty) }}</p>
                                     @endif
                                     @if($whtAmount > 0)
-                                        <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ number_format($whtAmount, 0) }}</p>
+                                        <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>
                                     @endif
                                 </div>
                             @endif
@@ -1360,7 +1360,7 @@
                         <p class="text-xs text-gray-400">ครบ {{ $locked->due_date->locale('th')->translatedFormat('d M Y') }}</p>
                     @endif
                 </div>
-                <p class="text-sm font-bold text-gray-500 tabular-nums">{{ number_format($locked->amount, 0) }} ฿</p>
+                <p class="text-sm font-bold text-gray-500 tabular-nums">{{ $fmtAmt($locked->amount) }} ฿</p>
             </div>
             @endforeach
         </div>
@@ -1785,9 +1785,9 @@ function applyBillingTabFilter() {
             ? (meta.display_label || '')
             : (meta.sep_display_label || meta.display_label || '');
         const amount = isJoin
-            ? Math.round(meta.combo_amount || meta.own_amount || 0)
-            : Math.round(meta.own_amount || 0);
-        openSlipModal(recordId, label, amount.toLocaleString(), isPhase2Combo, isPhase2Combo);
+            ? (meta.combo_amount || meta.own_amount || 0)
+            : (meta.own_amount || 0);
+        openSlipModal(recordId, label, amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }), isPhase2Combo, isPhase2Combo);
     }
 
     function openSlipModal(recordId, label, amount, isPhase2Combo, canCombine) {

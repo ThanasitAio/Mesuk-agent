@@ -203,6 +203,7 @@
 
     // ─── รวมยอด/รายการรอสลิป คำนวณจากแถว (ต่อ booking) ไม่ใช่ต่อทรัพย์ เพราะทรัพย์ที่มีสัญญาซ้อนกัน
     // (ต่อสัญญา) ควรนับภาระของทั้ง 2 สัญญาแยกกัน ───
+    $fmtAmt           = fn($a) => ((float) $a != floor((float) $a)) ? number_format((float) $a, 2) : number_format((int) $a);
     $totalRent        = $contractRows->sum(fn($row) => (float) ($row->booking->monthly_rent ?? 0));
     $totalSlipNeeded  = $contractRows->where('slipNeeded', true)->count();
     $totalSlipVerify  = $contractRows->where('slipPendingVerify', true)->count();
@@ -332,7 +333,7 @@
         </div>
         <p class="text-sm text-gray-500 truncate">รายรับค่าเช่า/เดือน (รวม)</p>
     </div>
-    <p class="text-base font-bold text-gray-800 tabular-nums flex-shrink-0">{{ number_format($totalRent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
+    <p class="text-base font-bold text-gray-800 tabular-nums flex-shrink-0">{{ $fmtAmt($totalRent) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
 </x-card>
 @endif
 
@@ -485,7 +486,7 @@
                     <span class="text-[10px] font-semibold text-purple-500">· ต่อสัญญา</span>
                     @endif
                     @if($row->booking?->monthly_rent)
-                    <span class="text-xs font-bold text-gray-700 tabular-nums">{{ number_format($row->booking->monthly_rent, 0) }} <span class="font-normal text-gray-400 text-[10px]">฿/ด.</span></span>
+                    <span class="text-xs font-bold text-gray-700 tabular-nums">{{ $fmtAmt($row->booking->monthly_rent) }} <span class="font-normal text-gray-400 text-[10px]">฿/ด.</span></span>
                     @endif
                 </div>
             </div>
@@ -578,7 +579,7 @@
                         <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }}"></span>{{ $row->statusLabel }}
                     </span>
                     @if($row->property->price_per_month)
-                    <span class="text-xs text-gray-500 tabular-nums">{{ number_format($row->property->price_per_month, 0) }} <span class="text-[10px] text-gray-400">฿/เดือน</span></span>
+                    <span class="text-xs text-gray-500 tabular-nums">{{ $fmtAmt($row->property->price_per_month) }} <span class="text-[10px] text-gray-400">฿/เดือน</span></span>
                     @endif
                 </div>
             </div>
@@ -687,7 +688,7 @@
         {{-- Col 4: ค่าเช่า (md+) --}}
         <td class="px-5 py-3.5 text-right tabular-nums hidden md:table-cell align-top">
             @if($row->booking)
-                <span class="font-bold text-gray-800">{{ number_format($row->booking->monthly_rent, 0) }}</span>
+                <span class="font-bold text-gray-800">{{ $fmtAmt($row->booking->monthly_rent) }}</span>
                 <span class="text-xs text-gray-400">฿</span>
             @else
                 <span class="text-gray-400">-</span>
@@ -764,7 +765,7 @@
 
         <td class="px-5 py-3.5 text-right tabular-nums hidden md:table-cell">
             @if($row->property->price_per_month)
-                <span class="text-gray-500">{{ number_format($row->property->price_per_month, 0) }}</span>
+                <span class="text-gray-500">{{ $fmtAmt($row->property->price_per_month) }}</span>
                 <span class="text-xs text-gray-400">฿</span>
             @else
                 <span class="text-gray-400">-</span>
