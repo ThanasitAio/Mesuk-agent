@@ -42,7 +42,7 @@
 
         if ($row->meter_count > 0 && $row->recorded_count === $row->meter_count) {
             return [
-                'label'   => 'บันทึกครบทุกจุด',
+                'label'   => 'บันทึกแล้ว',
                 'short'   => 'ครบแล้ว',
                 'classes' => 'text-emerald-700 bg-emerald-50 border border-emerald-200',
                 'icon'    => 'M5 13l4 4L19 7',
@@ -66,20 +66,8 @@
         ];
     };
 
-    $progressFor = function ($row) {
-        return $row->meter_count > 0 ? min(100, round(($row->recorded_count / $row->meter_count) * 100)) : 0;
-    };
-
     $titleShort = function ($title) {
         return \Illuminate\Support\Str::limit($title, 25, '...');
-    };
-
-    $progressColorFor = function ($row) {
-        if ($row->meter_count > 0 && $row->recorded_count === $row->meter_count) {
-            return 'bg-emerald-500';
-        }
-
-        return $row->recorded_count > 0 ? 'bg-blue-500' : 'bg-amber-400';
     };
 
     // ─── สถานะพื้นที่ (hr_property_statuses - ชื่อ/สีกำหนดเองได้จากแอดมิน จึงใช้สีจริงจาก DB) ───
@@ -113,7 +101,12 @@
 
     // ตัวเลือกตัวกรองสถานะพื้นที่ - เอาเฉพาะสถานะที่มีอยู่จริงในทรัพย์สินของตัวแทนคนนี้
     $propertyStatusOptions = $rows->unique('property_status_slug')
-        ->map(fn ($row) => ['slug' => $row->property_status_slug, 'label' => $row->property_status_label])
+        ->map(fn ($row) => [
+            'slug'  => $row->property_status_slug,
+            'label' => $row->property_status_label,
+            'color' => $row->property_status_color,
+            'count' => $rows->where('property_status_slug', $row->property_status_slug)->count(),
+        ])
         ->sortBy('label')
         ->values();
 @endphp
@@ -224,7 +217,7 @@
         </div>
     </div>
 
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 flex-wrap">
         {{-- สถานะการบันทึก --}}
         <div class="flex gap-1.5 bg-gray-100 rounded-xl p-1.5 overflow-x-auto">
             <button type="button" @click="recordFilter = 'unrecorded'"
@@ -248,13 +241,21 @@
 
         {{-- สถานะพื้นที่ --}}
         @if($propertyStatusOptions->count() > 1)
-            <div class="flex-shrink-0 w-full sm:w-56">
-                <x-form.select name="property_status_filter" :searchable="false" x-model="propertyStatusFilter">
-                    <option value="all">สถานะพื้นที่ทั้งหมด</option>
-                    @foreach($propertyStatusOptions as $opt)
-                        <option value="{{ $opt['slug'] }}">{{ $opt['label'] }}</option>
-                    @endforeach
-                </x-form.select>
+            <div class="flex gap-1.5 bg-gray-100 rounded-xl p-1.5 overflow-x-auto">
+                <button type="button" @click="propertyStatusFilter = 'all'"
+                        :class="propertyStatusFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                        class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">
+                    สถานะพื้นที่ทั้งหมด
+                </button>
+                @foreach($propertyStatusOptions as $opt)
+                    <button type="button" @click="propertyStatusFilter = '{{ $opt['slug'] }}'"
+                            :class="propertyStatusFilter === '{{ $opt['slug'] }}' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
+                            class="flex-shrink-0 flex items-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">
+                        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background: {{ $opt['color'] }};"></span>
+                        {{ $opt['label'] }}
+                        <span class="text-[10px] font-bold text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none flex-shrink-0" style="background: {{ $opt['color'] }};">{{ $opt['count'] }}</span>
+                    </button>
+                @endforeach
             </div>
         @endif
         @if($rows->count() > 0)
@@ -291,7 +292,7 @@
     {{-- Mobile cards --}}
     <div class="md:hidden space-y-3">
         @foreach($rows as $row)
-            @php $status = $statusFor($row); $imgUrl = $resolveImageUrl($row->property); $progress = $progressFor($row); @endphp
+            @php $status = $statusFor($row); $imgUrl = $resolveImageUrl($row->property); @endphp
             <a href="{{ route('meters.show', ['property' => $row->property->id, 'year' => $year, 'month' => $month]) }}"
                x-show="matches(@js($row->search_text), @js($row->recorded_count > 0), @js($row->property_status_slug))"
                class="meter-card-in group block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 {{ $row->meter_enabled ? 'hover:shadow-lg hover:-translate-y-0.5 hover:border-gray-200' : 'opacity-60 grayscale-[40%] pointer-events-none' }}"
@@ -300,6 +301,7 @@
 
                 {{-- Card header --}}
                 <div class="flex items-center gap-3 p-3 pb-2.5">
+                    <span class="flex-shrink-0 w-6 text-center text-xs font-bold text-gray-400 tabular-nums">{{ $loop->iteration }}</span>
                     <div class="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center ring-1 ring-black/5">
                         @if($imgUrl)
                             <img src="{{ $imgUrl }}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" alt="">
@@ -404,15 +406,6 @@
                         <span class="text-sm font-black text-brand-700 tabular-nums text-right">{{ number_format($row->total_amount, 0) }} ฿</span>
                     </div>
                 </div>
-
-                {{-- Progress bar --}}
-                <div class="flex items-center gap-2 px-3 pb-3">
-                    <div class="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                        <div class="h-full rounded-full transition-all duration-700 ease-out {{ $progressColorFor($row) }}"
-                             style="width: {{ $progress }}%"></div>
-                    </div>
-                    <span class="text-[10px] text-gray-400 tabular-nums flex-shrink-0">{{ $progress }}%</span>
-                </div>
             </a>
         @endforeach
     </div>
@@ -422,6 +415,7 @@
         <table class="w-full">
             <thead>
                 <tr class="bg-gray-50/60">
+                    <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ลำดับ</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ทรัพย์สิน</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">สถานะพื้นที่</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">มิเตอร์</th>
@@ -429,17 +423,17 @@
                     <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ราคาคำนวณ</th>
                     <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ค่าส่วนกลาง</th>
                     <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ราคารวม</th>
-                    <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ความคืบหน้า</th>
                     <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">สถานะ</th>
                     <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">จัดการ</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($rows as $row)
-                    @php $status = $statusFor($row); $progress = $progressFor($row); @endphp
+                    @php $status = $statusFor($row); @endphp
                     <tr x-show="matches(@js($row->search_text), @js($row->recorded_count > 0), @js($row->property_status_slug))"
                         class="meter-row-in border-t border-gray-100 hover:bg-brand-50/30 transition-colors duration-200 {{ ! $row->meter_enabled ? 'opacity-60' : '' }}"
                         style="animation-delay: {{ min($loop->index, 11) * 40 }}ms">
+                        <td class="px-5 py-3.5 text-xs font-bold text-gray-400 tabular-nums">{{ $loop->iteration }}</td>
                         <td class="px-5 py-3.5">
                             @if($row->property->property_code)
                                 <p class="font-mono font-bold text-sm text-gray-800 leading-snug">{{ $row->property->property_code }}</p>
@@ -478,15 +472,6 @@
                         <td class="px-5 py-3.5 text-right tabular-nums">
                             <span class="font-bold text-brand-700">{{ number_format($row->total_amount, 0) }}</span>
                             <span class="text-xs text-gray-400">฿</span>
-                        </td>
-                        <td class="px-5 py-3.5">
-                            <div class="flex items-center gap-2">
-                                <div class="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full transition-all duration-700 ease-out {{ $progressColorFor($row) }}"
-                                         style="width: {{ $progress }}%"></div>
-                                </div>
-                                <span class="text-xs text-gray-500 tabular-nums">{{ $row->recorded_count }}/{{ $row->meter_count }}</span>
-                            </div>
                         </td>
                         <td class="px-5 py-3.5">
                             <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-full {{ $status['classes'] }}">

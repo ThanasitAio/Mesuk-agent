@@ -44,6 +44,28 @@
     };
 @endphp
 
+@if($allConfirmed && ! $alreadyInvoiced)
+    {{-- ── ยืนยันข้อมูลแล้ว - แสดงบนสุดของหน้า ── --}}
+    <div class="relative overflow-hidden rounded-2xl mb-2.5 sm:mb-3 border border-emerald-200/80 shadow-sm"
+         style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);">
+        <div class="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-emerald-300/25"></div>
+        <div class="pointer-events-none absolute -bottom-8 left-10 w-20 h-20 rounded-full bg-emerald-300/15"></div>
+        <div class="relative flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5">
+            <div class="flex-shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500 shadow-md shadow-emerald-500/30 flex items-center justify-center">
+                <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            <div class="min-w-0">
+                <p class="text-sm sm:text-base font-bold text-emerald-900 leading-tight">ยืนยันข้อมูลมิเตอร์แล้ว</p>
+                <p class="text-xs sm:text-sm text-emerald-700/80 leading-relaxed mt-0.5">
+                    พร้อมให้แอดมินออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้
+                </p>
+            </div>
+        </div>
+    </div>
+@endif
+
 {{-- ── Compact header ───────────────────────────────────────────────────────── --}}
 <div class="relative overflow-hidden rounded-xl mb-2.5 sm:mb-3 bg-white border border-gray-100 shadow-sm p-2.5 sm:p-3">
     <div class="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-sky-50 opacity-70"></div>
@@ -142,7 +164,6 @@
             <x-form.month-year
                 name-month="rent_month"
                 name-year="rent_year"
-                label="เรียกเก็บพร้อมค่าเช่าเดือน/ปี"
                 :value-month="$rentMonth"
                 :value-year="$rentYear"
                 :year-from="2025"
@@ -345,13 +366,6 @@
                 </p>
             </div>
         </div>
-    </div>
-@elseif($allConfirmed)
-    <div class="mt-2.5 sm:mt-3 flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-xl px-3.5 py-3">
-        <svg class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-        <p class="text-xs text-green-700 leading-relaxed">
-            ยืนยันข้อมูลมิเตอร์งวดนี้แล้ว พร้อมให้แอดมินออกใบแจ้งหนี้น้ำ/ไฟ
-        </p>
     </div>
 @elseif($allRecorded)
     <div class="mt-2.5 sm:mt-3 flex items-start gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-3">
