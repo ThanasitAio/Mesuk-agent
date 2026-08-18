@@ -18,6 +18,14 @@
     $paymentDueDay = $booking->payment_due_day ?? 5;
     $startDate     = $booking->contract_start_date ?? $booking->check_in;
 
+    // ค่าเช่า/เดือนที่แสดง: อ้างอิงจากรายการค่าเช่ารายเดือนจริงของสัญญานี้ (base_rent_amount ที่บันทึกไว้ตอนสร้างรายการ
+    // ไม่เปลี่ยนแปลงย้อนหลัง) แทน $booking->monthly_rent ตรง ๆ เพื่อกันกรณีสัญญาเดิม/สัญญาใหม่ที่ซ้อนกันจากการต่อสัญญา
+    // แสดงราคาผิดสัญญากัน - เลือกเดือนที่ไม่ใช่เดือนเศษ (prorated) ก่อน เพราะเป็นยอดเต็มเดือนที่แท้จริงของสัญญา
+    $monthlyRentRecords = $allRecords->where('payment_type', 'monthly_rent');
+    $canonicalRentRecord = $monthlyRentRecords->reject(fn($r) => (bool) $r->is_prorated)->sortBy('month_number')->first()
+        ?? $monthlyRentRecords->sortBy('month_number')->first();
+    $displayMonthlyRent = $canonicalRentRecord?->base_rent_amount ?? $booking->monthly_rent;
+
     $depositPhase1Record = $allRecords
         ->where('payment_type', 'deposit')
         ->filter(fn($r) => ! $r->deposit_phase || (int) $r->deposit_phase === 1)
@@ -205,23 +213,45 @@
 
 {{-- ===== Overlapping Booking Notice (ต่อสัญญา - สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว) ===== --}}
 @if($otherActiveBookings->isNotEmpty())
-<div class="flex items-start gap-3 bg-purple-50 border border-purple-200 rounded-2xl px-4 py-3.5 mb-5">
-    <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-        <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<div class="bg-purple-50 border border-purple-200 rounded-2xl px-3.5 py-3 mb-5">
+    <div class="flex items-center gap-1.5 mb-2">
+        <svg class="w-3.5 h-3.5 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/>
         </svg>
+        <p class="text-xs font-bold text-purple-700">สัญญาซ้อนกันจากการต่อสัญญา - เลือกดูได้ทีละสัญญา</p>
     </div>
-    <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold text-purple-700">อสังหานี้มีสัญญาซ้อนกันจากการต่อสัญญา (สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว)</p>
-        <p class="text-xs text-purple-500 mt-0.5">กำลังดู: {{ $booking->customer?->full_name ?? '(ไม่ระบุ)' }} ({{ $booking->booking_code }})</p>
-        <div class="flex flex-wrap gap-2 mt-2">
-            @foreach($otherActiveBookings as $otherBooking)
-            <a href="{{ route('properties.show', $property->id) }}?booking={{ $otherBooking->id }}"
-               class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-white border border-purple-200 px-2.5 py-1 rounded-full hover:bg-purple-100 transition-colors">
-                ดูอีกสัญญา: {{ $otherBooking->customer?->full_name ?? '(ไม่ระบุ)' }} ({{ $otherBooking->booking_code }})
-            </a>
-            @endforeach
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {{-- สัญญาที่กำลังดูอยู่ --}}
+        <div class="flex items-center justify-between gap-2 bg-white rounded-lg border border-purple-300 px-2.5 py-2">
+            <div class="min-w-0">
+                <p class="text-[10px] font-bold text-purple-600">กำลังดู</p>
+                <p class="text-xs font-semibold text-gray-800 truncate">
+                    {{ $booking->customer?->full_name ?? '(ไม่ระบุ)' }}
+                    <span class="text-gray-400 font-normal font-mono">· {{ $booking->booking_code }}</span>
+                </p>
+            </div>
+            @if($booking->monthly_rent)
+            <p class="text-xs font-bold text-gray-900 tabular-nums flex-shrink-0">{{ number_format($booking->monthly_rent, 0) }}<span class="text-[10px] text-gray-400 font-normal">฿/ด.</span></p>
+            @endif
         </div>
+
+        {{-- สัญญาอื่นที่ซ้อนกันอยู่ --}}
+        @foreach($otherActiveBookings as $otherBooking)
+        <a href="{{ route('properties.show', $property->id) }}?booking={{ $otherBooking->id }}"
+           class="flex items-center justify-between gap-2 bg-white/70 hover:bg-white rounded-lg border border-purple-100 px-2.5 py-2 transition-colors">
+            <div class="min-w-0">
+                <p class="text-[10px] font-bold text-purple-400">ดูอีกสัญญา</p>
+                <p class="text-xs font-semibold text-gray-700 truncate">
+                    {{ $otherBooking->customer?->full_name ?? '(ไม่ระบุ)' }}
+                    <span class="text-gray-400 font-normal font-mono">· {{ $otherBooking->booking_code }}</span>
+                </p>
+            </div>
+            @if($otherBooking->monthly_rent)
+            <p class="text-xs font-bold text-gray-600 tabular-nums flex-shrink-0">{{ number_format($otherBooking->monthly_rent, 0) }}<span class="text-[10px] text-gray-400 font-normal">฿/ด.</span></p>
+            @endif
+        </a>
+        @endforeach
     </div>
 </div>
 @endif
@@ -328,7 +358,7 @@
     <div class="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-gray-100 border-b border-gray-100">
         <div class="px-4 py-3.5">
             <p class="text-[11px] text-gray-400 mb-1 font-medium">ค่าเช่า/เดือน</p>
-            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($booking->monthly_rent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
+            <p class="text-sm font-bold text-gray-900 tabular-nums">{{ number_format($displayMonthlyRent, 0) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
         </div>
         <div class="px-4 py-3.5">
             <p class="text-[11px] text-gray-400 mb-1 font-medium">เงินประกัน</p>
@@ -349,59 +379,89 @@
         </div>
     </div>
 
-    {{-- Contract details row 1 --}}
-    <div class="grid grid-cols-2 border-b border-gray-100">
-        <div class="px-4 py-3 border-r border-gray-100">
-            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">เริ่มสัญญา</p>
-            <p class="text-xs font-semibold text-gray-700">
+    @php $canTogglePrePay = ! $booking->isContractSent() && $booking->hasInitialPaymentsUploaded(); @endphp
+
+    {{-- Contract details --}}
+    <div class="grid grid-cols-2 divide-x divide-gray-100 border-t border-gray-100">
+        <div class="px-4 py-3.5">
+            <div class="flex items-center gap-1.5 mb-1.5">
+                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+                <p class="text-[11px] text-gray-400 font-medium">เริ่มสัญญา</p>
+            </div>
+            <p class="text-xs font-bold text-gray-700">
                 {{ $startDate ? $startDate->locale('th')->translatedFormat('d M Y') : '-' }}
             </p>
         </div>
-        <div class="px-4 py-3">
-            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">สถานะสัญญา</p>
+        <div class="px-4 py-3.5">
+            <div class="flex items-center gap-1.5 mb-1.5">
+                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p class="text-[11px] text-gray-400 font-medium">สถานะสัญญา</p>
+            </div>
             @if($booking->contract_status === 'sent')
-                <p class="text-xs font-semibold text-emerald-600">{{ $booking->getContractStatusLabel() }} ✓</p>
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.415l-7.5 7.5a1 1 0 01-1.415 0l-3.5-3.5a1 1 0 111.415-1.414L8.5 12.086l6.79-6.796a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    {{ $booking->getContractStatusLabel() }}
+                </span>
                 @if($booking->contract_sent_at)
-                    <p class="text-[10px] text-gray-400 mt-0.5">ส่งเมื่อ {{ $booking->contract_sent_at->locale('th')->translatedFormat('d M Y') }}</p>
+                    <p class="text-[10px] text-gray-400 mt-1">ส่งเมื่อ {{ $booking->contract_sent_at->locale('th')->translatedFormat('d M Y') }}</p>
                 @endif
             @else
-                <p class="text-xs font-semibold text-amber-600">{{ $booking->getContractStatusLabel() }}</p>
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    {{ $booking->getContractStatusLabel() }}
+                </span>
             @endif
         </div>
     </div>
 
-    {{-- Contract details row 2 --}}
-    <div class="grid grid-cols-2 border-t border-gray-100">
-        <div class="px-4 py-3 border-r border-gray-100">
-            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">รูปแบบมัดจำ</p>
-            <p class="text-xs font-semibold text-gray-700">
+    <div class="grid grid-cols-2 divide-x divide-gray-100 border-t border-gray-100">
+        <div class="px-4 py-3.5">
+            <div class="flex items-center gap-1.5 mb-1.5">
+                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                </svg>
+                <p class="text-[11px] text-gray-400 font-medium">รูปแบบมัดจำ</p>
+            </div>
+            <p class="text-xs font-bold text-gray-700">
                 {{ $depositType === 'half' ? 'แบ่งครึ่ง 2 งวด' : 'ชำระครั้งเดียว' }}
             </p>
         </div>
-        @php
-            $canTogglePrePay = ! $booking->isContractSent() && $booking->hasInitialPaymentsUploaded();
-        @endphp
-        <div class="px-4 py-3">
-            <p class="text-[11px] text-gray-400 mb-0.5 font-medium">ชำระค่าเช่าก่อนสัญญา</p>
-            <div class="flex items-center gap-2 mt-1">
+        <div class="px-4 py-3.5">
+            <div class="flex items-center gap-1.5 mb-1.5">
+                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p class="text-[11px] text-gray-400 font-medium">ชำระค่าเช่าก่อนสัญญา</p>
+            </div>
+            <div class="flex items-center gap-1.5 flex-wrap">
                 @if($allowPay)
-                    <span class="text-xs font-semibold text-emerald-600">เปิดใช้งานแล้ว</span>
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        เปิดใช้งาน
+                    </span>
                 @else
-                    <span class="text-xs font-semibold text-gray-500">ปิดใช้งาน</span>
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                        <span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+                        ปิดใช้งาน
+                    </span>
                 @endif
                 @if($canTogglePrePay)
                 <form action="{{ route('properties.togglePrePay', $property->id) }}" method="POST" class="inline-block m-0 p-0">
                     @csrf
-                    <button type="submit" class="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded border border-gray-200 transition-colors">
+                    <button type="submit" class="text-[10px] font-bold bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700 px-2 py-0.5 rounded-full border border-gray-200 shadow-sm transition-colors">
                         สลับสถานะ
                     </button>
                 </form>
                 @endif
             </div>
             @if($isWaitingContract && !$allowPay)
-                <p class="text-[10px] text-amber-600 mt-1">ต้องเปิดหากต้องการให้โอนก่อนสัญญา</p>
+                <p class="text-[10px] text-amber-600 mt-1.5">ต้องเปิดหากต้องการให้โอนก่อนสัญญา</p>
             @elseif($isInitialPaymentPhase && !$allowPay)
-                <p class="text-[10px] text-gray-400 mt-1">เปิดได้เมื่อลูกค้าอัปโหลดสลิปมัดจำแล้ว</p>
+                <p class="text-[10px] text-gray-400 mt-1.5">เปิดได้เมื่อลูกค้าอัปโหลดสลิปมัดจำแล้ว</p>
             @endif
         </div>
     </div>

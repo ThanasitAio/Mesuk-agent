@@ -482,7 +482,7 @@
                         <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
                     </span>
                     @if($row->isOverlapping)
-                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">ต่อสัญญา</span>
+                    <span class="text-[10px] font-semibold text-purple-500">· ต่อสัญญา</span>
                     @endif
                     @if($row->booking?->monthly_rent)
                     <span class="text-xs font-bold text-gray-700 tabular-nums">{{ number_format($row->booking->monthly_rent, 0) }} <span class="font-normal text-gray-400 text-[10px]">฿/ด.</span></span>
@@ -641,12 +641,14 @@
 
         {{-- Col 3: สถานะ + การชำระ --}}
         <td class="px-5 py-3.5 align-top">
-            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full whitespace-nowrap">
-                <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
-            </span>
-            @if($row->isOverlapping)
-            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full whitespace-nowrap ml-1">ต่อสัญญา</span>
-            @endif
+            <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold {{ $badgeClasses[$row->statusColor] }} border px-2 py-0.5 rounded-full whitespace-nowrap">
+                    <span class="w-1.5 h-1.5 rounded-full {{ $dotClasses[$row->statusColor] }} {{ $row->statusPulse ? 'animate-pulse' : '' }}"></span>{{ $row->statusLabel }}
+                </span>
+                @if($row->isOverlapping)
+                <span class="text-[10px] font-semibold text-purple-500 whitespace-nowrap">· ต่อสัญญา</span>
+                @endif
+            </div>
 
             <div class="mt-2 space-y-1">
                 @if($row->slipNeeded)
