@@ -17,6 +17,7 @@ class MeterReadingController extends Controller
 
         $year  = (int) $request->query('year', now()->year);
         $month = (int) $request->query('month', now()->month);
+        $searchQuery = (string) $request->query('q', '');
 
         // ไม่กรอง is_utility_metering_enabled ที่นี่แล้ว - แสดงทุกทรัพย์สินที่มีมิเตอร์ตั้งค่าไว้
         // เสมอไม่ว่าสถานะพื้นที่จะเป็นอะไร ฝั่ง view จะปิดการบันทึกเองถ้าระบบมิเตอร์ไม่ได้เปิด
@@ -71,7 +72,7 @@ class MeterReadingController extends Controller
             description: "ดูรายการบันทึกมิเตอร์ งวด {$month}/{$year}"
         );
 
-        return view('meters.index', compact('rows', 'year', 'month'));
+        return view('meters.index', compact('rows', 'year', 'month', 'searchQuery'));
     }
 
     public function show(Request $request, HrProperty $property)
@@ -316,7 +317,11 @@ class MeterReadingController extends Controller
         );
 
         return redirect()
-            ->route('meters.index', ['year' => $year, 'month' => $month])
+            ->route('meters.index', array_filter([
+                'year'  => $year,
+                'month' => $month,
+                'q'     => $property->property_code,
+            ]))
             ->with('success', 'บันทึกและยืนยันข้อมูลมิเตอร์เรียบร้อยแล้ว');
     }
 

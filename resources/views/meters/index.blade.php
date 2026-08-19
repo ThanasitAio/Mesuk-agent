@@ -118,8 +118,8 @@
 @endphp
 
 <div x-data="{
-        search: '',
-        recordFilter: 'unrecorded',
+        search: @js($searchQuery ?? ''),
+        recordFilter: {{ ($searchQuery ?? '') !== '' ? "'recorded'" : "'unrecorded'" }},
         propertyStatusFilter: 'all',
         items: @js($rows->map(fn ($row) => [
             'search'   => $row->search_text,
