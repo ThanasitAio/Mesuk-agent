@@ -154,11 +154,11 @@
                 @if($transferDates->isNotEmpty())
                     <span class="text-[11px] text-gray-400 w-full">โอนวันที่ {{ $transferDates->map(fn ($d) => $d->format('d/m/Y'))->implode(', ') }}</span>
                 @endif
-                @if($invoice->approved_at)
-                    {{-- อนุมัติโดยแอดมิน (hr_admins) เท่านั้น - hr_invoices ไม่มีช่องทางให้เจ้าของทรัพย์
-                         อนุมัติใบแจ้งหนี้เองแยกต่างหาก (ดูคอมเมนต์ HrAdmin/HrInvoice::approvedBy()) --}}
+                @if($invoice->pay_summary['verified_at'] ?? null)
+                    {{-- วันที่/ผู้อนุมัติ "โอนสลิป" (hr_payment_records.verified_at/verified_by) ไม่ใช่วันที่
+                         อนุมัติตัวใบแจ้งหนี้ (hr_invoices.approved_at/approved_by) --}}
                     <span class="text-[11px] text-gray-400 w-full">
-                        อนุมัติโดย {{ $invoice->approvedBy?->name ?? 'แอดมิน' }} เมื่อ {{ $invoice->approved_at->format('d/m/Y H:i') }} น.
+                        อนุมัติโอนสลิปโดย {{ $invoice->pay_summary['verified_by_name'] ?? 'แอดมิน' }} เมื่อ {{ $invoice->pay_summary['verified_at']->format('d/m/Y H:i') }} น.
                     </span>
                 @endif
             </div>
@@ -416,12 +416,13 @@
 
         let ok = 0;
         for (let i = 0; i < items.length; i++) {
-            sub.textContent = 'กำลังดาวน์โหลด ' + items[i].invoice_code + '...';
+            sub.textContent = 'กำลังเตรียมไฟล์ ' + (i + 1) + '/' + items.length + '...';
             try {
                 const res = await fetch(items[i].download_url, { credentials: 'same-origin' });
                 if (!res.ok) throw new Error('bad response');
-                const blob = await res.blob();
                 const filename = parseFilename(res.headers.get('content-disposition'), 'invoice-' + items[i].invoice_code + '.pdf');
+                sub.textContent = 'กำลังดาวน์โหลด ' + filename;
+                const blob = await res.blob();
                 if (dirHandle) {
                     const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
                     const writable = await fileHandle.createWritable();

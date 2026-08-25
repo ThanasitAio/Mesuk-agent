@@ -170,9 +170,19 @@ class HrInvoice extends Model
         }
         $transferDates = $transferDates->sortBy(fn ($d) => $d->timestamp)->unique(fn ($d) => $d->toDateString())->values();
 
+        // แอดมินผู้อนุมัติ/ตรวจสอบสลิปโอนล่าสุด (hr_payment_records.verified_at/verified_by) - คนละอันกับ
+        // hr_invoices.approved_at/approved_by (อนุมัติตัวใบแจ้งหนี้) เลือกรายการที่ verified_at ล่าสุดถ้า
+        // มีมากกว่า 1 รายการจ่ายตรงกับใบแจ้งหนี้นี้
+        $verifiedRecord = $records
+            ->filter(fn ($r) => $r->payment_status === 'paid' && $r->verified_at)
+            ->sortByDesc(fn ($r) => $r->verified_at->timestamp)
+            ->first();
+
         return [
             'status' => $status, // null = ยังไม่แนบสลิป, 'pending_verification', 'paid'
             'transfer_dates' => $transferDates,
+            'verified_at' => $verifiedRecord?->verified_at,
+            'verified_by_name' => $verifiedRecord?->verifiedBy?->name,
         ];
     }
 }

@@ -29,6 +29,15 @@ class HrPaymentRecord extends Model
         return $this->belongsTo(HrBooking::class, 'booking_id');
     }
 
+    /**
+     * แอดมินผู้อนุมัติ/ตรวจสอบสลิปโอนเงินของรายการนี้ (verified_by) - คนละคนกับ hr_invoices.approved_by
+     * ที่เป็นผู้อนุมัติตัวใบแจ้งหนี้ ดู happyest PaymentRecord::verifiedBy()
+     */
+    public function verifiedBy()
+    {
+        return $this->belongsTo(HrAdmin::class, 'verified_by');
+    }
+
     public static function rentalTypeLabels(): array
     {
         return [

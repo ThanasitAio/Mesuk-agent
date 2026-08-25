@@ -109,9 +109,9 @@ class TenantInvoiceController extends Controller
         $all = $query->with([
             'property:id,property_code,title',
             'booking:id,booking_code',
-            'booking.paymentRecords:id,booking_id,payment_type,deposit_phase,payment_status,due_date,paid_at,payment_slip_batches',
+            'booking.paymentRecords:id,booking_id,payment_type,deposit_phase,payment_status,due_date,paid_at,payment_slip_batches,verified_at,verified_by',
+            'booking.paymentRecords.verifiedBy:id,name',
             'customer:id,first_name,last_name,company_name',
-            'approvedBy:id,name',
         ])
             ->orderByRaw('COALESCE(issued_date, created_at) DESC')
             ->get();
