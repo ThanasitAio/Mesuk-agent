@@ -35,6 +35,15 @@
             default => ['bg-gray-100 text-gray-500', 'ยังไม่แนบสลิป', 'M6 18L18 6M6 6l12 12'],
         };
     };
+
+    // ผู้รับเงินตามใบแจ้งหนี้นี้ (hr_invoices.billing_route) - "company" คือมีสุขรับเงินเอง, "investor"
+    // คือโอนตรงเข้าบัญชีเจ้าของทรัพย์ (ดู HrInvoice::getBillingRouteLabelAttribute() สำหรับป้ายทั่วไปที่
+    // จุดอื่นในแอปใช้ - ที่นี่ใช้คำที่ผู้บริหารโครงการคุ้นเคยกว่าโดยเฉพาะ)
+    $payeeStyleFor = function ($invoice) {
+        return $invoice->billing_route === 'investor'
+            ? ['bg-purple-50 text-purple-700', 'เจ้าของทรัพย์', 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6']
+            : ['bg-teal-50 text-teal-700', 'มีสุข', 'M3 21h18M5 21V7l8-4v18M13 9h6v12M9 9v.01M9 12v.01M9 15v.01M9 18v.01'];
+    };
 @endphp
 
 {{-- ── Header ──────────────────────────────────────────────────────────────── --}}
@@ -109,6 +118,7 @@
             $downloadUrl = route('tenant-invoices.download', $invoice->id);
             [$typeClasses, $typeIcon] = $typeStyleFor($invoice);
             [$payClasses, $payLabel, $payIcon] = $payStyleFor($invoice->pay_summary['status'] ?? null);
+            [$payeeClasses, $payeeLabel, $payeeIcon] = $payeeStyleFor($invoice);
             $transferDates = $invoice->pay_summary['transfer_dates'] ?? collect();
         @endphp
         <div class="ti-row flex flex-col gap-2 bg-white border border-gray-100 rounded-xl px-3.5 py-3 shadow-sm hover:shadow-md transition-shadow"
@@ -136,7 +146,18 @@
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $payIcon }}"/></svg>
                     {{ $payLabel }}
                 </span>
+                <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full {{ $payeeClasses }}" title="ผู้รับเงินตามใบแจ้งหนี้นี้">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $payeeIcon }}"/></svg>
+                    ผู้รับเงิน: {{ $payeeLabel }}
+                </span>
                 <span class="text-[11px] text-gray-400 whitespace-nowrap">จอง {{ $bookingCode }} · เลขที่ {{ $invoice->invoice_code }} · {{ ($invoice->issued_date ?? $invoice->created_at)->format('d/m/Y') }}</span>
+                @if($invoice->approved_at)
+                    {{-- อนุมัติโดยแอดมิน (hr_admins) เท่านั้น - hr_invoices ไม่มีช่องทางให้เจ้าของทรัพย์
+                         อนุมัติใบแจ้งหนี้เองแยกต่างหาก (ดูคอมเมนต์ HrAdmin/HrInvoice::approvedBy()) --}}
+                    <span class="text-[11px] text-gray-400 w-full">
+                        อนุมัติโดย {{ $invoice->approvedBy?->name ?? 'แอดมิน' }} เมื่อ {{ $invoice->approved_at->format('d/m/Y H:i') }} น.
+                    </span>
+                @endif
                 @if($transferDates->isNotEmpty())
                     <span class="text-[11px] text-gray-400 w-full">โอนวันที่ {{ $transferDates->map(fn ($d) => $d->format('d/m/Y'))->implode(', ') }}</span>
                 @endif

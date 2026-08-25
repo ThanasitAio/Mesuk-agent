@@ -46,6 +46,11 @@ class HrInvoice extends Model
         return $this->belongsTo(HrCustomer::class, 'customer_id');
     }
 
+    public function approvedBy()
+    {
+        return $this->belongsTo(HrAdmin::class, 'approved_by');
+    }
+
     public function scopeApproved($query)
     {
         return $query->where('status', 'approved');

@@ -111,6 +111,7 @@ class TenantInvoiceController extends Controller
             'booking:id,booking_code',
             'booking.paymentRecords:id,booking_id,payment_type,deposit_phase,payment_status,due_date,paid_at,payment_slip_batches',
             'customer:id,first_name,last_name,company_name',
+            'approvedBy:id,name',
         ])
             ->orderByRaw('COALESCE(issued_date, created_at) DESC')
             ->get();
