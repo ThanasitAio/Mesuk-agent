@@ -160,18 +160,8 @@
             </span>
         </div>
 
-        <div class="mt-2.5 pt-2.5 sm:mt-3 sm:pt-3 border-t border-gray-100">
-            <x-form.month-year
-                name-month="rent_month"
-                name-year="rent_year"
-                :value-month="$rentMonth"
-                :value-year="$rentYear"
-                :year-from="2025"
-                :year-to="now()->year + 1"
-                :disabled="$alreadyInvoiced"
-                required
-            />
-        </div>
+        <input type="hidden" name="rent_month" value="{{ $rentMonth }}">
+        <input type="hidden" name="rent_year" value="{{ $rentYear }}">
     </div>
 
     <div class="space-y-2 sm:space-y-2.5">
