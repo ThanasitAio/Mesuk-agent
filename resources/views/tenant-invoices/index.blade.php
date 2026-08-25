@@ -106,13 +106,13 @@
             $propCode = $invoice->snapshot_property['property_code'] ?? $invoice->property?->property_code ?? '-';
             $tenantName = $invoice->snapshot_customer['name'] ?? $invoice->customer?->full_name ?? '-';
             $bookingCode = $invoice->booking?->booking_code ?? '-';
-            $downloadUrl = route('invoices.print', $invoice->id);
+            $downloadUrl = route('tenant-invoices.download', $invoice->id);
             [$typeClasses, $typeIcon] = $typeStyleFor($invoice);
             [$payClasses, $payLabel, $payIcon] = $payStyleFor($invoice->pay_summary['status'] ?? null);
             $transferDates = $invoice->pay_summary['transfer_dates'] ?? collect();
         @endphp
         <div class="ti-row flex flex-col gap-2 bg-white border border-gray-100 rounded-xl px-3.5 py-3 shadow-sm hover:shadow-md transition-shadow"
-             data-id="{{ $invoice->id }}" data-invoice-code="{{ $invoice->invoice_code }}">
+             data-id="{{ $invoice->id }}" data-invoice-code="{{ $invoice->invoice_code }}" data-download-url="{{ $downloadUrl }}">
             <div class="flex items-center gap-3">
                 <input type="checkbox" class="ti-row-check w-4 h-4 rounded accent-brand-600 cursor-pointer flex-shrink-0" aria-label="เลือก {{ $invoice->invoice_code }}">
                 <span class="w-9 h-9 rounded-lg bg-red-50 text-red-500 flex items-center justify-center flex-shrink-0">
@@ -122,10 +122,10 @@
                     <span class="font-mono text-xs font-bold text-amber-700 bg-amber-50 rounded-full px-2 py-0.5 flex-shrink-0">{{ $propCode }}</span>
                     <span class="text-sm font-semibold text-gray-800 truncate">{{ $tenantName }}</span>
                 </div>
-                <a href="{{ $downloadUrl }}" target="_blank" rel="noopener"
-                   class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-brand-50 hover:text-brand-600 transition-colors" title="ดาวน์โหลด">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
-                </a>
+                <button type="button" class="ti-row-dl flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-brand-50 hover:text-brand-600 transition-colors disabled:opacity-50"
+                        data-download-url="{{ $downloadUrl }}" data-invoice-code="{{ $invoice->invoice_code }}" title="ดาวน์โหลด">
+                    <svg class="w-4 h-4 ti-dl-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
             </div>
             <div class="pl-[52px] flex items-center gap-2 flex-wrap">
                 <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full {{ $typeClasses }}">
@@ -157,6 +157,22 @@
 
 <x-pagination :paginator="$invoices->withQueryString()" label="ใบแจ้งหนี้" />
 
+{{-- ── Bulk-download progress overlay ─────────────────────────────────────── --}}
+<div id="ti-progress-overlay" class="fixed inset-0 z-[10700] hidden items-center justify-center p-4" style="background:rgba(28,53,20,0.45);">
+    <div class="bg-white rounded-2xl p-5 w-full max-w-xs text-center">
+        <h5 class="font-bold text-gray-800 text-sm mb-1">กำลังดาวน์โหลด</h5>
+        <p id="ti-progress-sub" class="text-xs text-gray-500 mb-3.5">กำลังเตรียมไฟล์...</p>
+        <div class="bg-brand-50 rounded-full h-2 overflow-hidden mb-2">
+            <div id="ti-progress-bar" class="bg-brand-600 h-full transition-all" style="width:0%"></div>
+        </div>
+        <div class="flex justify-between text-xs text-gray-500">
+            <span>สำเร็จ: <strong id="ti-progress-ok">0</strong></span>
+            <span>ทั้งหมด: <strong id="ti-progress-total">0</strong></span>
+        </div>
+        <button type="button" id="ti-progress-close" style="display:none;" class="mt-3.5 w-full py-2 text-xs font-bold rounded-full text-white bg-brand-600 hover:bg-brand-700">ปิด</button>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 (function () {
@@ -165,10 +181,10 @@
     const currentPayStatus = @js($payFilter);
     const totalFilteredCount = {{ (int) $invoices->total() }};
     const bulkListUrl = @js(route('tenant-invoices.bulk-list'));
-    const printBulkUrl = @js(route('tenant-invoices.print-bulk'));
 
-    // เลือกข้ามหน้าได้ (เก็บใน sessionStorage คั่นตามเดือน) - หน้า pagination เป็นการโหลดหน้าใหม่ทั้งหมด
-    // สถานะติ๊กในตัวแปรอย่างเดียวจะไม่รอดข้ามหน้า ต้องเก็บลง sessionStorage เหมือนฝั่ง investor
+    // ── Persistent cross-page selection cart (sessionStorage, keyed per month) - pagination
+    // is a full page reload, so a selected item must stay selected/counted after visiting
+    // page 2 and back, and "select all" must cover every page, not just the one on screen. ──
     const STORAGE_KEY = 'ti_sel_' + currentMonth;
     function loadSelection() {
         try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
@@ -177,26 +193,21 @@
         try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(selection)); } catch (e) {}
     }
     let selection = loadSelection();
-    function isSelected(id) { return selection.includes(id); }
-    function addSelection(id) { if (!isSelected(id)) { selection.push(id); saveSelection(); } }
-    function removeSelection(id) { selection = selection.filter(s => s !== id); saveSelection(); }
+    function isSelected(id) { return selection.some(s => s.id === id); }
+    function addSelection(item) { if (!isSelected(item.id)) { selection.push(item); saveSelection(); } }
+    function removeSelection(id) { selection = selection.filter(s => s.id !== id); saveSelection(); }
     function emptySelection() { selection = []; saveSelection(); }
 
-    async function fetchAllMatchingIds() {
+    async function fetchAllMatchingItems() {
         const url = bulkListUrl + '?month=' + encodeURIComponent(currentMonth)
             + '&q=' + encodeURIComponent(currentQuery)
             + '&pay_status=' + encodeURIComponent(currentPayStatus);
         const res = await fetch(url, { credentials: 'same-origin' });
         const data = await res.json();
-        return (data.items || []).map(it => it.invoice_id);
+        return (data.items || []).map(it => ({ id: it.invoice_id, invoice_code: it.invoice_code, download_url: it.download_url }));
     }
 
-    function openPrintBulk(ids) {
-        if (ids.length === 0) return;
-        window.open(printBulkUrl + '?ids=' + ids.join(','), '_blank');
-    }
-
-    const toolbar = document.getElementById('ti-toolbar');
+    // ── Row selection ──
     const toolbarCount = document.getElementById('ti-toolbar-count');
     const toolbarActions = document.getElementById('ti-toolbar-actions');
     const selectAllBox = document.getElementById('ti-select-all');
@@ -229,7 +240,7 @@
             dlBtn.type = 'button';
             dlBtn.className = 'inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-full text-white bg-brand-600 hover:bg-brand-700 transition-colors';
             dlBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>ดาวน์โหลด (' + count + ')';
-            dlBtn.addEventListener('click', () => openPrintBulk(selection.slice()));
+            dlBtn.addEventListener('click', () => downloadSelected(selection.slice()));
 
             inner.appendChild(clearBtn);
             inner.appendChild(dlBtn);
@@ -253,11 +264,20 @@
     rows.forEach(row => {
         const box = row.querySelector('.ti-row-check');
         const id = parseInt(row.dataset.id, 10);
+        box.addEventListener('click', e => e.stopPropagation());
+        row.querySelector('.ti-row-dl').addEventListener('click', e => {
+            e.stopPropagation();
+            downloadSingle(e.currentTarget);
+        });
         box.addEventListener('change', () => {
             row.classList.toggle('ring-2', box.checked);
             row.classList.toggle('ring-brand-200', box.checked);
             row.classList.toggle('bg-brand-50/40', box.checked);
-            if (box.checked) addSelection(id); else removeSelection(id);
+            if (box.checked) {
+                addSelection({ id: id, invoice_code: row.dataset.invoiceCode, download_url: row.dataset.downloadUrl });
+            } else {
+                removeSelection(id);
+            }
             renderToolbar();
         });
     });
@@ -266,7 +286,7 @@
         if (selectAllBox.checked) {
             selectAllBox.disabled = true;
             try {
-                selection = await fetchAllMatchingIds();
+                selection = await fetchAllMatchingItems();
                 saveSelection();
             } catch (e) {
                 selectAllBox.checked = false;
@@ -288,15 +308,183 @@
         renderToolbar();
     });
 
-    async function downloadAllForMonth() {
-        const ids = await fetchAllMatchingIds();
-        openPrintBulk(ids);
+    renderToolbar(); // reflect any selection restored from the cart immediately on load
+
+    // ── Real file download (fetch + blob) - mirrors happyest investor.invoices exactly, so
+    // mobile behaves the same way that page already does in production: showSaveFilePicker/
+    // showDirectoryPicker only exist on desktop Chrome/Edge, so on mobile (and Safari/Firefox)
+    // both helpers below immediately fall through to the a[download] blob branch, which is
+    // what actually triggers a real file save on Android Chrome and iOS Safari. ──
+    function parseFilename(headerValue, fallback) {
+        if (!headerValue) return fallback;
+        const starMatch = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+        if (starMatch) { try { return decodeURIComponent(starMatch[1].trim()); } catch (e) {} }
+        const plainMatch = headerValue.match(/filename="([^"]+)"/i);
+        return plainMatch ? plainMatch[1] : fallback;
     }
 
-    // renderToolbar() (below) always (re)builds #ti-download-all-btn and binds this listener
-    // itself - including on this very first call - so no separate top-level binding is needed
-    // for the server-rendered button.
-    renderToolbar();
+    async function pickSaveHandle(suggestedName) {
+        if (!window.showSaveFilePicker) return { handle: null, cancelled: false };
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName,
+                types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+            });
+            return { handle, cancelled: false };
+        } catch (e) {
+            if (e && e.name === 'AbortError') return { handle: null, cancelled: true };
+            return { handle: null, cancelled: false };
+        }
+    }
+
+    async function pickDirectoryHandle() {
+        if (!window.showDirectoryPicker) return { handle: null, cancelled: false };
+        try {
+            const handle = await window.showDirectoryPicker();
+            return { handle, cancelled: false };
+        } catch (e) {
+            if (e && e.name === 'AbortError') return { handle: null, cancelled: true };
+            return { handle: null, cancelled: false };
+        }
+    }
+
+    async function downloadSingle(btn) {
+        if (btn.disabled) return;
+        const url = btn.dataset.downloadUrl;
+        const invoiceCode = btn.dataset.invoiceCode;
+        const fallbackName = 'invoice-' + invoiceCode + '.pdf';
+
+        // showSaveFilePicker ต้องเรียกอยู่ใน user-gesture เดียวกับคลิกปุ่มเสมอ (ก่อน await fetch ใดๆ)
+        // ไม่งั้น activation จะหมดไปกับการรอ mPDF render แล้วเบราว์เซอร์โยน SecurityError
+        const { handle, cancelled } = await pickSaveHandle(fallbackName);
+        if (cancelled) return;
+
+        btn.disabled = true;
+        btn.querySelector('.ti-dl-icon')?.classList.add('animate-spin');
+        try {
+            const res = await fetch(url, { credentials: 'same-origin' });
+            if (!res.ok) throw new Error('bad response');
+            const blob = await res.blob();
+            if (handle) {
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } else {
+                const filename = parseFilename(res.headers.get('content-disposition'), fallbackName);
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+            }
+        } catch (e) {
+            alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่');
+        } finally {
+            btn.disabled = false;
+            btn.querySelector('.ti-dl-icon')?.classList.remove('animate-spin');
+        }
+    }
+
+    // ── Bulk download (progress overlay + sequential fetch+blob, one real file per invoice) ──
+    const overlay = document.getElementById('ti-progress-overlay');
+    const barFill = document.getElementById('ti-progress-bar');
+    const sub = document.getElementById('ti-progress-sub');
+    const okEl = document.getElementById('ti-progress-ok');
+    const totalEl = document.getElementById('ti-progress-total');
+    const closeBtn = document.getElementById('ti-progress-close');
+
+    // dirHandle มาจาก showDirectoryPicker ที่เรียกครั้งเดียวก่อนเริ่ม loop (ไม่ใช่ถามทีละไฟล์) ถ้าเบราว์เซอร์
+    // ไม่รองรับ (มือถือทุกตัว/Safari/Firefox) หรือผู้ใช้ไม่ได้เลือกโฟลเดอร์ จะ fallback ไปที่ a.download ทีละไฟล์
+    async function downloadItems(items, dirHandle) {
+        closeBtn.style.display = 'none';
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        barFill.style.width = '0%';
+        okEl.textContent = '0';
+        totalEl.textContent = items.length;
+
+        let ok = 0;
+        for (let i = 0; i < items.length; i++) {
+            sub.textContent = 'กำลังดาวน์โหลด ' + items[i].invoice_code + '...';
+            try {
+                const res = await fetch(items[i].download_url, { credentials: 'same-origin' });
+                if (!res.ok) throw new Error('bad response');
+                const blob = await res.blob();
+                const filename = parseFilename(res.headers.get('content-disposition'), 'invoice-' + items[i].invoice_code + '.pdf');
+                if (dirHandle) {
+                    const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                } else {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+                }
+                ok++;
+            } catch (e) {
+                console.error('[ti] download failed:', items[i].invoice_code, e);
+            }
+            okEl.textContent = ok;
+            barFill.style.width = Math.round(((i + 1) / items.length) * 100) + '%';
+        }
+        sub.textContent = 'ดาวน์โหลดเสร็จสิ้น';
+        closeBtn.style.display = 'inline-flex';
+    }
+
+    async function downloadSelected(items) {
+        if (items.length === 0) return;
+        const { handle, cancelled } = await pickDirectoryHandle();
+        if (cancelled) return;
+        await downloadItems(items, handle);
+    }
+
+    async function downloadAllForMonth() {
+        const { handle, cancelled } = await pickDirectoryHandle();
+        if (cancelled) return;
+
+        closeBtn.style.display = 'none';
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        sub.textContent = 'กำลังโหลดรายการ...';
+        barFill.style.width = '0%';
+        okEl.textContent = '0';
+        totalEl.textContent = '0';
+
+        let items = [];
+        try {
+            items = await fetchAllMatchingItems();
+        } catch (e) {
+            sub.textContent = 'โหลดรายการไม่สำเร็จ กรุณาลองใหม่';
+            closeBtn.style.display = 'inline-flex';
+            return;
+        }
+
+        if (items.length === 0) {
+            sub.textContent = 'ไม่มีใบแจ้งหนี้ให้ดาวน์โหลดตามตัวกรองนี้';
+            closeBtn.style.display = 'inline-flex';
+            return;
+        }
+
+        await downloadItems(items, handle);
+    }
+
+    closeBtn?.addEventListener('click', () => {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+    });
+
+    // renderToolbar() (above) always (re)builds #ti-download-all-btn and binds this listener
+    // itself, including on the initial call already made above - no separate top-level binding
+    // needed (and adding one here would double-fire the picker on click).
 })();
 </script>
 @endpush

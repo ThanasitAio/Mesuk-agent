@@ -61,7 +61,7 @@ Route::middleware('auth.agent')->group(function () {
     // Tenant Invoices (ใบแจ้งหนี้ผู้เช่า)
     Route::get('/tenant-invoices', [TenantInvoiceController::class, 'index'])->name('tenant-invoices.index');
     Route::get('/tenant-invoices/bulk-list', [TenantInvoiceController::class, 'bulkList'])->name('tenant-invoices.bulk-list');
-    Route::get('/tenant-invoices/print-bulk', [TenantInvoiceController::class, 'printBulk'])->name('tenant-invoices.print-bulk');
+    Route::get('/tenant-invoices/{invoice}/download', [TenantInvoiceController::class, 'download'])->whereNumber('invoice')->name('tenant-invoices.download');
     Route::get('/tenant-invoices/{month}', [TenantInvoiceController::class, 'show'])->where('month', '\d{4}-\d{2}')->name('tenant-invoices.show');
 
     // Rental Rate Overview

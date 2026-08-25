@@ -13,11 +13,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * เท่านั้น) - พอร์ตหลักการทำงานมาจาก happyest InvestorInvoiceController (ดูและดาวน์โหลดทั้งหมดของ
  * เจ้าของทรัพย์) แต่ขอบเขตข้อมูลเป็น "ทรัพย์ที่ตัวเองบริหาร" แทน "ทรัพย์ที่ตัวเองเป็นเจ้าของ"
  *
- * "ดาวน์โหลด" ในโปรเจกต์นี้คือหน้าพิมพ์ HTML (invoices.print - ดู PropertyBillingController::printInvoice)
- * ให้เบราว์เซอร์ print-to-PDF เอง เพราะไม่มี PDF library (mPDF/DomPDF) ติดตั้งอยู่ (CLAUDE.md ห้าม
- * composer require สำหรับ production) - "ดาวน์โหลดทั้งหมด/ที่เลือก" จึงรวมหลายใบไว้ในเอกสารเดียว
- * (printBulk) แล้วให้กด print ครั้งเดียวได้ PDF เดียวที่มีทุกใบ แทนการดาวน์โหลดไฟล์แยกทีละไฟล์แบบฝั่ง
- * happyest ที่มี InvoicePdfService สร้างไฟล์ PDF จริงอยู่แล้ว
+ * "ดาวน์โหลด" สร้างไฟล์ PDF จริงที่ server ด้วย mPDF (composer require mpdf/mpdf เพิ่มเข้ามาสำหรับ
+ * ฟีเจอร์นี้โดยเฉพาะ - ดู download()/renderPdf()) แล้วส่งกลับพร้อม Content-Disposition: attachment
+ * เหมือน happyest InvestorInvoiceController::download() ทุกประการ (คนละ endpoint กับ invoices.print
+ * เดิมที่ยังเป็นหน้าพิมพ์ HTML แบบ print-to-PDF สำหรับใช้งานจุดอื่นในแอปนี้อยู่ - ไม่แตะ)
  */
 class TenantInvoiceController extends Controller
 {
@@ -88,8 +87,8 @@ class TenantInvoiceController extends Controller
 
     /**
      * ใบแจ้งหนี้ทั้งหมดของผู้บริหารโครงการในเดือนนี้ที่ตรงกับคำค้นหา พร้อม pay_summary - แคชไว้ในตัว
-     * ใช้ร่วมกันทั้ง show() (แบ่งหน้า) และ bulkList()/printBulk() (เลือกทั้งหมดข้ามหน้า) เพื่อให้ผลลัพธ์
-     * ตรงกันเป๊ะ - กรองสถานะการชำระที่ระดับ SQL ไม่ได้เพราะมาจาก HrInvoice::paymentSummary() (จับคู่
+     * ใช้ร่วมกันทั้ง show() (แบ่งหน้า) และ bulkList() (เลือกทั้งหมดข้ามหน้า) เพื่อให้ผลลัพธ์ตรงกันเป๊ะ -
+     * กรองสถานะการชำระที่ระดับ SQL ไม่ได้เพราะมาจาก HrInvoice::paymentSummary() (จับคู่
      * hr_payment_records ผ่าน booking ไม่ใช่คอลัมน์ตรงๆ) จึงดึงมาทั้งเดือนแล้วกรองใน PHP แทน
      */
     private function matchingInvoices(string $agentCode, string $month, string $search)
@@ -195,6 +194,7 @@ class TenantInvoiceController extends Controller
                 'invoice_code' => $invoice->invoice_code,
                 'property_code' => $invoice->snapshot_property['property_code'] ?? '',
                 'customer_name' => $invoice->snapshot_customer['name'] ?? '',
+                'download_url' => route('tenant-invoices.download', $invoice->id),
             ])
             ->values();
 
@@ -202,34 +202,134 @@ class TenantInvoiceController extends Controller
     }
 
     /**
-     * รวมหลายใบแจ้งหนี้ (ที่อยู่ในขอบเขตทรัพย์ที่ตัวเองดูแลเท่านั้น - กรองซ้ำที่นี่แม้ id จะมาจาก
-     * bulkList()/show() ของตัวเองอยู่แล้วก็ตาม กัน id ที่ผู้ใช้แก้ query string เอง) เป็นเอกสารพิมพ์เดียว
+     * ดาวน์โหลดใบแจ้งหนี้ผู้เช่า 1 ใบเป็นไฟล์ PDF จริง (Content-Disposition: attachment) - ใช้ mPDF
+     * (ไม่ใช่ DomPDF) เพราะ mPDF รองรับ OpenType Layout (GSUB/GPOS) ที่จำเป็นสำหรับวรรณยุกต์/สระไทยซ้อน
+     * ถูกต้อง ตรงกับที่ happyest InvoicePdfService::getPdfContent() เลือกใช้จริงใน production (ดูคอมเมนต์
+     * ในไฟล์นั้น: "Both company and investor invoices → mPDF (proper Thai OTL shaping)") - หน้ารายการ
+     * (tenant-invoices/index.blade.php) เรียก route นี้ทีละใบทั้งตอนกดดาวน์โหลดรายการเดียวและตอนดาวน์โหลด
+     * หลายใบพร้อมกัน (fetch+blob วนทีละไฟล์ เหมือนฝั่ง happyest investor.invoices)
      */
-    public function printBulk(Request $request)
+    public function download(HrInvoice $invoice)
     {
         $agentCode = session('agent_code');
 
-        $ids = array_filter(array_map('intval', explode(',', (string) $request->get('ids'))));
-        abort_if(empty($ids), 404, 'ไม่พบรายการใบแจ้งหนี้ที่เลือก');
-
-        $invoices = $this->ownedInvoiceQuery($agentCode)
-            ->whereIn('id', $ids)
-            ->orderByRaw('COALESCE(issued_date, created_at) ASC')
-            ->get();
-
-        abort_if($invoices->isEmpty(), 404, 'ไม่พบรายการใบแจ้งหนี้ที่เลือก');
+        if ($invoice->property?->manager_agent_code !== $agentCode) {
+            abort(403, 'คุณไม่มีสิทธิ์เข้าถึงใบแจ้งหนี้นี้');
+        }
+        abort_if($invoice->status !== 'approved', 403, 'ใบแจ้งหนี้นี้ยังไม่ได้รับการอนุมัติ');
 
         $company = HrCompany::getActive();
         $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
+
+        $content = $this->renderPdf($invoice, $company, $happyestPublic);
 
         logSystem(
             userType: 'agent',
             userId: session('agent_id'),
             module: 'TenantInvoice',
             action: 'VIEW',
-            description: 'พิมพ์ใบแจ้งหนี้ผู้เช่าแบบรวม '.$invoices->count().' ใบ'
+            description: "ดาวน์โหลดใบแจ้งหนี้ผู้เช่า {$invoice->invoice_code}"
         );
 
-        return view('tenant-invoices.print-bulk', compact('invoices', 'company', 'happyestPublic'));
+        return response($content, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $this->buildContentDisposition($invoice),
+            'Content-Length' => strlen($content),
+        ]);
+    }
+
+    private function renderPdf(HrInvoice $invoice, HrCompany $company, string $happyestPublic): string
+    {
+        $html = view('invoices.partials.pdf-wrapper', compact('invoice', 'company', 'happyestPublic'))->render();
+
+        $tempDir = storage_path('app/mpdf');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        $defaultConfig = (new \Mpdf\Config\ConfigVariables)->getDefaults();
+        $defaultFontConfig = (new \Mpdf\Config\FontVariables)->getDefaults();
+
+        $mpdf = new \Mpdf\Mpdf([
+            'mode' => 'utf-8',
+            'format' => 'A4',
+            'margin_top' => 10,
+            'margin_right' => 14,
+            'margin_bottom' => 10,
+            'margin_left' => 14,
+            'fontDir' => array_merge($defaultConfig['fontDir'], [storage_path('fonts')]),
+            'fontdata' => $defaultFontConfig['fontdata'] + [
+                'sarabun' => [
+                    'R' => 'Sarabun-Regular.ttf',
+                    'B' => 'Sarabun-Bold.ttf',
+                    'useOTL' => 0xFF,
+                ],
+            ],
+            'default_font' => 'sarabun',
+            'default_font_size' => 9,
+            'tempDir' => $tempDir,
+            'autoScriptToLang' => true,
+            'autoLangToFont' => true,
+        ]);
+
+        // ตัด UTF-8 BOM ถ้ามี (ทำให้ mPDF โยน "invalid UTF-8" exception ได้) - เหมือนฝั่ง happyest
+        $mpdf->WriteHTML(ltrim($html, "\xEF\xBB\xBF"));
+        $mpdf->SetTitle($this->buildDisplayName($invoice));
+
+        return $mpdf->OutputBinaryData();
+    }
+
+    /**
+     * ชื่อไฟล์ (ไม่รวม .pdf) - พอร์ตมาจาก happyest InvoicePdfService::buildDisplayName() เพื่อให้ชื่อไฟล์
+     * ที่ผู้บริหารโครงการเห็นตรงกับที่เจ้าของทรัพย์เห็นจากหน้า investor.invoices รูปแบบเดียวกัน
+     */
+    private function buildDisplayName(HrInvoice $invoice): string
+    {
+        $propCode = $invoice->snapshot_property['property_code'] ?? $invoice->property?->property_code ?? '';
+        $custName = $invoice->snapshot_customer['name'] ?? $invoice->customer?->full_name ?? '';
+
+        $typeLabel = match (true) {
+            ($invoice->invoice_sub_type ?? null) === 'land_tax' => 'ภาษีที่ดิน',
+            ($invoice->invoice_sub_type ?? null) === 'rent' => 'ค่าเช่า',
+            ($invoice->invoice_sub_type ?? null) === 'stamp_duty' => 'อากรแสตมป์',
+            ($invoice->invoice_sub_type ?? null) === 'side_area' => 'ค่าเช่าพื้นที่ด้านข้าง',
+            $invoice->invoice_type === 'utility' => 'ค่าน้ำไฟ',
+            $invoice->invoice_type === 'deposit' => 'ค่ามัดจำ',
+            $invoice->invoice_type === 'service_fee' => 'ค่าดำเนินการ',
+            $invoice->invoice_type === 'monthly_rent' => 'ค่าเช่า',
+            default => $invoice->detailed_type_label ?: 'ใบแจ้งหนี้',
+        };
+
+        // billing_month_short() ของ happyest คืน "ด.8/69" - "/" เป็น path separator จริง เขียนเป็นชื่อไฟล์
+        // ตรงๆ ไม่ได้ แทนด้วย "-" ธรรมดา
+        $monthPart = '';
+        if ($invoice->billing_month) {
+            [$byr, $bmo] = explode('-', $invoice->billing_month);
+            $monthPart = ' ด.'.ltrim($bmo, '0').'-'.(((int) $byr + 543) - 2500);
+        }
+
+        $name = trim("{$propCode}({$typeLabel})ใบแจ้งหนี้ {$custName}{$monthPart}");
+
+        // กัน HTTP header injection (CR/LF) + อักขระต้องห้ามของชื่อไฟล์ Windows/Unix
+        $name = trim(preg_replace('/[\/\\\\:*?"<>|\r\n]+/u', '-', $name) ?? $name);
+
+        return $name !== '' ? $name : ($invoice->invoice_code ?: 'invoice');
+    }
+
+    /**
+     * RFC 5987/6266 Content-Disposition: filename* (UTF-8 percent-encoded ชื่อไทยจริง) เป็นตัวหลักที่
+     * เบราว์เซอร์สมัยใหม่ทุกตัวอ่าน, filename="" (ASCII-only invoice-{code}.pdf) เป็น fallback -
+     * เหมือน happyest InvestorInvoiceController::buildContentDisposition() ทุกประการ
+     */
+    private function buildContentDisposition(HrInvoice $invoice): string
+    {
+        $filename = $this->buildDisplayName($invoice).'.pdf';
+        $asciiFallback = "invoice-{$invoice->invoice_code}.pdf";
+
+        return sprintf(
+            'attachment; filename="%s"; filename*=UTF-8\'\'%s',
+            $asciiFallback,
+            rawurlencode($filename)
+        );
     }
 }
