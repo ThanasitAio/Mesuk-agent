@@ -10,6 +10,7 @@ use App\Http\Controllers\MeterReadingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyBillingController;
 use App\Http\Controllers\RentalRateController;
+use App\Http\Controllers\TenantInvoiceController;
 
 // Redirect root to dashboard (if logged in) or login (if not)
 Route::get('/', function () {
@@ -56,6 +57,12 @@ Route::middleware('auth.agent')->group(function () {
     Route::post('/meters/{property}/confirm', [MeterReadingController::class, 'confirm'])->name('meters.confirm');
     Route::delete('/meters/{property}', [MeterReadingController::class, 'destroy'])->name('meters.destroy');
     Route::get('/meters/reading/{reading}/image', [MeterReadingController::class, 'viewImage'])->name('meters.image');
+
+    // Tenant Invoices (ใบแจ้งหนี้ผู้เช่า)
+    Route::get('/tenant-invoices', [TenantInvoiceController::class, 'index'])->name('tenant-invoices.index');
+    Route::get('/tenant-invoices/bulk-list', [TenantInvoiceController::class, 'bulkList'])->name('tenant-invoices.bulk-list');
+    Route::get('/tenant-invoices/print-bulk', [TenantInvoiceController::class, 'printBulk'])->name('tenant-invoices.print-bulk');
+    Route::get('/tenant-invoices/{month}', [TenantInvoiceController::class, 'show'])->where('month', '\d{4}-\d{2}')->name('tenant-invoices.show');
 
     // Rental Rate Overview
     Route::get('/rental-rates', [RentalRateController::class, 'index'])->name('rental-rates.index');
