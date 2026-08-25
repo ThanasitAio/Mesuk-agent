@@ -25,6 +25,7 @@ class HrInvoice extends Model
         'include_vat'       => 'boolean',
         'vat_rate'          => 'decimal:2',
         'deposit_phase'     => 'integer',
+        'issued_date'       => 'date',
         'approved_at'       => 'datetime',
         'rejected_at'       => 'datetime',
         'send_email_on_approve' => 'boolean',
