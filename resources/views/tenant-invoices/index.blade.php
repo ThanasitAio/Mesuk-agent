@@ -151,15 +151,15 @@
                     ผู้รับเงิน: {{ $payeeLabel }}
                 </span>
                 <span class="text-[11px] text-gray-400 whitespace-nowrap">จอง {{ $bookingCode }} · เลขที่ {{ $invoice->invoice_code }} · {{ ($invoice->issued_date ?? $invoice->created_at)->format('d/m/Y') }}</span>
+                @if($transferDates->isNotEmpty())
+                    <span class="text-[11px] text-gray-400 w-full">โอนวันที่ {{ $transferDates->map(fn ($d) => $d->format('d/m/Y'))->implode(', ') }}</span>
+                @endif
                 @if($invoice->approved_at)
                     {{-- อนุมัติโดยแอดมิน (hr_admins) เท่านั้น - hr_invoices ไม่มีช่องทางให้เจ้าของทรัพย์
                          อนุมัติใบแจ้งหนี้เองแยกต่างหาก (ดูคอมเมนต์ HrAdmin/HrInvoice::approvedBy()) --}}
                     <span class="text-[11px] text-gray-400 w-full">
                         อนุมัติโดย {{ $invoice->approvedBy?->name ?? 'แอดมิน' }} เมื่อ {{ $invoice->approved_at->format('d/m/Y H:i') }} น.
                     </span>
-                @endif
-                @if($transferDates->isNotEmpty())
-                    <span class="text-[11px] text-gray-400 w-full">โอนวันที่ {{ $transferDates->map(fn ($d) => $d->format('d/m/Y'))->implode(', ') }}</span>
                 @endif
             </div>
         </div>
