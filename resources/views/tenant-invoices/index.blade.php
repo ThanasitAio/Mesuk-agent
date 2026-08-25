@@ -169,7 +169,11 @@
             <span>สำเร็จ: <strong id="ti-progress-ok">0</strong></span>
             <span>ทั้งหมด: <strong id="ti-progress-total">0</strong></span>
         </div>
-        <button type="button" id="ti-progress-close" style="display:none;" class="mt-3.5 w-full py-2 text-xs font-bold rounded-full text-white bg-brand-600 hover:bg-brand-700">ปิด</button>
+        <button type="button" id="ti-progress-close" style="display:none;"
+                class="mt-4 pt-3.5 border-t border-gray-100 w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl text-white bg-brand-600 hover:bg-brand-700 active:scale-[0.98] transition-all">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            ปิดหน้าต่างนี้
+        </button>
     </div>
 </div>
 
@@ -310,31 +314,19 @@
 
     renderToolbar(); // reflect any selection restored from the cart immediately on load
 
-    // ── Real file download (fetch + blob) - mirrors happyest investor.invoices exactly, so
-    // mobile behaves the same way that page already does in production: showSaveFilePicker/
-    // showDirectoryPicker only exist on desktop Chrome/Edge, so on mobile (and Safari/Firefox)
-    // both helpers below immediately fall through to the a[download] blob branch, which is
-    // what actually triggers a real file save on Android Chrome and iOS Safari. ──
+    // ── Real file download (fetch + blob) - single-item download always uses a[download] with
+    // the real filename parsed from Content-Disposition (see downloadSingle() below), so it
+    // matches multi-item download exactly. Multi-item download additionally offers
+    // showDirectoryPicker on desktop Chrome/Edge to save straight into a chosen folder; that API
+    // doesn't exist on mobile (or Safari/Firefox), where it falls through to the same
+    // a[download] blob branch - matching how happyest's investor.invoices page already
+    // behaves on mobile in production. ──
     function parseFilename(headerValue, fallback) {
         if (!headerValue) return fallback;
         const starMatch = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
         if (starMatch) { try { return decodeURIComponent(starMatch[1].trim()); } catch (e) {} }
         const plainMatch = headerValue.match(/filename="([^"]+)"/i);
         return plainMatch ? plainMatch[1] : fallback;
-    }
-
-    async function pickSaveHandle(suggestedName) {
-        if (!window.showSaveFilePicker) return { handle: null, cancelled: false };
-        try {
-            const handle = await window.showSaveFilePicker({
-                suggestedName,
-                types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
-            });
-            return { handle, cancelled: false };
-        } catch (e) {
-            if (e && e.name === 'AbortError') return { handle: null, cancelled: true };
-            return { handle: null, cancelled: false };
-        }
     }
 
     async function pickDirectoryHandle() {
@@ -348,16 +340,17 @@
         }
     }
 
+    // ตั้งใจไม่ใช้ showSaveFilePicker กับดาวน์โหลดทีละรายการ (ต่างจาก downloadItems() ที่ใช้
+    // showDirectoryPicker สำหรับดาวน์โหลดหลายไฟล์) เพราะ showSaveFilePicker ต้องกำหนด suggestedName
+    // ก่อน fetch เสมอ (อยู่ใน user-gesture เดียวกับคลิก) ตอนนั้นยังไม่มี response header ให้อ่านชื่อไฟล์จริง
+    // จึงต้องเดาชื่อ ASCII ล้วน (invoice-{code}.pdf) ต่างจากชื่อไฟล์ภาษาไทยจริงที่ดาวน์โหลดหลายไฟล์ได้ -
+    // ให้ทั้งสองทางใช้ a[download] แบบเดียวกัน อ่านชื่อไฟล์จริงจาก Content-Disposition หลัง fetch เสร็จ
+    // เสมอ ชื่อไฟล์จะได้ตรงกันไม่ว่าจะดาวน์โหลดทีละใบหรือดาวน์โหลดหลายใบพร้อมกัน
     async function downloadSingle(btn) {
         if (btn.disabled) return;
         const url = btn.dataset.downloadUrl;
         const invoiceCode = btn.dataset.invoiceCode;
         const fallbackName = 'invoice-' + invoiceCode + '.pdf';
-
-        // showSaveFilePicker ต้องเรียกอยู่ใน user-gesture เดียวกับคลิกปุ่มเสมอ (ก่อน await fetch ใดๆ)
-        // ไม่งั้น activation จะหมดไปกับการรอ mPDF render แล้วเบราว์เซอร์โยน SecurityError
-        const { handle, cancelled } = await pickSaveHandle(fallbackName);
-        if (cancelled) return;
 
         btn.disabled = true;
         btn.querySelector('.ti-dl-icon')?.classList.add('animate-spin');
@@ -365,21 +358,15 @@
             const res = await fetch(url, { credentials: 'same-origin' });
             if (!res.ok) throw new Error('bad response');
             const blob = await res.blob();
-            if (handle) {
-                const writable = await handle.createWritable();
-                await writable.write(blob);
-                await writable.close();
-            } else {
-                const filename = parseFilename(res.headers.get('content-disposition'), fallbackName);
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
-            }
+            const filename = parseFilename(res.headers.get('content-disposition'), fallbackName);
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
         } catch (e) {
             alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่');
         } finally {
