@@ -382,10 +382,10 @@
     @php $canTogglePrePay = ! $booking->isContractSent() && $booking->hasInitialPaymentsUploaded(); @endphp
 
     {{-- Contract details --}}
-    <div class="grid grid-cols-2 divide-x divide-gray-100 border-t border-gray-100">
-        <div class="px-4 py-3.5">
+    <div class="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100">
+        <div class="px-3 py-3.5">
             <div class="flex items-center gap-1.5 mb-1.5">
-                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                 </svg>
                 <p class="text-[11px] text-gray-400 font-medium">เริ่มสัญญา</p>
@@ -394,9 +394,9 @@
                 {{ $startDate ? $startDate->locale('th')->translatedFormat('d M Y') : '-' }}
             </p>
         </div>
-        <div class="px-4 py-3.5">
+        <div class="px-3 py-3.5">
             <div class="flex items-center gap-1.5 mb-1.5">
-                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
                 <p class="text-[11px] text-gray-400 font-medium">สถานะสัญญา</p>
@@ -416,12 +416,9 @@
                 </span>
             @endif
         </div>
-    </div>
-
-    <div class="grid grid-cols-2 divide-x divide-gray-100 border-t border-gray-100">
-        <div class="px-4 py-3.5">
+        <div class="px-3 py-3.5">
             <div class="flex items-center gap-1.5 mb-1.5">
-                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                 </svg>
                 <p class="text-[11px] text-gray-400 font-medium">รูปแบบมัดจำ</p>
@@ -430,9 +427,9 @@
                 {{ $depositType === 'half' ? 'แบ่งครึ่ง 2 งวด' : 'ชำระครั้งเดียว' }}
             </p>
         </div>
-        <div class="px-4 py-3.5">
+        <div class="px-3 py-3.5">
             <div class="flex items-center gap-1.5 mb-1.5">
-                <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
                 <p class="text-[11px] text-gray-400 font-medium">ชำระค่าเช่าก่อนสัญญา</p>
@@ -464,39 +461,6 @@
                 <p class="text-[10px] text-gray-400 mt-1.5">เปิดได้เมื่อลูกค้าอัปโหลดสลิปมัดจำแล้ว</p>
             @endif
         </div>
-    </div>
-</div>
-
-
-
-{{-- ===== Payment Summary Strip ===== --}}
-<div class="grid grid-cols-3 gap-2.5 mb-5">
-    <div class="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
-        <div class="w-7 h-7 bg-emerald-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
-            <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-        </div>
-        <p class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">ชำระแล้ว</p>
-        <p class="text-sm font-bold text-emerald-700 tabular-nums mt-0.5">฿{{ $fmtAmt($totalPaid) }}</p>
-    </div>
-    <div class="bg-gradient-to-br from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
-        <div class="w-7 h-7 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
-            <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-        </div>
-        <p class="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">รอตรวจสอบ</p>
-        <p class="text-sm font-bold text-amber-700 tabular-nums mt-0.5">฿{{ $fmtAmt($totalVerif) }}</p>
-    </div>
-    <div class="bg-gradient-to-br from-red-50 to-rose-50 border border-red-200 rounded-2xl px-3 py-3.5 text-center shadow-sm">
-        <div class="w-7 h-7 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-1.5">
-            <svg class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-        </div>
-        <p class="text-[10px] font-semibold text-red-600 uppercase tracking-wide">ยังไม่ชำระ</p>
-        <p class="text-sm font-bold text-red-700 tabular-nums mt-0.5">฿{{ $fmtAmt($totalPending) }}</p>
     </div>
 </div>
 
