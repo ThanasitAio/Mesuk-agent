@@ -382,7 +382,7 @@
     @php $canTogglePrePay = ! $booking->isContractSent() && $booking->hasInitialPaymentsUploaded(); @endphp
 
     {{-- Contract details --}}
-    <div class="grid grid-cols-4 divide-x divide-gray-100 border-t border-gray-100">
+    <div class="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 divide-x divide-gray-100 border-t border-gray-100">
         <div class="px-3 py-3.5">
             <div class="flex items-center gap-1.5 mb-1.5">
                 <svg class="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
