@@ -787,7 +787,7 @@
                         $slipCount   = count($recSlips);
 
                         $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
-                        $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : $record->amount;
+                        $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : ($meta['own_amount'] ?? $record->amount);
                         $canUpload     = $meta['can_upload'] ?? false;
                         $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
                             && ! $canUpload
@@ -864,7 +864,7 @@
                                 <p class="text-xs font-semibold whitespace-nowrap" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                             @else
                                 @if($meta['is_phase2_combo'] ?? false)
-                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($record->amount) }}</span></p>
+                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($meta['own_amount'] ?? $record->amount) }}</span></p>
                                     <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวม 2 รายการ</p>
                                 @else
                                     <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ $fmtAmt($displayAmount) }}</p>
@@ -1049,7 +1049,7 @@
                 $slipCount   = count($recSlips);
 
                 $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
-                $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : $record->amount;
+                $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : ($meta['own_amount'] ?? $record->amount);
                 $canUpload     = $meta['can_upload'] ?? false;
                 $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
                     && ! $canUpload
@@ -1124,7 +1124,7 @@
                         @else
                             @if($meta['is_phase2_combo'] ?? false)
                                 <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                                    <span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($record->amount) }}</span><span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
+                                    <span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($meta['own_amount'] ?? $record->amount) }}</span><span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
                                 </p>
                                 <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
                             @else

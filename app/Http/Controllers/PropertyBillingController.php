@@ -57,6 +57,9 @@ class PropertyBillingController extends Controller
         }
 
         $booking->load(['paymentRecords', 'invoices']);
+        // กัน lazy-load ต่อแถวตอนเรียก resolveInvoiceMatch() ใน buildRecordMeta() (ดู
+        // HrPaymentRecord::resolveInvoiceMatch()) - booking ที่ setRelation ไว้มี invoices eager-loaded มาแล้ว
+        $booking->paymentRecords->each(fn ($r) => $r->setRelation('booking', $booking));
 
         $otherActiveBookings = $activeBookings->reject(fn ($b) => $b->id === $booking->id)->values();
 
@@ -440,6 +443,7 @@ class PropertyBillingController extends Controller
         $depositInvestorPct = (float) ($property->deposit_investor_percent ?? 90);
         $depositCompanyPct  = (float) ($property->deposit_company_percent ?? 10);
         $landTaxToInvestor  = $booking->land_tax_to_investor ?? ($property->land_tax_to_investor ?? false);
+        $stampDutyToInvestor = $booking->stamp_duty_to_investor ?? ($property->stamp_duty_to_investor ?? false);
 
         $owner         = $property->owner;
         $companyName   = $company?->name_th ?? 'บริษัท';
@@ -588,6 +592,7 @@ class PropertyBillingController extends Controller
             $depositInvestorPct,
             $depositCompanyPct,
             $landTaxToInvestor,
+            $stampDutyToInvestor,
             $investorName,
             $companyName,
             $owner,
@@ -624,6 +629,7 @@ class PropertyBillingController extends Controller
             'depositInvestorPct',
             'depositCompanyPct',
             'landTaxToInvestor',
+            'stampDutyToInvestor',
             'companyName',
             'investorName',
             'happyestPublic',
@@ -642,6 +648,7 @@ class PropertyBillingController extends Controller
         float $depositInvestorPct,
         float $depositCompanyPct,
         bool $landTaxToInvestor,
+        bool $stampDutyToInvestor,
         string $investorName,
         string $companyName,
         $owner,
@@ -652,19 +659,42 @@ class PropertyBillingController extends Controller
 
         foreach ($displayRecords as $record) {
             $isRentRec  = in_array($record->payment_type, ['monthly_rent', 'late_fee'], true);
-            $recToInv   = $isRentRec ? $isRentToInvestor : $isDepositToInvestor;
+
+            // Invoice-priority: ถ้าแอดมินอนุมัติใบแจ้งหนี้จริง (hr_invoices) ของรายการนี้แล้ว ยอด/ผู้รับเงิน
+            // ต้องยึดตามใบแจ้งหนี้จริง ไม่ใช่คำนวณสดจาก Property/Booking config ด้านล่าง - เหมือนหน้า
+            // payment.show ฝั่งลูกค้า (ดู HrPaymentRecord::resolveInvoiceMatch()) รายการที่ชำระแล้ว (paid) ไม่
+            // ต้อง override เพราะยอดที่ตรวจสอบไปแล้วต้องคงยอดประวัติศาสตร์เดิมไว้
+            $recEffective = $record->payment_status === 'paid' ? null : $record->resolveInvoiceMatch(approvedOnly: true);
+            $recEffective = ($recEffective && $recEffective['net_total'] !== null) ? $recEffective : null;
+
+            $recToInv   = $recEffective
+                ? (((float) ($recEffective['split']['investor'] ?? 0)) > 0 && ((float) ($recEffective['split']['company'] ?? 0)) <= 0)
+                : ($isRentRec ? $isRentToInvestor : $isDepositToInvestor);
             $isSplit    = false;
             $splitInv   = 0.0;
             $splitCom   = 0.0;
+            $ownAmount  = (float) $record->amount;
 
-            if ($recToInv && in_array($record->payment_type, ['monthly_rent', 'deposit', 'processing_fee'], true)) {
+            if ($recEffective) {
+                $ownAmount = (float) $recEffective['net_total'];
+                if ($recEffective['invoices']->isNotEmpty() && $recEffective['split']) {
+                    $companyAmt = round((float) $recEffective['split']['company'], 2);
+                    $investorAmt = round((float) $recEffective['split']['investor'], 2);
+                    if ($companyAmt > 0 && $investorAmt > 0) {
+                        $isSplit  = true;
+                        $splitInv = $investorAmt;
+                        $splitCom = $companyAmt;
+                        $recToInv = true;
+                    }
+                }
+            } elseif ($recToInv && in_array($record->payment_type, ['monthly_rent', 'deposit', 'processing_fee'], true)) {
                 if ($record->payment_type === 'monthly_rent') {
                     $baseRent = (float) ($record->base_rent_amount ?? 0) > 0
                         ? (float) $record->base_rent_amount
                         : (float) $record->amount;
-                    $splitInv = $landTaxToInvestor
-                        ? $baseRent + (float) ($record->land_tax_amount ?? 0)
-                        : $baseRent;
+                    $splitInv = $baseRent
+                        + ($landTaxToInvestor ? (float) ($record->land_tax_amount ?? 0) : 0)
+                        + ($stampDutyToInvestor ? (float) ($record->stamp_duty_amount ?? 0) : 0);
                     $splitCom = round((float) $record->amount - $splitInv, 2);
                 } else {
                     $splitInv = round((float) $record->amount * $depositInvestorPct / 100, 2);
@@ -695,7 +725,7 @@ class PropertyBillingController extends Controller
                 'is_phase2_combo'       => $record->isPhase2Deposit() && $hasComboPayment,
                 'is_combo_month1'       => $comboMonth1Record && $record->id === $comboMonth1Record->id && $hasComboPayment,
                 'sep_display_label'     => $record->getTypeLabel(),
-                'own_amount'            => (float) $record->amount,
+                'own_amount'            => $ownAmount,
                 'can_upload'            => $record->canUploadSlip($booking),
                 'is_locked'             => false,
                 'bank_name'             => $recToInv ? ($owner->bank_name ?? null) : ($company->bank_name ?? null),
