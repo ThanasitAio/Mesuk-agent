@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\HrCompany;
+use App\Helpers\HappyestAdminPdf;
 use App\Models\HrInvoice;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -13,10 +13,12 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * เท่านั้น) - พอร์ตหลักการทำงานมาจาก happyest InvestorInvoiceController (ดูและดาวน์โหลดทั้งหมดของ
  * เจ้าของทรัพย์) แต่ขอบเขตข้อมูลเป็น "ทรัพย์ที่ตัวเองบริหาร" แทน "ทรัพย์ที่ตัวเองเป็นเจ้าของ"
  *
- * "ดาวน์โหลด" สร้างไฟล์ PDF จริงที่ server ด้วย mPDF (composer require mpdf/mpdf เพิ่มเข้ามาสำหรับ
- * ฟีเจอร์นี้โดยเฉพาะ - ดู download()/renderPdf()) แล้วส่งกลับพร้อม Content-Disposition: attachment
- * เหมือน happyest InvestorInvoiceController::download() ทุกประการ (คนละ endpoint กับ invoices.print
- * เดิมที่ยังเป็นหน้าพิมพ์ HTML แบบ print-to-PDF สำหรับใช้งานจุดอื่นในแอปนี้อยู่ - ไม่แตะ)
+ * "ดาวน์โหลด" ไม่สร้าง PDF เองในแอปนี้อีกต่อไป (ของเดิมใช้ mPDF + Blade คัดลอกมาเองซึ่งเสี่ยงตกหล่นกฎภาษี/
+ * รูปแบบที่ไม่ตรงของจริง) แต่ดึงไฟล์ PDF ตัวจริงจาก happyest ตรง ๆ ผ่าน
+ * App\Helpers\HappyestAdminPdf::fetchInvoicePdf() (ยิง /admin/invoices/{id}/print?output=stream แบบ
+ * server-to-server ด้วยบัญชีแอดมินบริการ) แล้วส่งต่อกลับพร้อม Content-Disposition: attachment (คนละ
+ * endpoint กับ invoices.print เดิมที่ยังเป็นหน้าพิมพ์ HTML แบบ print-to-PDF สำหรับใช้งานจุดอื่นในแอปนี้
+ * อยู่ - ไม่แตะ)
  */
 class TenantInvoiceController extends Controller
 {
@@ -203,12 +205,11 @@ class TenantInvoiceController extends Controller
     }
 
     /**
-     * ดาวน์โหลดใบแจ้งหนี้ผู้เช่า 1 ใบเป็นไฟล์ PDF จริง (Content-Disposition: attachment) - ใช้ mPDF
-     * (ไม่ใช่ DomPDF) เพราะ mPDF รองรับ OpenType Layout (GSUB/GPOS) ที่จำเป็นสำหรับวรรณยุกต์/สระไทยซ้อน
-     * ถูกต้อง ตรงกับที่ happyest InvoicePdfService::getPdfContent() เลือกใช้จริงใน production (ดูคอมเมนต์
-     * ในไฟล์นั้น: "Both company and investor invoices → mPDF (proper Thai OTL shaping)") - หน้ารายการ
-     * (tenant-invoices/index.blade.php) เรียก route นี้ทีละใบทั้งตอนกดดาวน์โหลดรายการเดียวและตอนดาวน์โหลด
-     * หลายใบพร้อมกัน (fetch+blob วนทีละไฟล์ เหมือนฝั่ง happyest investor.invoices)
+     * ดาวน์โหลดใบแจ้งหนี้ผู้เช่า 1 ใบเป็นไฟล์ PDF ตัวจริงจาก happyest (Content-Disposition: attachment)
+     * - format (customer-company-investor / customer-investor-company) resolve เหมือน happyest
+     * InvestorInvoiceController::download() ทุกประการ เพื่อให้ลำดับบริษัท/เจ้าของทรัพย์บนใบตรงกับที่แอดมิน
+     * เห็นจริง - หน้ารายการ (tenant-invoices/index.blade.php) เรียก route นี้ทีละใบทั้งตอนกดดาวน์โหลด
+     * รายการเดียวและตอนดาวน์โหลดหลายใบพร้อมกัน (fetch+blob วนทีละไฟล์ เหมือนฝั่ง happyest investor.invoices)
      */
     public function download(HrInvoice $invoice)
     {
@@ -219,10 +220,7 @@ class TenantInvoiceController extends Controller
         }
         abort_if($invoice->status !== 'approved', 403, 'ใบแจ้งหนี้นี้ยังไม่ได้รับการอนุมัติ');
 
-        $company = HrCompany::getActive();
-        $happyestPublic = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
-
-        $content = $this->renderPdf($invoice, $company, $happyestPublic);
+        $content = HappyestAdminPdf::fetchInvoicePdf($invoice->id, $this->resolvePrintFormat($invoice));
 
         logSystem(
             userType: 'agent',
@@ -239,45 +237,23 @@ class TenantInvoiceController extends Controller
         ]);
     }
 
-    private function renderPdf(HrInvoice $invoice, HrCompany $company, string $happyestPublic): string
+    /**
+     * ผู้รับเงิน (company/investor) resolve จาก snapshot_property.payment_condition (มัดจำ/ค่าดำเนินการ
+     * ใช้ deposit_payment_route แทน) - พอร์ตมาจาก happyest InvestorInvoiceController::download()/
+     * AdminInvoiceController::print() ทุกประการ เพื่อให้ format ที่ส่งให้ happyest ตรงกับที่ควรเป็นจริง
+     * ไม่ปล่อยให้ endpoint นั้น fallback เป็นค่า default (customer-company-investor) เสมอ
+     */
+    private function resolvePrintFormat(HrInvoice $invoice): string
     {
-        $html = view('invoices.partials.pdf-wrapper', compact('invoice', 'company', 'happyestPublic'))->render();
+        $snapshotCondition = $invoice->snapshot_property['payment_condition'] ?? null;
+        $snapshotDepositRoute = $invoice->snapshot_property['deposit_payment_route'] ?? null;
+        $effectiveRoute = in_array($invoice->invoice_type, ['deposit', 'service_fee'])
+            ? ($snapshotDepositRoute ?? $snapshotCondition)
+            : $snapshotCondition;
 
-        $tempDir = storage_path('app/mpdf');
-        if (! is_dir($tempDir)) {
-            mkdir($tempDir, 0755, true);
-        }
-
-        $defaultConfig = (new \Mpdf\Config\ConfigVariables)->getDefaults();
-        $defaultFontConfig = (new \Mpdf\Config\FontVariables)->getDefaults();
-
-        $mpdf = new \Mpdf\Mpdf([
-            'mode' => 'utf-8',
-            'format' => 'A4',
-            'margin_top' => 10,
-            'margin_right' => 14,
-            'margin_bottom' => 10,
-            'margin_left' => 14,
-            'fontDir' => array_merge($defaultConfig['fontDir'], [storage_path('fonts')]),
-            'fontdata' => $defaultFontConfig['fontdata'] + [
-                'sarabun' => [
-                    'R' => 'Sarabun-Regular.ttf',
-                    'B' => 'Sarabun-Bold.ttf',
-                    'useOTL' => 0xFF,
-                ],
-            ],
-            'default_font' => 'sarabun',
-            'default_font_size' => 9,
-            'tempDir' => $tempDir,
-            'autoScriptToLang' => true,
-            'autoLangToFont' => true,
-        ]);
-
-        // ตัด UTF-8 BOM ถ้ามี (ทำให้ mPDF โยน "invalid UTF-8" exception ได้) - เหมือนฝั่ง happyest
-        $mpdf->WriteHTML(ltrim($html, "\xEF\xBB\xBF"));
-        $mpdf->SetTitle($this->buildDisplayName($invoice));
-
-        return $mpdf->OutputBinaryData();
+        return $effectiveRoute === 'customer_investor_company'
+            ? 'customer-investor-company'
+            : 'customer-company-investor';
     }
 
     /**
