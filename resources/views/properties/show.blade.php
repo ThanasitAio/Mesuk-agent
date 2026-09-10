@@ -775,11 +775,12 @@
                             && in_array($record->payment_status, ['pending', 'failed'], true);
                         $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                                       && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
-                        $landTax    = (float) ($record->land_tax_amount   ?? 0);
-                        $stampDuty  = (float) ($record->stamp_duty_amount ?? 0);
-                        $whtAmount  = (float) ($record->withholding_tax_amount ?? 0);
-                        $baseRent   = (float) ($record->base_rent_amount  ?? 0);
-                        $hasBreakdown = $record->payment_type === 'monthly_rent'
+                        $breakdownSource = ($meta['is_phase2_combo'] ?? false) && $comboMonth1Record ? $comboMonth1Record : $record;
+                        $landTax    = (float) ($breakdownSource->land_tax_amount   ?? 0);
+                        $stampDuty  = (float) ($breakdownSource->stamp_duty_amount ?? 0);
+                        $whtAmount  = (float) ($breakdownSource->withholding_tax_amount ?? 0);
+                        $baseRent   = (float) ($breakdownSource->base_rent_amount  ?? 0);
+                        $hasBreakdown = ($breakdownSource->payment_type === 'monthly_rent')
                                         && ($landTax > 0 || $stampDuty > 0 || $whtAmount > 0);
                         $isProrated  = (bool) ($record->is_prorated ?? false);
                         $recSlips    = $record->payment_slips ?? [];
@@ -875,7 +876,7 @@
                                         @if($baseRent > 0)<p class="text-[10px] text-gray-400 tabular-nums">ค่าเช่า {{ $fmtAmt($baseRent) }}</p>@endif
                                         @if($landTax > 0)<p class="text-[10px] text-gray-400 tabular-nums">+ ภาษีที่ดิน {{ $fmtAmt($landTax) }}</p>@endif
                                         @if($stampDuty > 0)<p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ $fmtAmt($stampDuty) }}</p>@endif
-                                        @if($whtAmount > 0)<p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>@endif
+                                        @if($whtAmount > 0)<p class="text-[10px] text-red-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>@endif
                                     </div>
                                 @endif
                             @endif
@@ -1038,10 +1039,11 @@
                     && in_array($record->payment_status, ['pending', 'failed'], true);
                 $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                               && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
-                $landTax    = (float) ($record->land_tax_amount   ?? 0);
-                $stampDuty  = (float) ($record->stamp_duty_amount ?? 0);
-                $whtAmount  = (float) ($record->withholding_tax_amount ?? 0);
-                $hasBreakdown = $record->payment_type === 'monthly_rent'
+                $breakdownSource = ($meta['is_phase2_combo'] ?? false) && $comboMonth1Record ? $comboMonth1Record : $record;
+                $landTax    = (float) ($breakdownSource->land_tax_amount   ?? 0);
+                $stampDuty  = (float) ($breakdownSource->stamp_duty_amount ?? 0);
+                $whtAmount  = (float) ($breakdownSource->withholding_tax_amount ?? 0);
+                $hasBreakdown = ($breakdownSource->payment_type === 'monthly_rent')
                                 && ($landTax > 0 || $stampDuty > 0 || $whtAmount > 0);
                 $isProrated  = (bool) ($record->is_prorated ?? false);
                 $recSlips    = $record->payment_slips ?? [];
@@ -1141,7 +1143,7 @@
                                         <p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ $fmtAmt($stampDuty) }}</p>
                                     @endif
                                     @if($whtAmount > 0)
-                                        <p class="text-[10px] text-indigo-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>
+                                        <p class="text-[10px] text-red-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>
                                     @endif
                                 </div>
                             @endif
