@@ -67,6 +67,8 @@
                            autocomplete="username"
                            autocapitalize="none"
                            autocorrect="off"
+                           spellcheck="false"
+                           inputmode="numeric"
                            class="w-full px-4 py-3 border rounded-xl text-sm text-gray-900 placeholder-gray-400 bg-gray-50 transition
                                   focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:bg-white
                                   {{ $errors->has('agent_code') ? 'border-red-400 bg-red-50' : 'border-gray-200' }}">
@@ -88,6 +90,9 @@
                                placeholder="••••••••"
                                required
                                autocomplete="current-password"
+                               autocapitalize="none"
+                               autocorrect="off"
+                               spellcheck="false"
                                class="w-full px-4 pr-11 py-3 border rounded-xl text-sm text-gray-900 placeholder-gray-400 bg-gray-50 transition
                                       focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent focus:bg-white
                                       {{ $errors->has('password') ? 'border-red-400 bg-red-50' : 'border-gray-200' }}">

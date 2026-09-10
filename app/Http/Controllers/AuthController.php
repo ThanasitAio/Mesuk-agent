@@ -29,8 +29,12 @@ class AuthController extends Controller
             'password'   => 'required|string',
         ]);
 
+        // คีย์บอร์ดมือถือ/ตัวจำรหัสผ่านมักแทรกช่องว่าง (รวมถึง NBSP, zero-width) ต่อท้าย
+        // agent_code ในฐานข้อมูลเป็นตัวเลข 7 หลักล้วน จึงตัดอักขระที่ไม่ใช่ตัวเลขออกได้
+        $rawCode = preg_replace('/[^0-9]/u', '', (string) $request->agent_code);
+
         // Normalize: strip leading zeros then re-pad to 7 digits so "390" matches "0000390"
-        $agentCode = str_pad(ltrim($request->agent_code, '0') ?: '0', 7, '0', STR_PAD_LEFT);
+        $agentCode = str_pad(ltrim($rawCode, '0') ?: '0', 7, '0', STR_PAD_LEFT);
 
         // CRIT-2: Rate limit - 5 attempts per minute per IP + agent_code
         $throttleKey = 'login.' . $request->ip() . '.' . $agentCode;
@@ -48,7 +52,13 @@ class AuthController extends Controller
 
         $agent = HrAgent::where('agent_code', $agentCode)->first();
 
-        if (!$agent || $agent->pass_decode !== $request->password) {
+        // ยอมรับรหัสผ่านที่มีช่องว่างหน้า/หลังติดมาจากมือถือ (เทียบแบบตรงตัวก่อนเสมอ)
+        $passwordOk = $agent
+            && trim((string) $agent->pass_decode) !== ''
+            && ((string) $agent->pass_decode === (string) $request->password
+                || trim((string) $agent->pass_decode) === trim((string) $request->password));
+
+        if (!$passwordOk) {
             RateLimiter::hit($throttleKey);
 
             logSystem('agent', null, 'Auth', 'LOGIN_FAILED',
