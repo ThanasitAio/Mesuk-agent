@@ -505,20 +505,36 @@
     }
 </script>
 <script>
+    // วันที่เริ่มงวด = วันที่จดของเดือนก่อน + 1 วัน (งวดถัดไปเริ่มวันถัดจากที่จดครั้งก่อน)
+    // ถ้าไม่มีข้อมูลเดือนก่อน (จดครั้งแรก) ใช้วันที่จดของงวดนี้เองแทน เหมือนพฤติกรรมเดิม
+    function addOneDay(dateStr) {
+        const d = new Date(dateStr + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        const y   = d.getFullYear();
+        const m   = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    }
+
     // เมื่อเลือก/แก้ไขวันที่อ่านมิเตอร์ตัวใดก็ตาม ให้เติมช่วงวันที่ลงหมายเหตุอัตโนมัติ
     function updateRemarkFromDates() {
-        const dates = Array.from(document.querySelectorAll('input[name$="[reading_date]"]'))
-            .map(function (el) { return el.value; })
-            .filter(Boolean)
-            .sort();
+        const inputs = Array.from(document.querySelectorAll('input[name$="[reading_date]"]'))
+            .filter(function (el) { return el.value; });
 
-        if (dates.length === 0) return;
+        if (inputs.length === 0) return;
 
         const remarkEl = document.getElementById('remark');
         if (! remarkEl) return;
 
-        const first = dates[0];
-        const last  = dates[dates.length - 1];
+        const starts = inputs
+            .map(function (el) { return el.dataset.prevDate ? addOneDay(el.dataset.prevDate) : el.value; })
+            .sort();
+        const ends = inputs
+            .map(function (el) { return el.value; })
+            .sort();
+
+        const first = starts[0];
+        const last  = ends[ends.length - 1];
 
         remarkEl.value = first === last
             ? 'จดวันที่ ' + formatThaiDate(first)

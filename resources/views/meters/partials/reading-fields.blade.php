@@ -36,7 +36,8 @@
         label="วันที่อ่านมิเตอร์"
         :value="old('readings.' . $meter->id . '.reading_date', optional($reading?->reading_date)->format('Y-m-d'))"
         :max="now()->format('Y-m-d')"
-        :disabled="$alreadyInvoiced" />
+        :disabled="$alreadyInvoiced"
+        data-prev-date="{{ $previousReadingDates[$meter->id] ?? '' }}" />
 
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">รูปภาพมิเตอร์</label>

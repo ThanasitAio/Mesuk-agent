@@ -95,8 +95,11 @@ class MeterReadingController extends Controller
             ->keyBy('property_meter_id');
 
         $previousReadings = [];
+        $previousReadingDates = [];
         foreach ($meters as $meter) {
-            $previousReadings[$meter->id] = $this->findPriorReading($meter->id, $year, $month)?->current_reading;
+            $priorReading = $this->findPriorReading($meter->id, $year, $month);
+            $previousReadings[$meter->id] = $priorReading?->current_reading;
+            $previousReadingDates[$meter->id] = $priorReading?->reading_date?->format('Y-m-d');
         }
 
         $existingRentPeriod = $currentReadings->first(fn ($r) => $r->rent_year && $r->rent_month);
@@ -116,7 +119,7 @@ class MeterReadingController extends Controller
         );
 
         return view('meters.show', compact(
-            'property', 'meters', 'currentReadings', 'previousReadings', 'year', 'month',
+            'property', 'meters', 'currentReadings', 'previousReadings', 'previousReadingDates', 'year', 'month',
             'rentYear', 'rentMonth', 'allRecorded', 'allConfirmed', 'alreadyInvoiced'
         ));
     }
