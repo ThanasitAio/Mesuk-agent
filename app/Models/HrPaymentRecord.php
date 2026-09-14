@@ -165,9 +165,10 @@ class HrPaymentRecord extends Model
             ? $booking->invoices
             : $booking->invoices()->get();
 
-        $billingMonth = $this->due_date->format('Y-m');
-
         $invoiceType = $this->payment_type === 'utility' ? 'utility' : 'monthly_rent';
+        $billingMonth = $this->payment_type === 'utility'
+            ? $this->due_date->copy()->subMonth()->format('Y-m')
+            : $this->due_date->format('Y-m');
 
         return $invoices->contains(fn ($inv) => $inv->invoice_type === $invoiceType
             && $inv->status === 'approved'
@@ -253,7 +254,9 @@ class HrPaymentRecord extends Model
                 ->when($this->due_date, fn ($c) => $c->where('billing_month', $this->due_date->format('Y-m')))
                 ->values(),
             'utility' => $pool->where('invoice_type', 'utility')
-                ->when($this->due_date, fn ($c) => $c->where('billing_month', $this->due_date->format('Y-m')))
+                ->when($this->due_date, fn ($c) => $c->filter(
+                    fn ($inv) => $inv->billing_month === $this->due_date->copy()->subMonth()->format('Y-m')
+                ))
                 ->values(),
             'late_fee' => $pool->where('invoice_type', 'late_fee')
                 ->when($this->source_payment_record_id, function ($c) {

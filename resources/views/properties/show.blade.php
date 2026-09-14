@@ -105,7 +105,7 @@
             if ($rec->payment_type === 'utility') {
                 return $inv->invoice_type === 'utility'
                     && $rec->due_date
-                    && $inv->billing_month === $rec->due_date->format('Y-m');
+                    && $inv->billing_month === $rec->due_date->copy()->subMonth()->format('Y-m');
             }
             if ($rec->payment_type === 'deposit') {
                 return $inv->invoice_type === 'deposit'

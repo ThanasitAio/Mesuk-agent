@@ -134,8 +134,12 @@ class HrInvoice extends Model
             $records = $records->where('deposit_phase', $this->deposit_phase);
         }
 
-        if (in_array($this->invoice_type, ['monthly_rent', 'utility'], true) && $this->billing_month) {
+        if ($this->invoice_type === 'monthly_rent' && $this->billing_month) {
             $records = $records->filter(fn ($r) => $r->due_date && $r->due_date->format('Y-m') === $this->billing_month);
+        }
+
+        if ($this->invoice_type === 'utility' && $this->billing_month) {
+            $records = $records->filter(fn ($r) => $r->due_date && $r->due_date->copy()->subMonth()->format('Y-m') === $this->billing_month);
         }
 
         return $records->values();
