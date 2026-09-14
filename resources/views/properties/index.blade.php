@@ -16,6 +16,11 @@
 .overflow-x-auto::-webkit-scrollbar { height: 6px; }
 .overflow-x-auto::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
 .overflow-x-auto::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+/* ลำดับในตารางนับเฉพาะแถวที่แสดงอยู่จริง (ไม่นับแถวที่ถูกซ่อนด้วย x-show ระหว่างกรอง/ค้นหา) */
+tbody { counter-reset: rownum; }
+tbody tr.property-row { counter-increment: rownum; }
+tbody tr.property-row .row-num::before { content: counter(rownum); }
 </style>
 @endpush
 
@@ -594,6 +599,7 @@
 {{-- ============================================================ --}}
 <x-table>
     <x-slot:head>
+        <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 w-12">ลำดับ</th>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">ทรัพย์สิน</th>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 md:w-32">ผู้เช่า</th>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">สถานะ / การชำระ</th>
@@ -609,6 +615,9 @@
         role="button"
         tabindex="0"
         @keypress.enter="window.location='{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}'">
+
+        {{-- Col ลำดับ --}}
+        <td class="px-5 py-3.5 text-right align-top text-xs text-gray-400 tabular-nums row-num"></td>
 
         {{-- Col 1: ทรัพย์สิน --}}
         <td class="px-5 py-3.5 align-top">
@@ -745,6 +754,8 @@
     @foreach($vacantRows as $row)
     <tr x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), false, false)"
         class="property-row hover:bg-gray-50/60 opacity-75">
+
+        <td class="px-5 py-3.5 text-right text-xs text-gray-400 tabular-nums row-num"></td>
 
         <td class="px-5 py-3.5">
             @if($row->property->property_code)

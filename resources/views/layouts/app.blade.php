@@ -41,6 +41,7 @@
         .date-overlay::-webkit-inner-spin-button { display: none; }
         [x-cloak] { display: none !important; }
     </style>
+    @stack('styles')
 </head>
 <body class="bg-gray-50 font-sans antialiased">
 
