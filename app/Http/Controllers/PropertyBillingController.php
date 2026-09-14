@@ -171,6 +171,17 @@ class PropertyBillingController extends Controller
         // ตรวจสอบว่าเป็นการอัพโหลดแบบรวม (combo) หรือไม่
         $isComboUpload = $isPhase2Deposit && $comboMode === 'join';
 
+        // ค่าเช่างวดนี้มีค่าน้ำ/ไฟงวดเดียวกันรวมแสดงอยู่แถวเดียวกันหรือไม่ (ครบกำหนดวันเดียวกัน + ผู้รับเงิน
+        // บัญชีเดียวกัน - ดู HrPaymentRecord::canShareUtilitySlipWith()) ถ้าใช่ แนบสลิปชุดเดียวกันให้ทั้งคู่
+        $linkedUtilityRecord = null;
+        if ($record->payment_type === 'monthly_rent') {
+            $linkedUtilityRecord = $booking->paymentRecords
+                ->where('payment_type', 'utility')
+                ->whereIn('payment_status', ['pending', 'failed'])
+                ->each(fn ($r) => $r->setRelation('booking', $booking))
+                ->first(fn ($r) => $record->canShareUtilitySlipWith($r));
+        }
+
         if ($record->payment_status === 'failed') {
             $oldSlips = $record->payment_slips ?? [];
             if ($record->payment_slip_path && ! in_array($record->payment_slip_path, $oldSlips, true)) {
@@ -206,11 +217,17 @@ class PropertyBillingController extends Controller
             }
         }
 
+        if ($linkedUtilityRecord) {
+            $linkedUtilityRecord->appendSlipBatch($newPaths, $paidAt, $rentalTypeTags, 'agent_manager', $managerName);
+        }
+
         $booking->updatePaymentStatus();
 
         $logDescription = $isComboUpload
             ? "แนบสลิปแทนลูกค้า (รวม): มัดจำงวด 2 + ค่าเช่าเดือน 1 - {$property->title}"
-            : "แนบสลิปแทนลูกค้า: {$record->getTypeLabel()} - {$property->title}";
+            : ($linkedUtilityRecord
+                ? "แนบสลิปแทนลูกค้า (รวม): {$record->getTypeLabel()} + ค่าน้ำ/ไฟ - {$property->title}"
+                : "แนบสลิปแทนลูกค้า: {$record->getTypeLabel()} - {$property->title}");
         $logDescription .= " | วันที่โอน: {$paidAt->format('d/m/Y')}";
         if ($selectedRentalTypes !== '') {
             $logDescription .= " | ประเภท: {$selectedRentalTypes}";
@@ -226,7 +243,9 @@ class PropertyBillingController extends Controller
 
         $successMessage = $isComboUpload
             ? 'อัพโหลดสลิปรวม (มัดจำงวด 2 + ค่าเช่าเดือน 1) เรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน'
-            : 'อัพโหลดสลิปเรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน';
+            : ($linkedUtilityRecord
+                ? 'อัพโหลดสลิปรวม (ค่าเช่า + ค่าน้ำ/ไฟ) เรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน'
+                : 'อัพโหลดสลิปเรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน');
 
         return redirect()
             ->route('properties.show', $property->id)
@@ -276,6 +295,26 @@ class PropertyBillingController extends Controller
 
             if ($month1) {
                 $month1->update([
+                    'payment_slip_path' => null,
+                    'payment_slips'     => null,
+                    'payment_slip_batches' => null,
+                    'payment_status'    => 'pending',
+                    'paid_at'           => null,
+                ]);
+            }
+        }
+
+        // ถ้าเป็นค่าเช่า/ค่าน้ำ-ไฟที่แนบสลิปรวมกัน (utility combo) ให้รีเซ็ตอีกฝั่งที่ใช้สลิปเดียวกันด้วย
+        if (in_array($record->payment_type, ['monthly_rent', 'utility'], true) && $oldSlipPath) {
+            $linkedType = $record->payment_type === 'monthly_rent' ? 'utility' : 'monthly_rent';
+            $linked = $booking->paymentRecords
+                ->where('payment_type', $linkedType)
+                ->where('payment_status', 'pending_verification')
+                ->filter(fn ($r) => $r->payment_slip_path === $oldSlipPath)
+                ->first();
+
+            if ($linked) {
+                $linked->update([
                     'payment_slip_path' => null,
                     'payment_slips'     => null,
                     'payment_slip_batches' => null,
@@ -439,6 +478,7 @@ class PropertyBillingController extends Controller
         $depositRoute        = $property->deposit_payment_route ?? 'customer_company_investor';
         $isRentToInvestor    = $paymentCondition === 'customer_investor_company';
         $isDepositToInvestor = $depositRoute === 'customer_investor_company';
+        $isUtilityToInvestor = ($property->utility_payment_route ?? 'customer_company') === 'customer_investor';
 
         $depositInvestorPct = (float) ($property->deposit_investor_percent ?? 90);
         $depositCompanyPct  = (float) ($property->deposit_company_percent ?? 10);
@@ -589,6 +629,7 @@ class PropertyBillingController extends Controller
             $comboMonth1Record,
             $isRentToInvestor,
             $isDepositToInvestor,
+            $isUtilityToInvestor,
             $depositInvestorPct,
             $depositCompanyPct,
             $landTaxToInvestor,
@@ -645,6 +686,7 @@ class PropertyBillingController extends Controller
         ?HrPaymentRecord $comboMonth1Record,
         bool $isRentToInvestor,
         bool $isDepositToInvestor,
+        bool $isUtilityToInvestor,
         float $depositInvestorPct,
         float $depositCompanyPct,
         bool $landTaxToInvestor,
@@ -669,7 +711,11 @@ class PropertyBillingController extends Controller
 
             $recToInv   = $recEffective
                 ? (((float) ($recEffective['split']['investor'] ?? 0)) > 0 && ((float) ($recEffective['split']['company'] ?? 0)) <= 0)
-                : ($isRentRec ? $isRentToInvestor : $isDepositToInvestor);
+                : match (true) {
+                    $isRentRec => $isRentToInvestor,
+                    $record->payment_type === 'utility' => $isUtilityToInvestor,
+                    default => $isDepositToInvestor,
+                };
             $isSplit    = false;
             $splitInv   = 0.0;
             $splitCom   = 0.0;
@@ -737,6 +783,40 @@ class PropertyBillingController extends Controller
                 'payment_type'          => $record->payment_type,
                 'has_land_tax'          => (float) ($record->land_tax_amount ?? 0) > 0,
             ];
+        }
+
+        // ─── Utility + Monthly Rent Combo (รวมแสดงแถวเดียว เมื่อครบกำหนดวันเดียวกันและผู้รับเงินบัญชี
+        // เดียวกัน) - แนบสลิปครั้งเดียวผ่านปุ่มของค่าเช่า แล้ว copy สลิปไปยัง record ค่าน้ำ/ไฟให้ (ดู
+        // uploadSlip()) พอร์ตแนวคิดจาก happyest HrPaymentRecord::canShareUtilitySlipWith() +
+        // payment/show.blade.php $hasUtilityCombo - เฉพาะรอบที่ยังไม่ชำระ (pending/failed) ทั้งคู่ เมื่อแนบ
+        // สลิปแล้วสถานะจะกลายเป็น pending_verification ทั้งสองฝั่งและแสดงแยกแถวกันตามปกติ (เหมือนพฤติกรรมเดิม
+        // ของ combo มัดจำงวด 2 + ค่าเช่าเดือน 1 ด้านบน)
+        // ข้ามการตรวจสอบถ้ามี combo มัดจำงวด 2 + ค่าเช่าเดือน 1 อยู่แล้ว (เหมือน happyest ที่กันไม่ให้ซ้อน
+        // กัน 3 ชั้น - ดู payment/show.blade.php: $comboUtilityRecord = (... && !$phase2DepositRecord && ...))
+        $pendingUtility = $hasComboPayment ? null : $displayRecords->first(fn ($r) =>
+            $r->payment_type === 'utility' && in_array($r->payment_status, ['pending', 'failed'], true)
+        );
+
+        if ($pendingUtility) {
+            $pairedRent = $displayRecords->first(fn ($r) =>
+                $r->payment_type === 'monthly_rent'
+                && in_array($r->payment_status, ['pending', 'failed'], true)
+                && $r->canShareUtilitySlipWith($pendingUtility)
+            );
+
+            if ($pairedRent && isset($meta[$pairedRent->id], $meta[$pendingUtility->id])) {
+                $meta[$pairedRent->id]['is_utility_combo']  = true;
+                $meta[$pairedRent->id]['utility_record_id'] = $pendingUtility->id;
+                $meta[$pairedRent->id]['sep_display_label'] = $meta[$pairedRent->id]['display_label'];
+                $meta[$pairedRent->id]['display_label']     = $meta[$pairedRent->id]['display_label'] . ' + ค่าน้ำ/ไฟ';
+                $meta[$pairedRent->id]['combo_amount']      = round(
+                    $meta[$pairedRent->id]['own_amount'] + $meta[$pendingUtility->id]['own_amount'],
+                    2
+                );
+
+                $meta[$pendingUtility->id]['is_combo_utility'] = true;
+                $meta[$pendingUtility->id]['combo_rent_id']    = $pairedRent->id;
+            }
         }
 
         return $meta;

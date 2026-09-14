@@ -9,10 +9,6 @@
     $totalPaid    = (float) $allRecords->where('payment_status', 'paid')->sum('amount');
     $totalVerif   = (float) $allRecords->where('payment_status', 'pending_verification')->sum('amount');
     $totalPending = (float) $allRecords->whereIn('payment_status', ['pending', 'failed'])->sum('amount');
-    $overdueList  = $allRecords->filter(fn($r) =>
-        $r->due_date && $r->due_date->toDateString() < now()->toDateString() &&
-        ! in_array($r->payment_status, ['paid', 'pending_verification', 'refunded'])
-    );
     $depositType   = $booking->deposit_type   ?? 'full';
     $renterType    = $booking->renter_type    ?? 'individual';
     $paymentDueDay = $booking->payment_due_day ?? 5;
@@ -252,24 +248,6 @@
             @endif
         </a>
         @endforeach
-    </div>
-</div>
-@endif
-
-{{-- ===== Overdue Alert ===== --}}
-@if($overdueList->count() > 0)
-<div class="flex items-start gap-3 bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl px-4 py-4 mb-5 shadow-lg shadow-red-500/25">
-    <div class="relative flex-shrink-0 mt-0.5">
-        <div class="absolute inset-0 bg-white/30 rounded-xl animate-ping"></div>
-        <div class="relative w-9 h-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-        </div>
-    </div>
-    <div class="flex-1 min-w-0">
-        <p class="text-sm font-bold text-white">มี {{ $overdueList->count() }} รายการเกินกำหนดชำระ</p>
-        <p class="text-xs text-red-100 mt-0.5">ยอดค้างรวม <span class="font-bold tabular-nums text-white">฿{{ $fmtAmt($overdueList->sum('amount')) }}</span> - กรุณาติดต่อผู้เช่าโดยด่วน</p>
     </div>
 </div>
 @endif
@@ -788,7 +766,13 @@
                         $slipCount   = count($recSlips);
 
                         $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
-                        $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : ($meta['own_amount'] ?? $record->amount);
+                        $isUtilityCombo = $meta['is_utility_combo'] ?? false;
+                        $displayAmount = (($meta['is_phase2_combo'] ?? false) || $isUtilityCombo)
+                            ? ($meta['combo_amount'] ?? $record->amount)
+                            : ($meta['own_amount'] ?? $record->amount);
+                        $utilityComboAmount = $isUtilityCombo
+                            ? ($recordMeta[$meta['utility_record_id']]['own_amount'] ?? 0)
+                            : 0;
                         $canUpload     = $meta['can_upload'] ?? false;
                         $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
                             && ! $canUpload
@@ -814,6 +798,7 @@
                         @if($meta['is_phase2_combo'] ?? false) data-phase2-row="1" @endif
                         @if($meta['is_combo_month1'] ?? false) data-combomonth1-row="1" @endif
                         @if($meta['is_combo_month1'] ?? false) x-data x-init="$el.style.display='none'" @endif
+                        @if($meta['is_combo_utility'] ?? false) data-combo-utility-row="1" x-data x-init="$el.style.display='none'" @endif
                     >
                         {{-- Color indicator strip --}}
                         <td class="p-0" style="width:3px; min-width:3px; background:{{ $barColor }}"></td>
@@ -867,6 +852,9 @@
                                 @if($meta['is_phase2_combo'] ?? false)
                                     <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($meta['own_amount'] ?? $record->amount) }}</span></p>
                                     <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวม 2 รายการ</p>
+                                @elseif($isUtilityCombo)
+                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ $fmtAmt($displayAmount) }}</p>
+                                    <p class="text-[10px] text-sky-600 mt-0.5">รวมค่าเช่า + ค่าน้ำ/ไฟ</p>
                                 @else
                                     <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ $fmtAmt($displayAmount) }}</p>
                                 @endif
@@ -878,6 +866,9 @@
                                         @if($stampDuty > 0)<p class="text-[10px] text-amber-600 tabular-nums">+ อากร {{ $fmtAmt($stampDuty) }}</p>@endif
                                         @if($whtAmount > 0)<p class="text-[10px] text-red-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>@endif
                                     </div>
+                                @endif
+                                @if($utilityComboAmount > 0)
+                                    <p class="text-[10px] text-sky-600 tabular-nums mt-1.5">+ ค่าน้ำ/ไฟ {{ $fmtAmt($utilityComboAmount) }}</p>
                                 @endif
                             @endif
                         </td>
@@ -1051,7 +1042,13 @@
                 $slipCount   = count($recSlips);
 
                 $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
-                $displayAmount = ($meta['is_phase2_combo'] ?? false) ? ($meta['combo_amount'] ?? $record->amount) : ($meta['own_amount'] ?? $record->amount);
+                $isUtilityCombo = $meta['is_utility_combo'] ?? false;
+                $displayAmount = (($meta['is_phase2_combo'] ?? false) || $isUtilityCombo)
+                    ? ($meta['combo_amount'] ?? $record->amount)
+                    : ($meta['own_amount'] ?? $record->amount);
+                $utilityComboAmount = $isUtilityCombo
+                    ? ($recordMeta[$meta['utility_record_id']]['own_amount'] ?? 0)
+                    : 0;
                 $canUpload     = $meta['can_upload'] ?? false;
                 $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
                     && ! $canUpload
@@ -1075,6 +1072,7 @@
                  data-billing-status="{{ $record->payment_status }}"
                  @if($meta['is_phase2_combo'] ?? false) data-phase2-row="1" @endif
                  @if($meta['is_combo_month1'] ?? false) data-combomonth1-row="1" style="display:none;" @endif
+                 @if($meta['is_combo_utility'] ?? false) data-combo-utility-row="1" style="display:none;" @endif
             >
                 {{-- Left accent bar --}}
                 <span class="absolute left-1.5 top-3 bottom-3 {{ $barWidth }} rounded-full {{ $barClass }}"></span>
@@ -1133,6 +1131,9 @@
                                 <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
                                     {{ $fmtAmt($displayAmount) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
                                 </p>
+                                @if($isUtilityCombo)
+                                    <p class="text-[10px] text-sky-600 mt-0.5">รวมค่าเช่า + ค่าน้ำ/ไฟ</p>
+                                @endif
                             @endif
                             @if($hasBreakdown)
                                 <div class="mt-1.5 space-y-0.5">
@@ -1146,6 +1147,9 @@
                                         <p class="text-[10px] text-red-600 tabular-nums">- หัก ณ ที่จ่าย {{ $fmtAmt($whtAmount) }}</p>
                                     @endif
                                 </div>
+                            @endif
+                            @if($utilityComboAmount > 0)
+                                <p class="text-[10px] text-sky-600 tabular-nums mt-1.5">+ ค่าน้ำ/ไฟ {{ $fmtAmt($utilityComboAmount) }}</p>
                             @endif
                         @endif
                         @if($record->due_date)
@@ -1746,7 +1750,10 @@ function applyBillingTabFilter() {
     function openSlipModalAuto(recordId) {
         const meta = window.billingRecordMeta[recordId] || {};
         const isPhase2Combo = !!meta.is_phase2_combo;
-        const isJoin = isPhase2Combo && mainPageComboMode === 'join';
+        // combo ค่าเช่า + ค่าน้ำ/ไฟ ไม่มีโหมด join/sep ให้เลือก (รวมสลิปเดียวกันเสมอ) ต่างจาก
+        // combo มัดจำงวด 2 + ค่าเช่าเดือน 1 ที่มีปุ่มสลับด้านบน
+        const isUtilityCombo = !!meta.is_utility_combo;
+        const isJoin = (isPhase2Combo && mainPageComboMode === 'join') || isUtilityCombo;
         const label  = isJoin
             ? (meta.display_label || '')
             : (meta.sep_display_label || meta.display_label || '');
@@ -1792,8 +1799,11 @@ function applyBillingTabFilter() {
         const meta = window.billingRecordMeta[recordId] || {};
         switch (meta.payment_type) {
             case 'monthly_rent':
-            case 'late_fee':
-                return meta.has_land_tax ? ['rent', 'land_tax'] : ['rent'];
+            case 'late_fee': {
+                const tags = meta.has_land_tax ? ['rent', 'land_tax'] : ['rent'];
+                if (meta.is_utility_combo) tags.push('utility');
+                return tags;
+            }
             case 'deposit':
                 return ['deposit'];
             case 'processing_fee':

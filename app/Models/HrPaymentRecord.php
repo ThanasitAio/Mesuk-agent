@@ -67,6 +67,7 @@ class HrPaymentRecord extends Model
             'monthly_rent'   => "ค่าเช่ารายเดือน เดือนที่ {$this->month_number}",
             'processing_fee' => 'ค่าดำเนินการ',
             'late_fee'       => 'ค่าปรับล่าช้า' . ($this->month_number ? " เดือนที่ {$this->month_number}" : ''),
+            'utility'        => 'ค่าน้ำ/ไฟ' . ($this->month_number ? " เดือนที่ {$this->month_number}" : ''),
             default          => $this->payment_type,
         };
     }
@@ -343,5 +344,97 @@ class HrPaymentRecord extends Model
         );
 
         return round($bd['net_payable'] + $bd['vat_amount'], 2);
+    }
+
+    /**
+     * ผู้รับเงินตัวเดียวของรายการนี้ (company/investor) ถ้าระบุได้ชัดเจน - พอร์ตจาก happyest
+     * PaymentRecord::singlePaymentRecipient() เพื่อเช็คว่าค่าเช่า+ค่าน้ำ/ไฟงวดเดียวกันแนบสลิปใบเดียวกัน
+     * (รวมแถวเดียวกัน) ได้จริงไหม - ดู canShareUtilitySlipWith() คืน null เมื่อแยกจ่าย 2 ผู้รับพร้อมกัน
+     */
+    public function singlePaymentRecipient(): ?string
+    {
+        $booking = $this->booking;
+        if (! $booking) {
+            return null;
+        }
+
+        $invoiceMatch = $this->resolveInvoiceMatch(approvedOnly: true);
+        if (($invoiceMatch['net_total'] ?? null) !== null && is_array($invoiceMatch['split'] ?? null)) {
+            $companyAmount  = round((float) ($invoiceMatch['split']['company'] ?? 0), 2);
+            $investorAmount = round((float) ($invoiceMatch['split']['investor'] ?? 0), 2);
+            if ($companyAmount > 0 && $investorAmount > 0) {
+                return null;
+            }
+            if ($investorAmount > 0) {
+                return 'investor';
+            }
+            if ($companyAmount > 0) {
+                return 'company';
+            }
+        }
+
+        $property = $booking->property;
+        if (! $property) {
+            return null;
+        }
+
+        if ($this->payment_type === 'utility') {
+            return ($property->utility_payment_route ?? 'customer_company') === 'customer_investor'
+                ? 'investor'
+                : 'company';
+        }
+
+        if ($this->payment_type !== 'monthly_rent') {
+            return null;
+        }
+
+        $routes = [];
+        $rentRoute = ($property->payment_condition ?? 'customer_company_investor') === 'customer_investor_company'
+            ? 'investor'
+            : 'company';
+        $routes[] = $rentRoute;
+
+        if ((float) ($this->land_tax_amount ?? 0) > 0) {
+            $routes[] = (bool) ($booking->land_tax_to_investor ?? $property->land_tax_to_investor ?? false)
+                ? 'investor'
+                : 'company';
+        }
+
+        if ((float) ($this->stamp_duty_amount ?? 0) > 0) {
+            $routes[] = (bool) ($booking->stamp_duty_to_investor ?? $property->stamp_duty_to_investor ?? false)
+                ? 'investor'
+                : 'company';
+        }
+
+        if ((float) ($this->side_area_amount ?? 0) > 0) {
+            $routes[] = 'company';
+        }
+
+        $routes = array_values(array_unique($routes));
+
+        return count($routes) === 1 ? $routes[0] : null;
+    }
+
+    /**
+     * เช็คว่ารายการนี้กับอีกรายการ (ค่าเช่า <-> ค่าน้ำ/ไฟ งวดเดียวกัน) แนบสลิปใบเดียวกัน/รวมแสดงแถวเดียวกัน
+     * ได้จริงหรือไม่ - due_date ตรงกันและผู้รับเงินเป็นบัญชีเดียวกัน พอร์ตจาก happyest
+     * PaymentRecord::canShareUtilitySlipWith()
+     */
+    public function canShareUtilitySlipWith(HrPaymentRecord $other): bool
+    {
+        $types = [$this->payment_type, $other->payment_type];
+        sort($types);
+        if ($types !== ['monthly_rent', 'utility']) {
+            return false;
+        }
+
+        if (! $this->due_date || ! $other->due_date || $this->due_date->format('Y-m-d') !== $other->due_date->format('Y-m-d')) {
+            return false;
+        }
+
+        $recipient      = $this->singlePaymentRecipient();
+        $otherRecipient = $other->singlePaymentRecipient();
+
+        return $recipient !== null && $recipient === $otherRecipient;
     }
 }

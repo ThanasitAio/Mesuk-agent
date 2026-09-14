@@ -38,7 +38,7 @@ class HrBooking extends Model
 
     public static function finalPaymentTypes(): array
     {
-        return ['monthly_rent', 'late_fee'];
+        return ['monthly_rent', 'late_fee', 'utility'];
     }
 
     public function property()
