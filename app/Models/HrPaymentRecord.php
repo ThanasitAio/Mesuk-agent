@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Collection;
 
 class HrPaymentRecord extends Model
 {
@@ -101,20 +100,6 @@ class HrPaymentRecord extends Model
         return $this->payment_type === 'deposit' && (int) $this->deposit_phase === 2;
     }
 
-    public function isCombinedMonth1Hidden(Collection $records): bool
-    {
-        if ($this->payment_type !== 'monthly_rent' || (int) $this->month_number !== 1 || ! $this->payment_slip_path) {
-            return false;
-        }
-
-        return $records
-            ->where('payment_type', 'deposit')
-            ->where('deposit_phase', 2)
-            ->whereIn('payment_status', ['pending_verification', 'paid'])
-            ->where('payment_slip_path', $this->payment_slip_path)
-            ->isNotEmpty();
-    }
-
     /**
      * แนบสลิปรอบใหม่ (batch) เข้า payment_slip_batches - รองรับหลายรอบโอน/หลายวันที่ต่อ 1 บิลเดียวกัน
      * (เช่น จ่ายค่าเช่าบางส่วนวันนี้ ส่วนที่เหลือวันหลัง) โดยไม่ล้างของเดิม ต่างจาก update() ตรงๆ
@@ -205,24 +190,6 @@ class HrPaymentRecord extends Model
         }
 
         return true;
-    }
-
-    public function getDisplayLabel(Collection $records, bool $hasComboPayment, ?HrPaymentRecord $comboMonth1 = null): string
-    {
-        if ($this->isPhase2Deposit() && $hasComboPayment && $comboMonth1) {
-            return 'มัดจำงวดที่ 2 + ค่าเช่ารายเดือน เดือนที่ 1';
-        }
-
-        return $this->getTypeLabel();
-    }
-
-    public function getComboAmount(Collection $records, bool $hasComboPayment, ?HrPaymentRecord $comboMonth1 = null): float
-    {
-        if ($this->isPhase2Deposit() && $hasComboPayment && $comboMonth1) {
-            return round((float) $this->amount + (float) $comboMonth1->amount, 2);
-        }
-
-        return (float) $this->amount;
     }
 
     /**

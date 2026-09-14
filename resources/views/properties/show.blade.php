@@ -76,21 +76,59 @@
 
     $depositTypes = ['deposit', 'processing_fee'];
     $rentTypes    = ['monthly_rent', 'late_fee'];
+    $utilityTypes = ['utility'];
     $rentalTypeLabels = \App\Models\HrPaymentRecord::rentalTypeLabels();
     $pendingForBank = $actionableRecords->isNotEmpty() ? $actionableRecords : $allRecords->whereIn('payment_status', ['pending', 'failed']);
     // รายการที่ต้องโอนแยก 2 บัญชี (ดู $meta['is_split_payment']) ต้องแสดงบัญชีทั้งบริษัทและนักลงทุนเสมอ
     $splitPendingRecords = $pendingForBank->filter(fn($r) => $recordMeta[$r->id]['is_split_payment'] ?? false);
     $hasPendingCompany  = $splitPendingRecords->isNotEmpty() || $pendingForBank->filter(fn($r) =>
         (in_array($r->payment_type, $depositTypes) && ! $isDepositToInvestor) ||
-        (in_array($r->payment_type, $rentTypes) && ! $isRentToInvestor)
+        (in_array($r->payment_type, $rentTypes) && ! $isRentToInvestor) ||
+        (in_array($r->payment_type, $utilityTypes) && ! $isUtilityToInvestor)
     )->isNotEmpty();
     $hasPendingInvestor = $splitPendingRecords->isNotEmpty() || $pendingForBank->filter(fn($r) =>
         (in_array($r->payment_type, $depositTypes) && $isDepositToInvestor) ||
-        (in_array($r->payment_type, $rentTypes) && $isRentToInvestor)
+        (in_array($r->payment_type, $rentTypes) && $isRentToInvestor) ||
+        (in_array($r->payment_type, $utilityTypes) && $isUtilityToInvestor)
     )->isNotEmpty();
 
     $phaseCardColor = $isInitialPaymentPhase ? 'border-brand-500' : (($isWaitingContract || $isDepositPendingVerification) ? 'border-amber-400' : 'border-emerald-500');
     $fmtAmt = fn($a) => ((float) $a != floor((float) $a)) ? number_format((float) $a, 2) : number_format((int) $a);
+    $invoicePrintFormat = function ($invoice): string {
+        $snapshotCondition = $invoice->snapshot_property['payment_condition'] ?? null;
+        $snapshotDepositRoute = $invoice->snapshot_property['deposit_payment_route'] ?? null;
+        $effectiveRoute = in_array($invoice->invoice_type, ['deposit', 'service_fee'])
+            ? ($snapshotDepositRoute ?? $snapshotCondition)
+            : $snapshotCondition;
+
+        return $effectiveRoute === 'customer_investor_company'
+            ? 'customer-investor-company'
+            : 'customer-company-investor';
+    };
+    $invoicePrintUrl = fn($invoice) => $invoice
+        ? $happyestPublic . '/admin/invoices/' . $invoice->id . '/print?' . http_build_query([
+            'format' => $invoicePrintFormat($invoice),
+            'output' => 'stream',
+        ])
+        : '#';
+    $invoicePrintUrls = fn($recInv) => collect($recInv['invoices'] ?? [])
+        ->map(fn($invoice) => $invoicePrintUrl($invoice))
+        ->values()
+        ->all();
+    $invoiceCodesLinkHtml = function ($recInv) use ($invoicePrintUrl): ?string {
+        if (! ($recInv['has'] ?? false)) {
+            return null;
+        }
+
+        $invoices = collect($recInv['invoices'] ?? []);
+        if ($invoices->isEmpty()) {
+            $invoices = collect([$recInv['primary'] ?? null])->filter();
+        }
+
+        return $invoices
+            ->map(fn($invoice) => '<a href="' . e($invoicePrintUrl($invoice)) . '" target="_blank" rel="noopener" class="hover:underline">' . e($invoice->invoice_code) . '</a>')
+            ->implode(' / ');
+    };
 
     // แต่ละรอบบิลอาจมีใบแจ้งหนี้เปิดพร้อมกัน 2 ใบ (แยกบริษัท/นักลงทุน ตาม billing_route)
     // เมื่อยอดของรอบบิลนั้นถูกแบ่งจ่ายให้ทั้งสองฝ่าย (ดู $meta['is_split_payment'] จากคอนโทรลเลอร์)
@@ -124,6 +162,8 @@
             'company'  => $companyInv,
             'investor' => $investorInv,
             'primary'  => $companyInv ?? $investorInv,
+            'invoices'  => $matchedInvoices->values(),
+            'count'    => $matchedInvoices->count(),
             'has'      => $matchedInvoices->isNotEmpty(),
             'split'    => $companyInv && $investorInv,
         ];
@@ -534,6 +574,8 @@
                     $companyLabels->push('มัดจำ' . ($hasProcessingFee ? '/ค่าดำเนินการ' : ''));
                 if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && (!$isRentToInvestor || ($recordMeta[$r->id]['is_split_payment'] ?? false)))->isNotEmpty())
                     $companyLabels->push('ค่าเช่า');
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $utilityTypes) && ! $isUtilityToInvestor)->isNotEmpty())
+                    $companyLabels->push('ค่าน้ำ/ไฟ');
             @endphp
             <div class="flex items-stretch gap-0 {{ ($hasPendingInvestor && $owner) ? 'border-b border-gray-100' : '' }}">
                 {{-- Green left accent --}}
@@ -583,6 +625,8 @@
                     $investorLabels->push('มัดจำ' . ($hasProcessingFee ? '/ค่าดำเนินการ' : ''));
                 if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $rentTypes) && ($isRentToInvestor || ($recordMeta[$r->id]['is_split_payment'] ?? false)))->isNotEmpty())
                     $investorLabels->push('ค่าเช่า');
+                if($pendingForBank->filter(fn($r) => in_array($r->payment_type, $utilityTypes) && $isUtilityToInvestor)->isNotEmpty())
+                    $investorLabels->push('ค่าน้ำ/ไฟ');
             @endphp
             <div class="flex items-stretch gap-0">
                 {{-- Blue left accent --}}
@@ -642,38 +686,12 @@
             </div>
             <h2 class="text-sm font-bold text-gray-800">รอบบิลทั้งหมด</h2>
         </div>
-        @if($hasComboPayment)
-        <div class="flex flex-col items-end gap-1">
-            <p class="text-[10px] text-violet-500 font-semibold">มัดจำงวด 2 + ค่าเช่าเดือน 1</p>
-            <div class="flex items-center gap-1.5">
-                @if($canCombinePayment)
-                <button type="button" id="main-combo-btn-join" onclick="selectComboMode('join')"
-                        class="main-combo-btn text-[11px] font-bold px-2.5 py-1.5 rounded-lg border-2 transition-all border-violet-500 bg-violet-50 text-violet-700">
-                    รวม 1 แถว
-                </button>
-                @else
-                <button type="button" id="main-combo-btn-join" disabled title="มัดจำงวด 2 โอนคนละบัญชีกับค่าเช่า ต้องแนบสลิปแยก"
-                        class="main-combo-btn text-[11px] font-bold px-2.5 py-1.5 rounded-lg border-2 transition-all border-gray-200 text-gray-300 cursor-not-allowed opacity-50">
-                    รวม 1 แถว
-                </button>
-                @endif
-                <button type="button" id="main-combo-btn-sep" onclick="selectComboMode('sep')"
-                        class="main-combo-btn text-[11px] font-bold px-2.5 py-1.5 rounded-lg border-2 transition-all border-gray-200 text-gray-400">
-                    แยก 2 แถว
-                </button>
-            </div>
-            @if(!$canCombinePayment)
-            <p class="text-[10px] text-amber-600 mt-0.5">มัดจำงวด 2 โอนคนละบัญชีกับค่าเช่า - ต้องแนบสลิปแยก 2 รายการ</p>
-            @endif
-        </div>
-        @else
         <span class="text-xs font-semibold text-white bg-brand-600 px-2.5 py-1 rounded-full tabular-nums">
             {{ $displayRecords->count() }} รายการ
             @if($lockedRecords->count() > 0)
                 · {{ $lockedRecords->count() }} ล็อก
             @endif
         </span>
-        @endif
     </div>
 
     @if($isWaitingContract && $displayRecords->isEmpty())
@@ -745,13 +763,12 @@
                         $badgeClass = $colorMap[$colorKey]['badge'] ?? $colorMap['gray']['badge'];
                         $barColor   = $colorMap[$colorKey]['bar']   ?? $colorMap['gray']['bar'];
                         $rowBg      = $colorMap[$colorKey]['rowBg'] ?? '';
-                        $recInv         = $recordInvoiceMap[$record->id] ?? ['company' => null, 'investor' => null, 'primary' => null, 'has' => false, 'split' => false];
+                        $recInv         = $recordInvoiceMap[$record->id] ?? ['company' => null, 'investor' => null, 'primary' => null, 'invoices' => collect(), 'count' => 0, 'has' => false, 'split' => false];
                         $recordInvoice  = $recInv['primary'];
                         $hasInvoice     = $recInv['has'];
                         $isSplitInvoice = $recInv['split'];
-                        $invoiceCodesLabel = $isSplitInvoice
-                            ? $recInv['company']->invoice_code . ' / ' . $recInv['investor']->invoice_code
-                            : ($hasInvoice ? $recordInvoice->invoice_code : null);
+                        $invoiceCount   = $recInv['count'] ?? 0;
+                        $invoiceCodesHtml = $invoiceCodesLinkHtml($recInv);
                         if ($hasInvoice) { $rowBg = 'background:rgba(242,251,234,0.55)'; $barColor = '#86efac'; }
                         $invoiceRequired = in_array($record->payment_type, ['monthly_rent', 'utility'], true);
                         $amountHidden = $invoiceRequired
@@ -759,7 +776,7 @@
                             && in_array($record->payment_status, ['pending', 'failed'], true);
                         $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                                       && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
-                        $breakdownSource = ($meta['is_phase2_combo'] ?? false) && $comboMonth1Record ? $comboMonth1Record : $record;
+                        $breakdownSource = $record;
                         $landTax    = (float) ($breakdownSource->land_tax_amount   ?? 0);
                         $stampDuty  = (float) ($breakdownSource->stamp_duty_amount ?? 0);
                         $whtAmount  = (float) ($breakdownSource->withholding_tax_amount ?? 0);
@@ -773,7 +790,7 @@
 
                         $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
                         $isUtilityCombo = $meta['is_utility_combo'] ?? false;
-                        $displayAmount = (($meta['is_phase2_combo'] ?? false) || $isUtilityCombo)
+                        $displayAmount = $isUtilityCombo
                             ? ($meta['combo_amount'] ?? $record->amount)
                             : ($meta['own_amount'] ?? $record->amount);
                         $utilityComboAmount = $isUtilityCombo
@@ -801,9 +818,6 @@
                     <tr class="transition-colors hover:brightness-95"
                         style="{{ $rowBg }}; border-bottom:1px solid rgba(241,245,249,0.8)"
                         data-billing-status="{{ $record->payment_status }}"
-                        @if($meta['is_phase2_combo'] ?? false) data-phase2-row="1" @endif
-                        @if($meta['is_combo_month1'] ?? false) data-combomonth1-row="1" @endif
-                        @if($meta['is_combo_month1'] ?? false) x-data x-init="$el.style.display='none'" @endif
                         @if($meta['is_combo_utility'] ?? false) data-combo-utility-row="1" x-data x-init="$el.style.display='none'" @endif
                     >
                         {{-- Color indicator strip --}}
@@ -812,11 +826,7 @@
                         {{-- Type --}}
                         <td class="px-4 py-3.5">
                             <div class="flex items-center gap-1.5 flex-wrap mb-0.5">
-                                @if($meta['is_phase2_combo'] ?? false)
-                                    <p class="font-semibold text-gray-800 text-sm"><span class="combo-join-label">{{ $displayLabel }}</span><span class="combo-sep-label" style="display:none;">{{ $meta['sep_display_label'] ?? $record->getTypeLabel() }}</span></p>
-                                @else
-                                    <p class="font-semibold text-gray-800 text-sm">{{ $displayLabel }}</p>
-                                @endif
+                                <p class="font-semibold text-gray-800 text-sm">{{ $displayLabel }}</p>
                                 @if($meta['is_split_payment'] ?? false)
                                     <span class="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">โอนแยก 2 บัญชี</span>
                                 @endif
@@ -828,11 +838,11 @@
                                 {{ $recToInvestor ? '👤' : '🏢' }} {{ $recRecipient }}
                             </span>
                             @if($rentPeriod)
-                                <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $invoiceCodesLabel }}</span>@endif</p>
+                                <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {!! $invoiceCodesHtml !!}</span>@endif</p>
                             @elseif($recordDetail)
-                                <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {{ $invoiceCodesLabel }}</span>@endif</p>
+                                <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold font-mono" style="color:#468432">· {!! $invoiceCodesHtml !!}</span>@endif</p>
                             @elseif($hasInvoice)
-                                <p class="text-[10px] font-mono font-bold mt-1" style="color:#468432">{{ $invoiceCodesLabel }}</p>
+                                <p class="text-[10px] font-mono font-bold mt-1" style="color:#468432">{!! $invoiceCodesHtml !!}</p>
                             @endif
                             @if($record->payment_code)
                                 <p class="text-[10px] text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
@@ -855,10 +865,7 @@
                             @if($amountHidden)
                                 <p class="text-xs font-semibold whitespace-nowrap" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                             @else
-                                @if($meta['is_phase2_combo'] ?? false)
-                                    <p class="font-bold text-gray-900 text-lg tabular-nums leading-none"><span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($meta['own_amount'] ?? $record->amount) }}</span></p>
-                                    <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวม 2 รายการ</p>
-                                @elseif($isUtilityCombo)
+                                @if($isUtilityCombo)
                                     <p class="font-bold text-gray-900 text-lg tabular-nums leading-none">{{ $fmtAmt($displayAmount) }}</p>
                                     <p class="text-[10px] text-sky-600 mt-0.5">รวมค่าเช่า + ค่าน้ำ/ไฟ</p>
                                 @else
@@ -905,12 +912,15 @@
                                     {{ $record->getStatusLabel() }}
                                 </span>
                                 @if($hasInvoice)
-                                <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full" style="color:#38692a; background:#f0f9eb; border:1px solid #c3ea8e">
+                                <button type="button"
+                                        onclick='openInvoiceTabs(@json($invoicePrintUrls($recInv)))'
+                                        class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full hover:brightness-95"
+                                        style="color:#38692a; background:#f0f9eb; border:1px solid #c3ea8e">
                                     <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
-                                    มีใบแจ้งหนี้{{ $isSplitInvoice ? ' (2 ใบ)' : '' }}
-                                </span>
+                                    มีใบแจ้งหนี้{{ $invoiceCount > 1 ? " ({$invoiceCount} ใบ)" : '' }}
+                                </button>
                                 @endif
                             </div>
                         </td>
@@ -1022,13 +1032,12 @@
                 $colorKey   = $record->getStatusColor();
                 $badgeClass = $colorMap[$colorKey]['badge'] ?? $colorMap['gray']['badge'];
                 $barClass   = $colorMap[$colorKey]['bar']   ?? $colorMap['gray']['bar'];
-                $recInv         = $recordInvoiceMap[$record->id] ?? ['company' => null, 'investor' => null, 'primary' => null, 'has' => false, 'split' => false];
+                $recInv         = $recordInvoiceMap[$record->id] ?? ['company' => null, 'investor' => null, 'primary' => null, 'invoices' => collect(), 'count' => 0, 'has' => false, 'split' => false];
                 $recordInvoice  = $recInv['primary'];
                 $hasInvoice     = $recInv['has'];
                 $isSplitInvoice = $recInv['split'];
-                $invoiceCodesLabel = $isSplitInvoice
-                    ? $recInv['company']->invoice_code . ' / ' . $recInv['investor']->invoice_code
-                    : ($hasInvoice ? $recordInvoice->invoice_code : null);
+                $invoiceCount   = $recInv['count'] ?? 0;
+                $invoiceCodesHtml = $invoiceCodesLinkHtml($recInv);
                 if ($hasInvoice) { $barClass = 'bg-brand-400'; }
                 $barWidth = $hasInvoice ? 'w-1.5' : 'w-1';
                 $invoiceRequired = in_array($record->payment_type, ['monthly_rent', 'utility'], true);
@@ -1037,7 +1046,7 @@
                     && in_array($record->payment_status, ['pending', 'failed'], true);
                 $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
                               && ! in_array($record->payment_status, ['paid', 'pending_verification', 'refunded']);
-                $breakdownSource = ($meta['is_phase2_combo'] ?? false) && $comboMonth1Record ? $comboMonth1Record : $record;
+                $breakdownSource = $record;
                 $landTax    = (float) ($breakdownSource->land_tax_amount   ?? 0);
                 $stampDuty  = (float) ($breakdownSource->stamp_duty_amount ?? 0);
                 $whtAmount  = (float) ($breakdownSource->withholding_tax_amount ?? 0);
@@ -1050,7 +1059,7 @@
 
                 $displayLabel  = $meta['display_label'] ?? $record->getTypeLabel();
                 $isUtilityCombo = $meta['is_utility_combo'] ?? false;
-                $displayAmount = (($meta['is_phase2_combo'] ?? false) || $isUtilityCombo)
+                $displayAmount = $isUtilityCombo
                     ? ($meta['combo_amount'] ?? $record->amount)
                     : ($meta['own_amount'] ?? $record->amount);
                 $utilityComboAmount = $isUtilityCombo
@@ -1077,8 +1086,6 @@
             @endphp
             <div class="relative rounded-2xl border shadow-sm py-4 pl-5 pr-4 transition-shadow hover:shadow-md {{ $hasInvoice ? 'border-brand-100 bg-brand-50/30' : ($isOverdue ? 'border-red-100 bg-red-50/40' : 'border-gray-100 bg-white') }}"
                  data-billing-status="{{ $record->payment_status }}"
-                 @if($meta['is_phase2_combo'] ?? false) data-phase2-row="1" @endif
-                 @if($meta['is_combo_month1'] ?? false) data-combomonth1-row="1" style="display:none;" @endif
                  @if($meta['is_combo_utility'] ?? false) data-combo-utility-row="1" style="display:none;" @endif
             >
                 {{-- Left accent bar --}}
@@ -1088,11 +1095,7 @@
                 <div class="flex items-start justify-between gap-3 mb-2 pl-1">
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-1.5 flex-wrap">
-                            @if($meta['is_phase2_combo'] ?? false)
-                                <p class="font-bold text-gray-900 text-sm"><span class="combo-join-label">{{ $displayLabel }}</span><span class="combo-sep-label" style="display:none;">{{ $meta['sep_display_label'] ?? $record->getTypeLabel() }}</span></p>
-                            @else
-                                <p class="font-bold text-gray-900 text-sm">{{ $displayLabel }}</p>
-                            @endif
+                            <p class="font-bold text-gray-900 text-sm">{{ $displayLabel }}</p>
                             @if($meta['is_split_payment'] ?? false)
                                 <span class="text-[10px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-md leading-none">โอนแยก 2 บัญชี</span>
                             @endif
@@ -1108,11 +1111,11 @@
                         </span>
                         {{-- Record detail --}}
                         @if($rentPeriod)
-                            <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $invoiceCodesLabel }}</span>@endif</p>
+                            <p class="text-[10px] text-gray-400 mt-1">ช่วงเวลา: <span class="font-semibold text-gray-600">{{ $rentPeriod }}</span>@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {!! $invoiceCodesHtml !!}</span>@endif</p>
                         @elseif($recordDetail)
-                            <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {{ $invoiceCodesLabel }}</span>@endif</p>
+                            <p class="text-[10px] text-gray-400 mt-1">{{ $recordDetail }}@if($hasInvoice) <span class="font-bold text-brand-600 font-mono">· {!! $invoiceCodesHtml !!}</span>@endif</p>
                         @elseif($hasInvoice)
-                            <p class="text-[10px] text-brand-600 font-mono font-bold mt-1">{{ $invoiceCodesLabel }}</p>
+                            <p class="text-[10px] text-brand-600 font-mono font-bold mt-1">{!! $invoiceCodesHtml !!}</p>
                         @endif
                         @if($record->payment_code)
                             <p class="text-xs text-gray-400 font-mono mt-0.5">{{ $record->payment_code }}</p>
@@ -1129,18 +1132,11 @@
                         @if($amountHidden)
                             <p class="text-sm font-semibold" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                         @else
-                            @if($meta['is_phase2_combo'] ?? false)
-                                <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                                    <span class="combo-join-amount">{{ $fmtAmt($displayAmount) }}</span><span class="combo-sep-amount" style="display:none;">{{ $fmtAmt($meta['own_amount'] ?? $record->amount) }}</span><span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
-                                </p>
-                                <p class="combo-join-note text-[10px] text-violet-600 mt-0.5">รวมมัดจำงวด 2 + เช่าเดือน 1</p>
-                            @else
-                                <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                                    {{ $fmtAmt($displayAmount) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
-                                </p>
-                                @if($isUtilityCombo)
-                                    <p class="text-[10px] text-sky-600 mt-0.5">รวมค่าเช่า + ค่าน้ำ/ไฟ</p>
-                                @endif
+                            <p class="text-2xl font-bold text-gray-900 leading-none tabular-nums">
+                                {{ $fmtAmt($displayAmount) }}<span class="text-sm font-normal text-gray-400 ml-0.5">฿</span>
+                            </p>
+                            @if($isUtilityCombo)
+                                <p class="text-[10px] text-sky-600 mt-0.5">รวมค่าเช่า + ค่าน้ำ/ไฟ</p>
                             @endif
                             @if($hasBreakdown)
                                 <div class="mt-1.5 space-y-0.5">
@@ -1272,31 +1268,45 @@
                 {{-- Invoice footer bar (hasInvoice) - รองรับกรณีมีใบแจ้งหนี้เปิดพร้อมกัน 2 ใบ (บริษัท + นักลงทุน) --}}
                 @if($hasInvoice)
                     <div class="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                        @if($isSplitInvoice)
+                        @if($invoiceCount > 1)
                             <div class="flex items-center gap-2">
-                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                                <button type="button"
+                                        onclick='openInvoiceTabs(@json($invoicePrintUrls($recInv)))'
+                                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0 hover:brightness-95">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    เปิดใบแจ้งหนี้ทั้งหมด ({{ $invoiceCount }} ใบ)
+                                </button>
+                            </div>
+                        @elseif($isSplitInvoice)
+                            <div class="flex items-center gap-2">
+                                <a href="{{ $invoicePrintUrl($recInv['company']) }}" target="_blank" rel="noopener"
+                                   class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0 hover:brightness-95">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                     ใบแจ้งหนี้ บริษัท
-                                </span>
+                                </a>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                                <a href="{{ $invoicePrintUrl($recInv['investor']) }}" target="_blank" rel="noopener"
+                                   class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-full flex-shrink-0 hover:brightness-95">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                     ใบแจ้งหนี้ นักลงทุน
-                                </span>
+                                </a>
                             </div>
                         @else
                             <div class="flex items-center gap-2">
-                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0">
+                                <a href="{{ $invoicePrintUrl($recordInvoice) }}" target="_blank" rel="noopener"
+                                   class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1.5 rounded-full flex-shrink-0 hover:brightness-95">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
                                     เปิดใบแจ้งหนี้แล้ว
-                                </span>
+                                </a>
                             </div>
                         @endif
                     </div>
@@ -1575,10 +1585,15 @@ function openCancelSlipBatchConfirm(url) {
 }
 
 window.billingRecordMeta = @json($recordMeta);
-let mainPageComboMode = 'join';
 let currentBillingTab = 'pending';
 let billingExpanded = false;
 const BILLING_VISIBLE_LIMIT = 5;
+
+function openInvoiceTabs(urls) {
+    (urls || []).filter(Boolean).forEach(url => {
+        window.open(url, '_blank', 'noopener');
+    });
+}
 
 function switchBillingTab(tab) {
     currentBillingTab = tab;
@@ -1606,19 +1621,14 @@ function filterBillingGroup(containerSelector) {
 
     document.querySelectorAll(containerSelector + ' [data-billing-status]').forEach(row => {
         const status = row.dataset.billingStatus;
-        const isComboMonth1 = row.hasAttribute('data-combomonth1-row');
 
         let tabVisible;
         if (currentBillingTab === 'all') tabVisible = true;
         else if (currentBillingTab === 'pending') tabVisible = pendingStatuses.includes(status);
         else tabVisible = status === 'paid';
 
-        if (isComboMonth1) {
-            row.style.display = (mainPageComboMode === 'sep' && tabVisible) ? '' : 'none';
-        } else {
-            if (tabVisible) matchedRows.push(row);
-            else row.style.display = 'none';
-        }
+        if (tabVisible) matchedRows.push(row);
+        else row.style.display = 'none';
     });
 
     return matchedRows;
@@ -1714,69 +1724,20 @@ function applyBillingTabFilter() {
 })();
 
     let currentRecordId = null;
-    let currentIsPhase2Combo = false;
-    let currentCanCombine = false;
-    let _comboMode = 'join';
     const billingUploadBase = '{{ url("billing") }}';
-
-    function selectComboMode(mode) {
-        mainPageComboMode = mode;
-        _comboMode = mode;
-
-        // อัพเดท UI ปุ่ม
-        const btnJoin = document.getElementById('main-combo-btn-join');
-        const btnSep  = document.getElementById('main-combo-btn-sep');
-        if (btnJoin && btnSep) {
-            btnJoin.classList.remove('border-violet-500', 'bg-violet-50', 'text-violet-700');
-            btnJoin.classList.add('border-gray-200', 'text-gray-400');
-            btnSep.classList.remove('border-violet-500', 'bg-violet-50', 'text-violet-700');
-            btnSep.classList.add('border-gray-200', 'text-gray-400');
-            const activeBtn = mode === 'join' ? btnJoin : btnSep;
-            activeBtn.classList.remove('border-gray-200', 'text-gray-400');
-            activeBtn.classList.add('border-violet-500', 'bg-violet-50', 'text-violet-700');
-        }
-
-        // สลับแถว month1 combo ให้ซ่อน/แสดง
-        document.querySelectorAll('[data-combomonth1-row]').forEach(row => {
-            row.style.display = mode === 'join' ? 'none' : '';
-        });
-
-        // สลับเนื้อหาในแถว deposit phase2
-        document.querySelectorAll('[data-phase2-row]').forEach(row => {
-            row.querySelectorAll('.combo-join-label, .combo-join-amount, .combo-join-note').forEach(el => {
-                el.style.display = mode === 'join' ? '' : 'none';
-            });
-            row.querySelectorAll('.combo-sep-label, .combo-sep-amount').forEach(el => {
-                el.style.display = mode === 'sep' ? '' : 'none';
-            });
-        });
-
-        applyBillingTabFilter();
-    }
 
     function openSlipModalAuto(recordId) {
         const meta = window.billingRecordMeta[recordId] || {};
-        const isPhase2Combo = !!meta.is_phase2_combo;
-        // combo ค่าเช่า + ค่าน้ำ/ไฟ ไม่มีโหมด join/sep ให้เลือก (รวมสลิปเดียวกันเสมอ) ต่างจาก
-        // combo มัดจำงวด 2 + ค่าเช่าเดือน 1 ที่มีปุ่มสลับด้านบน
         const isUtilityCombo = !!meta.is_utility_combo;
-        const isJoin = (isPhase2Combo && mainPageComboMode === 'join') || isUtilityCombo;
-        const label  = isJoin
-            ? (meta.display_label || '')
-            : (meta.sep_display_label || meta.display_label || '');
-        const amount = isJoin
+        const label  = meta.display_label || '';
+        const amount = isUtilityCombo
             ? (meta.combo_amount || meta.own_amount || 0)
             : (meta.own_amount || 0);
-        openSlipModal(recordId, label, amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }), isPhase2Combo, isPhase2Combo);
+        openSlipModal(recordId, label, amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }));
     }
 
-    function openSlipModal(recordId, label, amount, isPhase2Combo, canCombine) {
+    function openSlipModal(recordId, label, amount) {
         currentRecordId = recordId;
-        currentIsPhase2Combo = !!isPhase2Combo;
-        currentCanCombine = !!canCombine;
-        
-        // ใช้ค่าจากการเลือกในหน้าหลัก
-        _comboMode = mainPageComboMode;
 
         document.getElementById('slip-record-label').textContent = label;
 
@@ -1914,9 +1875,6 @@ function applyBillingTabFilter() {
 
                 const formData = new FormData();
                 formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
-                if (currentIsPhase2Combo) {
-                    formData.append('combo_mode', _comboMode);
-                }
                 const transferDateInput = document.querySelector('#slip-form [name="transfer_date"]');
                 formData.append('transfer_date', transferDateInput ? transferDateInput.value : '');
                 this.rentalTypes.forEach(t => formData.append('rental_types[]', t));
@@ -1945,12 +1903,8 @@ function applyBillingTabFilter() {
         };
     }
 
-    // เริ่มต้นโหมด combo และ tab เมื่อโหลดหน้าเว็บ
+    // เริ่มต้น tab เมื่อโหลดหน้าเว็บ
     document.addEventListener('DOMContentLoaded', function() {
-        if (document.getElementById('main-combo-btn-join')) {
-            const canCombine = @json($canCombinePayment ?? false);
-            selectComboMode(canCombine ? 'join' : 'sep');
-        }
         switchBillingTab('pending');
     });
 </script>

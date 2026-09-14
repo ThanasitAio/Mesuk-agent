@@ -117,6 +117,12 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         $records          = $booking?->paymentRecords ?? collect();
         $duePendingRecs   = $duePendingRecords($records);
         $hasPendingFailed = $duePendingRecs->isNotEmpty();
+        $pendingSlipHasRent = $duePendingRecs
+            ->whereIn('payment_type', ['monthly_rent', 'late_fee'])
+            ->isNotEmpty();
+        $pendingSlipHasUtility = $duePendingRecs
+            ->where('payment_type', 'utility')
+            ->isNotEmpty();
         $hasPendingVerify = $records->where('payment_status', 'pending_verification')->isNotEmpty();
         $isVacant         = $isPropertyVacant($property);
 
@@ -139,6 +145,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
                 'deposit'        => 'มัดจำงวด ' . ($firstPendingRec->deposit_phase ?? 1),
                 'processing_fee' => 'ค่าดำเนินการ',
                 'late_fee'       => 'ค่าปรับเดือน ' . $firstPendingRec->month_number,
+                'utility'        => 'ค่าน้ำ/ไฟ' . ($firstPendingRec->month_number ? ' เดือนที่ ' . $firstPendingRec->month_number : ''),
                 default          => null,
             };
         }
@@ -169,6 +176,8 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
             'contractEnd'       => $contractEnd,
             'rentalMonths'      => $rentalMonths,
             'slipNeeded'        => $slipNeeded,
+            'pendingSlipHasRent' => $pendingSlipHasRent,
+            'pendingSlipHasUtility' => $pendingSlipHasUtility,
             'slipPendingVerify' => $slipPendingVerify,
             'lastSlipAt'        => $lastSlipAt,
             'pendingDueDate'    => $pendingDueDate,
@@ -209,8 +218,17 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     // ─── รวมยอด/รายการรอสลิป คำนวณจากแถว (ต่อ booking) ไม่ใช่ต่อทรัพย์ เพราะทรัพย์ที่มีสัญญาซ้อนกัน
     // (ต่อสัญญา) ควรนับภาระของทั้ง 2 สัญญาแยกกัน ───
     $fmtAmt           = fn($a) => ((float) $a != floor((float) $a)) ? number_format((float) $a, 2) : number_format((int) $a);
-    $totalRent        = $contractRows->sum(fn($row) => (float) ($row->booking->monthly_rent ?? 0));
     $totalSlipNeeded  = $contractRows->where('slipNeeded', true)->count();
+    $totalSlipNeededRent = $contractRows
+        ->filter(fn($row) => $row->slipNeeded && $row->pendingSlipHasRent)
+        ->pluck('property.id')
+        ->unique()
+        ->count();
+    $totalSlipNeededUtility = $contractRows
+        ->filter(fn($row) => $row->slipNeeded && $row->pendingSlipHasUtility)
+        ->pluck('property.id')
+        ->unique()
+        ->count();
     $totalSlipVerify  = $contractRows->where('slipPendingVerify', true)->count();
 
     // ─── จำนวนแยกตามสถานะจริง (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ───
@@ -328,20 +346,6 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     </div>
 </div>
 
-@if($totalRent > 0)
-<x-card class="flex items-center justify-between gap-3 px-4 py-3.5 mb-5">
-    <div class="flex items-center gap-3 min-w-0">
-        <div class="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
-            <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 10v2m9-8a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-        </div>
-        <p class="text-sm text-gray-500 truncate">รายรับค่าเช่า/เดือน (รวม)</p>
-    </div>
-    <p class="text-base font-bold text-gray-800 tabular-nums flex-shrink-0">{{ $fmtAmt($totalRent) }} <span class="text-xs font-normal text-gray-400">฿</span></p>
-</x-card>
-@endif
-
 {{-- ===== Slip Alert Banners ===== --}}
 @if($totalSlipNeeded > 0)
 <button type="button"
@@ -354,6 +358,16 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     </div>
     <div class="flex-1 min-w-0">
         <p class="text-sm font-semibold text-amber-700">ยังไม่แนบสลิป <span class="font-bold">{{ $totalSlipNeeded }} อสังหา</span></p>
+        @if($totalSlipNeededRent > 0 || $totalSlipNeededUtility > 0)
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-amber-600">
+            @if($totalSlipNeededRent > 0)
+                <span>ค่าเช่า {{ $totalSlipNeededRent }} อสังหา</span>
+            @endif
+            @if($totalSlipNeededUtility > 0)
+                <span>ค่าน้ำ/ไฟ {{ $totalSlipNeededUtility }} อสังหา</span>
+            @endif
+        </div>
+        @endif
         <p class="text-xs text-amber-500 mt-0.5" x-text="filter === 'slip_needed' ? 'กำลังกรองอยู่ - แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูเฉพาะอสังหาที่ยังไม่แนบสลิป'"></p>
     </div>
     <svg class="w-4 h-4 flex-shrink-0 transition-transform"

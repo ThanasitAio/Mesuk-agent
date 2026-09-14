@@ -145,7 +145,6 @@ class PropertyBillingController extends Controller
         $request->validate([
             'payment_slips'    => 'required|array|min:1|max:5',
             'payment_slips.*'  => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'combo_mode'       => 'nullable|in:join,sep',
             'transfer_date'    => 'required|date|before_or_equal:today',
             'rental_types'     => 'nullable|array',
             'rental_types.*'   => 'string|in:rent,land_tax,utility,deposit,processing_fee',
@@ -160,8 +159,6 @@ class PropertyBillingController extends Controller
         ]);
 
         $bookingId = $record->booking_id;
-        $comboMode = $request->input('combo_mode', 'sep');
-        $isPhase2Deposit = $record->isPhase2Deposit();
         $paidAt = \Carbon\Carbon::parse($request->input('transfer_date'))->setTimeFrom(now());
 
         $rentalTypeLabels = HrPaymentRecord::rentalTypeLabels();
@@ -169,9 +166,6 @@ class PropertyBillingController extends Controller
         $selectedRentalTypes = collect($rentalTypeTags)
             ->map(fn ($key) => $rentalTypeLabels[$key] ?? $key)
             ->implode(', ');
-
-        // ตรวจสอบว่าเป็นการอัพโหลดแบบรวม (combo) หรือไม่
-        $isComboUpload = $isPhase2Deposit && $comboMode === 'join';
 
         // ค่าน้ำ/ไฟต้องแนบจากรายการของตัวเองเท่านั้น เพื่อให้สถานะใบแจ้งหนี้และประเภทสลิปใน popup ชัดเจน
         $linkedUtilityRecord = null;
@@ -198,30 +192,15 @@ class PropertyBillingController extends Controller
         // แนบสลิปรอบนี้เข้า payment_slip_batches - ไม่ล้างรอบก่อนหน้า รองรับจ่ายหลายรอบ/หลายวันต่อ 1 บิล
         $record->appendSlipBatch($newPaths, $paidAt, $rentalTypeTags, 'agent_manager', $managerName);
 
-        // ถ้าเป็นโหมดรวม ให้อัพเดทรายการค่าเช่าเดือน 1 ด้วย
-        if ($isComboUpload) {
-            $month1Record = $booking->paymentRecords()
-                ->where('payment_type', 'monthly_rent')
-                ->where('month_number', 1)
-                ->whereIn('payment_status', ['pending', 'failed', 'pending_verification'])
-                ->first();
-
-            if ($month1Record) {
-                $month1Record->appendSlipBatch($newPaths, $paidAt, $rentalTypeTags, 'agent_manager', $managerName);
-            }
-        }
-
         if ($linkedUtilityRecord) {
             $linkedUtilityRecord->appendSlipBatch($newPaths, $paidAt, $rentalTypeTags, 'agent_manager', $managerName);
         }
 
         $booking->updatePaymentStatus();
 
-        $logDescription = $isComboUpload
-            ? "แนบสลิปแทนลูกค้า (รวม): มัดจำงวด 2 + ค่าเช่าเดือน 1 - {$property->title}"
-            : ($linkedUtilityRecord
+        $logDescription = $linkedUtilityRecord
                 ? "แนบสลิปแทนลูกค้า (รวม): {$record->getTypeLabel()} + ค่าน้ำ/ไฟ - {$property->title}"
-                : "แนบสลิปแทนลูกค้า: {$record->getTypeLabel()} - {$property->title}");
+                : "แนบสลิปแทนลูกค้า: {$record->getTypeLabel()} - {$property->title}";
         $logDescription .= " | วันที่โอน: {$paidAt->format('d/m/Y')}";
         if ($selectedRentalTypes !== '') {
             $logDescription .= " | ประเภท: {$selectedRentalTypes}";
@@ -235,11 +214,9 @@ class PropertyBillingController extends Controller
             description: $logDescription
         );
 
-        $successMessage = $isComboUpload
-            ? 'อัพโหลดสลิปรวม (มัดจำงวด 2 + ค่าเช่าเดือน 1) เรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน'
-            : ($linkedUtilityRecord
+        $successMessage = $linkedUtilityRecord
                 ? 'อัพโหลดสลิปรวม (ค่าเช่า + ค่าน้ำ/ไฟ) เรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน'
-                : 'อัพโหลดสลิปเรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน');
+                : 'อัพโหลดสลิปเรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน';
 
         return redirect()
             ->route('properties.show', $property->id)
@@ -277,26 +254,6 @@ class PropertyBillingController extends Controller
             'payment_status'    => 'pending',
             'paid_at'           => null,
         ]);
-
-        // ถ้าเป็นมัดจำงวด 2 ที่อัพโหลดแบบรวม ให้รีเซ็ตค่าเช่าเดือน 1 ที่ใช้สลิปเดียวกันด้วย
-        if ($record->isPhase2Deposit() && $oldSlipPath) {
-            $month1 = $booking->paymentRecords
-                ->where('payment_type', 'monthly_rent')
-                ->where('month_number', 1)
-                ->where('payment_status', 'pending_verification')
-                ->filter(fn ($r) => $r->payment_slip_path === $oldSlipPath)
-                ->first();
-
-            if ($month1) {
-                $month1->update([
-                    'payment_slip_path' => null,
-                    'payment_slips'     => null,
-                    'payment_slip_batches' => null,
-                    'payment_status'    => 'pending',
-                    'paid_at'           => null,
-                ]);
-            }
-        }
 
         // ถ้าเป็นค่าเช่า/ค่าน้ำ-ไฟที่แนบสลิปรวมกัน (utility combo) ให้รีเซ็ตอีกฝั่งที่ใช้สลิปเดียวกันด้วย
         if (in_array($record->payment_type, ['monthly_rent', 'utility'], true) && $oldSlipPath) {
@@ -579,35 +536,6 @@ class PropertyBillingController extends Controller
             $actionableRecords = $allRecords->whereIn('payment_status', ['pending', 'failed'])->values();
         }
 
-        // ─── Combo Payment Detection (Deposit Phase 2 + Month 1 Rent) ───
-        $hasComboPayment   = false;
-        $canCombinePayment = false;
-        $comboMonth1Record = null;
-
-        // ตรวจสอบ deposit phase 2 แยกออกมาเพื่อให้ combo detection ทำงานได้ทุก phase
-        // (รวม waiting_contract) เนื่องจาก agent แสดง record ทุก phase รวมกัน
-        if (! $phase2DepositRecord) {
-            $phase2DepositRecord = $allRecords
-                ->where('payment_type', 'deposit')
-                ->filter(fn ($r) => (int) $r->deposit_phase === 2)
-                ->whereIn('payment_status', ['pending', 'failed'])
-                ->first();
-        }
-
-        if ($phase2DepositRecord) {
-            $firstMonth1Rent = $allRecords
-                ->where('payment_type', 'monthly_rent')
-                ->where('month_number', 1)
-                ->whereIn('payment_status', ['pending', 'failed'])
-                ->first();
-
-            if ($firstMonth1Rent) {
-                $hasComboPayment   = true;
-                $canCombinePayment = ($depositRoute === $paymentCondition);
-                $comboMonth1Record = $firstMonth1Rent;
-            }
-        }
-
         // Agent: แสดง record ทุกเฟสรวมกัน ไม่มี locked section
         $actionableRecords = $allRecords->whereIn('payment_status', ['pending', 'failed'])->values();
         $lockedRecords     = collect();
@@ -619,8 +547,6 @@ class PropertyBillingController extends Controller
             $booking,
             $allForMeta,
             $allRecords,
-            $hasComboPayment,
-            $comboMonth1Record,
             $isRentToInvestor,
             $isDepositToInvestor,
             $isUtilityToInvestor,
@@ -653,14 +579,12 @@ class PropertyBillingController extends Controller
             'realFinalPhase',
             'isDepositPendingVerification',
             'allowPay',
-            'hasComboPayment',
-            'canCombinePayment',
-            'comboMonth1Record',
             'phase2DepositRecord',
             'paymentCondition',
             'depositRoute',
             'isRentToInvestor',
             'isDepositToInvestor',
+            'isUtilityToInvestor',
             'depositInvestorPct',
             'depositCompanyPct',
             'landTaxToInvestor',
@@ -676,8 +600,6 @@ class PropertyBillingController extends Controller
         $booking,
         Collection $displayRecords,
         Collection $allRecords,
-        bool $hasComboPayment,
-        ?HrPaymentRecord $comboMonth1Record,
         bool $isRentToInvestor,
         bool $isDepositToInvestor,
         bool $isUtilityToInvestor,
@@ -755,15 +677,13 @@ class PropertyBillingController extends Controller
             $qrUrl  = (! $promptpayId && $qrPath) ? $happyestPublic . '/storage/' . $qrPath : null;
 
             $meta[$record->id] = [
-                'display_label'         => $record->getDisplayLabel($allRecords, $hasComboPayment, $comboMonth1Record),
-                'combo_amount'          => $record->getComboAmount($allRecords, $hasComboPayment, $comboMonth1Record),
+                'display_label'         => $record->getTypeLabel(),
+                'combo_amount'          => $ownAmount,
                 'to_investor'           => $recToInv,
                 'recipient_name'      => $recToInv ? $investorName : $companyName,
                 'is_split_payment'      => $isSplit,
                 'split_investor_amount' => $splitInv,
                 'split_company_amount'  => $splitCom,
-                'is_phase2_combo'       => $record->isPhase2Deposit() && $hasComboPayment,
-                'is_combo_month1'       => $comboMonth1Record && $record->id === $comboMonth1Record->id && $hasComboPayment,
                 'sep_display_label'     => $record->getTypeLabel(),
                 'own_amount'            => $ownAmount,
                 'can_upload'            => $record->canUploadSlip($booking),
