@@ -146,12 +146,13 @@ class HrPaymentRecord extends Model
     }
 
     /**
-     * ค่าเช่ารายเดือนต้องมีใบแจ้งหนี้ (hr_invoices, status=approved) ของงวดนั้นก่อนถึงจะแนบสลิปได้
-     * mirror ของ resolveInvoiceMatch() ฝั่ง happyest - ประเภทอื่น (มัดจำ/ค่าดำเนินการ) ไม่ต้องมีใบแจ้งหนี้
+     * ค่าเช่ารายเดือนและค่าน้ำ/ไฟต้องมีใบแจ้งหนี้ (hr_invoices, status=approved)
+     * ของงวดนั้นก่อนถึงจะแนบสลิปได้ mirror ของ resolveInvoiceMatch() ฝั่ง happyest -
+     * ประเภทอื่น (มัดจำ/ค่าดำเนินการ) ไม่ต้องมีใบแจ้งหนี้
      */
     public function hasIssuedInvoice(?HrBooking $booking = null): bool
     {
-        if ($this->payment_type !== 'monthly_rent' || ! $this->due_date) {
+        if (! in_array($this->payment_type, ['monthly_rent', 'utility'], true) || ! $this->due_date) {
             return true;
         }
 
@@ -166,7 +167,9 @@ class HrPaymentRecord extends Model
 
         $billingMonth = $this->due_date->format('Y-m');
 
-        return $invoices->contains(fn ($inv) => $inv->invoice_type === 'monthly_rent'
+        $invoiceType = $this->payment_type === 'utility' ? 'utility' : 'monthly_rent';
+
+        return $invoices->contains(fn ($inv) => $inv->invoice_type === $invoiceType
             && $inv->status === 'approved'
             && $inv->billing_month === $billingMonth);
     }
@@ -247,6 +250,9 @@ class HrPaymentRecord extends Model
                 ->values(),
             'processing_fee' => $pool->where('invoice_type', 'service_fee')->values(),
             'monthly_rent' => $pool->where('invoice_type', 'monthly_rent')
+                ->when($this->due_date, fn ($c) => $c->where('billing_month', $this->due_date->format('Y-m')))
+                ->values(),
+            'utility' => $pool->where('invoice_type', 'utility')
                 ->when($this->due_date, fn ($c) => $c->where('billing_month', $this->due_date->format('Y-m')))
                 ->values(),
             'late_fee' => $pool->where('invoice_type', 'late_fee')

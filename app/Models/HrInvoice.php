@@ -120,7 +120,8 @@ class HrInvoice extends Model
         $payType = match ($this->invoice_type) {
             'deposit' => 'deposit',
             'service_fee' => 'processing_fee',
-            'monthly_rent', 'utility' => 'monthly_rent',
+            'monthly_rent' => 'monthly_rent',
+            'utility' => 'utility',
             default => null,
         };
         if (! $payType) {

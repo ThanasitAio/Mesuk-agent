@@ -133,8 +133,10 @@ class PropertyBillingController extends Controller
             ->firstOrFail();
 
         if (! $record->canUploadSlip($booking)) {
-            if ($record->payment_type === 'monthly_rent' && ! $record->hasIssuedInvoice($booking)) {
-                return back()->with('error', 'ยังไม่เปิดใบแจ้งหนี้สำหรับค่าเช่างวดนี้ ไม่สามารถแนบสลิปได้');
+            if (in_array($record->payment_type, ['monthly_rent', 'utility'], true) && ! $record->hasIssuedInvoice($booking)) {
+                $invoiceTypeLabel = $record->payment_type === 'utility' ? 'ค่าน้ำ/ไฟ' : 'ค่าเช่า';
+
+                return back()->with('error', "ยังไม่เปิดใบแจ้งหนี้สำหรับ{$invoiceTypeLabel}งวดนี้ ไม่สามารถแนบสลิปได้");
             }
 
             return back()->with('error', 'รายการนี้ไม่สามารถอัพโหลดสลิปได้ในขั้นตอนปัจจุบัน');
@@ -171,16 +173,8 @@ class PropertyBillingController extends Controller
         // ตรวจสอบว่าเป็นการอัพโหลดแบบรวม (combo) หรือไม่
         $isComboUpload = $isPhase2Deposit && $comboMode === 'join';
 
-        // ค่าเช่างวดนี้มีค่าน้ำ/ไฟงวดเดียวกันรวมแสดงอยู่แถวเดียวกันหรือไม่ (ครบกำหนดวันเดียวกัน + ผู้รับเงิน
-        // บัญชีเดียวกัน - ดู HrPaymentRecord::canShareUtilitySlipWith()) ถ้าใช่ แนบสลิปชุดเดียวกันให้ทั้งคู่
+        // ค่าน้ำ/ไฟต้องแนบจากรายการของตัวเองเท่านั้น เพื่อให้สถานะใบแจ้งหนี้และประเภทสลิปใน popup ชัดเจน
         $linkedUtilityRecord = null;
-        if ($record->payment_type === 'monthly_rent') {
-            $linkedUtilityRecord = $booking->paymentRecords
-                ->where('payment_type', 'utility')
-                ->whereIn('payment_status', ['pending', 'failed'])
-                ->each(fn ($r) => $r->setRelation('booking', $booking))
-                ->first(fn ($r) => $record->canShareUtilitySlipWith($r));
-        }
 
         if ($record->payment_status === 'failed') {
             $oldSlips = $record->payment_slips ?? [];
@@ -783,40 +777,6 @@ class PropertyBillingController extends Controller
                 'payment_type'          => $record->payment_type,
                 'has_land_tax'          => (float) ($record->land_tax_amount ?? 0) > 0,
             ];
-        }
-
-        // ─── Utility + Monthly Rent Combo (รวมแสดงแถวเดียว เมื่อครบกำหนดวันเดียวกันและผู้รับเงินบัญชี
-        // เดียวกัน) - แนบสลิปครั้งเดียวผ่านปุ่มของค่าเช่า แล้ว copy สลิปไปยัง record ค่าน้ำ/ไฟให้ (ดู
-        // uploadSlip()) พอร์ตแนวคิดจาก happyest HrPaymentRecord::canShareUtilitySlipWith() +
-        // payment/show.blade.php $hasUtilityCombo - เฉพาะรอบที่ยังไม่ชำระ (pending/failed) ทั้งคู่ เมื่อแนบ
-        // สลิปแล้วสถานะจะกลายเป็น pending_verification ทั้งสองฝั่งและแสดงแยกแถวกันตามปกติ (เหมือนพฤติกรรมเดิม
-        // ของ combo มัดจำงวด 2 + ค่าเช่าเดือน 1 ด้านบน)
-        // ข้ามการตรวจสอบถ้ามี combo มัดจำงวด 2 + ค่าเช่าเดือน 1 อยู่แล้ว (เหมือน happyest ที่กันไม่ให้ซ้อน
-        // กัน 3 ชั้น - ดู payment/show.blade.php: $comboUtilityRecord = (... && !$phase2DepositRecord && ...))
-        $pendingUtility = $hasComboPayment ? null : $displayRecords->first(fn ($r) =>
-            $r->payment_type === 'utility' && in_array($r->payment_status, ['pending', 'failed'], true)
-        );
-
-        if ($pendingUtility) {
-            $pairedRent = $displayRecords->first(fn ($r) =>
-                $r->payment_type === 'monthly_rent'
-                && in_array($r->payment_status, ['pending', 'failed'], true)
-                && $r->canShareUtilitySlipWith($pendingUtility)
-            );
-
-            if ($pairedRent && isset($meta[$pairedRent->id], $meta[$pendingUtility->id])) {
-                $meta[$pairedRent->id]['is_utility_combo']  = true;
-                $meta[$pairedRent->id]['utility_record_id'] = $pendingUtility->id;
-                $meta[$pairedRent->id]['sep_display_label'] = $meta[$pairedRent->id]['display_label'];
-                $meta[$pairedRent->id]['display_label']     = $meta[$pairedRent->id]['display_label'] . ' + ค่าน้ำ/ไฟ';
-                $meta[$pairedRent->id]['combo_amount']      = round(
-                    $meta[$pairedRent->id]['own_amount'] + $meta[$pendingUtility->id]['own_amount'],
-                    2
-                );
-
-                $meta[$pendingUtility->id]['is_combo_utility'] = true;
-                $meta[$pendingUtility->id]['combo_rent_id']    = $pairedRent->id;
-            }
         }
 
         return $meta;

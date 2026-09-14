@@ -102,6 +102,11 @@
                     && $rec->due_date
                     && $inv->billing_month === $rec->due_date->format('Y-m');
             }
+            if ($rec->payment_type === 'utility') {
+                return $inv->invoice_type === 'utility'
+                    && $rec->due_date
+                    && $inv->billing_month === $rec->due_date->format('Y-m');
+            }
             if ($rec->payment_type === 'deposit') {
                 return $inv->invoice_type === 'deposit'
                     && (int) ($inv->deposit_phase ?? 1) === (int) ($rec->deposit_phase ?? 1);
@@ -748,7 +753,8 @@
                             ? $recInv['company']->invoice_code . ' / ' . $recInv['investor']->invoice_code
                             : ($hasInvoice ? $recordInvoice->invoice_code : null);
                         if ($hasInvoice) { $rowBg = 'background:rgba(242,251,234,0.55)'; $barColor = '#86efac'; }
-                        $rentAmountHidden = $record->payment_type === 'monthly_rent'
+                        $invoiceRequired = in_array($record->payment_type, ['monthly_rent', 'utility'], true);
+                        $amountHidden = $invoiceRequired
                             && ! $hasInvoice
                             && in_array($record->payment_status, ['pending', 'failed'], true);
                         $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
@@ -774,7 +780,7 @@
                             ? ($recordMeta[$meta['utility_record_id']]['own_amount'] ?? 0)
                             : 0;
                         $canUpload     = $meta['can_upload'] ?? false;
-                        $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
+                        $invoiceNotOpen = $invoiceRequired
                             && ! $canUpload
                             && $record->canUploadSlip($booking, ignoreInvoiceCheck: true);
                         $recToInvestor = $meta['to_investor'] ?? false;
@@ -846,7 +852,7 @@
 
                         {{-- Amount --}}
                         <td class="px-4 py-3.5 text-right">
-                            @if($rentAmountHidden)
+                            @if($amountHidden)
                                 <p class="text-xs font-semibold whitespace-nowrap" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                             @else
                                 @if($meta['is_phase2_combo'] ?? false)
@@ -922,7 +928,7 @@
                                         </svg>
                                         {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                                     </button>
-                                @elseif($rentInvoiceNotOpen)
+                                @elseif($invoiceNotOpen)
                                     <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl whitespace-nowrap" style="color:#b45309; background:#fffbeb; border:1px solid #fde68a">
                                         ยังไม่เปิดใบแจ้งหนี้
                                     </span>
@@ -1025,7 +1031,8 @@
                     : ($hasInvoice ? $recordInvoice->invoice_code : null);
                 if ($hasInvoice) { $barClass = 'bg-brand-400'; }
                 $barWidth = $hasInvoice ? 'w-1.5' : 'w-1';
-                $rentAmountHidden = $record->payment_type === 'monthly_rent'
+                $invoiceRequired = in_array($record->payment_type, ['monthly_rent', 'utility'], true);
+                $amountHidden = $invoiceRequired
                     && ! $hasInvoice
                     && in_array($record->payment_status, ['pending', 'failed'], true);
                 $isOverdue  = $record->due_date && $record->due_date->toDateString() < now()->toDateString()
@@ -1050,7 +1057,7 @@
                     ? ($recordMeta[$meta['utility_record_id']]['own_amount'] ?? 0)
                     : 0;
                 $canUpload     = $meta['can_upload'] ?? false;
-                $rentInvoiceNotOpen = $record->payment_type === 'monthly_rent'
+                $invoiceNotOpen = $invoiceRequired
                     && ! $canUpload
                     && $record->canUploadSlip($booking, ignoreInvoiceCheck: true);
                 $recToInvestor = $meta['to_investor'] ?? false;
@@ -1119,7 +1126,7 @@
                 {{-- Bottom row: amount + action --}}
                 <div class="flex items-end justify-between pl-1">
                     <div>
-                        @if($rentAmountHidden)
+                        @if($amountHidden)
                             <p class="text-sm font-semibold" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
                         @else
                             @if($meta['is_phase2_combo'] ?? false)
@@ -1177,7 +1184,7 @@
                                 {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                             </button>
                         </div>
-                    @elseif($rentInvoiceNotOpen)
+                    @elseif($invoiceNotOpen)
                         <div class="flex flex-col items-end gap-2 flex-shrink-0">
                             <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-2 rounded-xl whitespace-nowrap" style="color:#b45309; background:#fffbeb; border:1px solid #fde68a">
                                 ยังไม่เปิดใบแจ้งหนี้
@@ -1804,6 +1811,8 @@ function applyBillingTabFilter() {
                 if (meta.is_utility_combo) tags.push('utility');
                 return tags;
             }
+            case 'utility':
+                return ['utility'];
             case 'deposit':
                 return ['deposit'];
             case 'processing_fee':
@@ -1835,6 +1844,9 @@ function applyBillingTabFilter() {
             ],
 
             get visibleRentalTypeOptions() {
+                if (this.currentPaymentType === 'utility') {
+                    return this.rentalTypeOptions.filter(o => o.key === 'utility');
+                }
                 if (this.currentPaymentType === 'monthly_rent' || this.currentPaymentType === 'late_fee') {
                     return this.rentalTypeOptions.filter(o => ['rent', 'land_tax', 'utility'].includes(o.key));
                 }
