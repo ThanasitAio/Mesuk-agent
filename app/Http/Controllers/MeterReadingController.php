@@ -81,6 +81,8 @@ class MeterReadingController extends Controller
             ];
         });
 
+        $exportProperties = $this->eligibleProperties($agentCode);
+
         logSystem(
             userType: 'agent',
             userId: session('agent_id'),
@@ -89,14 +91,7 @@ class MeterReadingController extends Controller
             description: "ดูรายการบันทึกมิเตอร์ งวด {$month}/{$year}"
         );
 
-        return view('meters.index', compact('rows', 'year', 'month', 'searchQuery'));
-    }
-
-    public function exportForm(Request $request)
-    {
-        $properties = $this->eligibleProperties(session('agent_code'));
-
-        return view('meters.export', compact('properties'));
+        return view('meters.index', compact('rows', 'year', 'month', 'searchQuery', 'exportProperties'));
     }
 
     /**
@@ -126,18 +121,19 @@ class MeterReadingController extends Controller
         $spanMonths = ($endYear * 12 + $endMonth) - ($startYear * 12 + $startMonth) + 1;
 
         if ($spanMonths < 1) {
-            return back()->with('error', 'งวดสิ้นสุดต้องไม่ก่อนงวดเริ่มต้น')->withInput();
+            return $this->exportError($request, 'งวดสิ้นสุดต้องไม่ก่อนงวดเริ่มต้น');
         }
         if ($spanMonths > self::EXPORT_MAX_MONTHS) {
-            return back()
-                ->with('error', 'ช่วงเวลาที่เลือกยาวเกินไป (สูงสุด ' . self::EXPORT_MAX_MONTHS . ' เดือน) กรุณาเลือกช่วงที่สั้นลง')
-                ->withInput();
+            return $this->exportError(
+                $request,
+                'ช่วงเวลาที่เลือกยาวเกินไป (สูงสุด ' . self::EXPORT_MAX_MONTHS . ' เดือน) กรุณาเลือกช่วงที่สั้นลง'
+            );
         }
 
         $properties = $this->eligibleProperties($agentCode, $propertyCode);
 
         if ($properties->isEmpty()) {
-            return back()->with('error', 'ไม่พบทรัพย์สินที่ตรงกับเงื่อนไข')->withInput();
+            return $this->exportError($request, 'ไม่พบทรัพย์สินที่ตรงกับเงื่อนไข');
         }
 
         ini_set('memory_limit', '512M');
@@ -168,8 +164,10 @@ class MeterReadingController extends Controller
 
             $spreadsheet->setActiveSheetIndex(0);
 
+            $writer = new Xlsx($spreadsheet);
+            $writer->setPreCalculateFormulas(false); // no formulas in either sheet - skip the recalculation pass
             $stream = fopen('php://temp', 'r+');
-            (new Xlsx($spreadsheet))->save($stream);
+            $writer->save($stream);
             rewind($stream);
             $content = stream_get_contents($stream);
             fclose($stream);
@@ -617,6 +615,21 @@ class MeterReadingController extends Controller
     }
 
     /**
+     * The export form is a modal (fetch-based, so the page never navigates away) - a plain
+     * back()->with('error') redirect would be invisible to that fetch() call, so JSON-expecting
+     * requests get a proper error body instead. $request->validate() already does this
+     * automatically for its own failures; this covers the controller's own manual checks.
+     */
+    private function exportError(Request $request, string $message)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        return back()->with('error', $message)->withInput();
+    }
+
+    /**
      * Properties eligible for the Excel export: this agent's own, utility metering turned on,
      * with at least one active meter - stricter than index()'s listing on purpose (index() is an
      * operational to-do list and deliberately shows everything; a billing report should not).
@@ -804,6 +817,11 @@ class MeterReadingController extends Controller
     ): void {
         $sheet->setTitle('รายละเอียดมิเตอร์');
 
+        // Grouped once up front so the per-period date-range header (below) is an O(1) lookup
+        // instead of re-scanning the whole readings collection for every month in range.
+        $readingDatesByPeriod = $allReadings->filter(fn ($r) => $r->reading_date !== null)
+            ->groupBy(fn ($r) => "{$r->billing_year}_{$r->billing_month}");
+
         $sheet->mergeCells('A1:A3');
         $sheet->setCellValue('A1', 'ลำดับที่');
         $sheet->mergeCells('B1:C3');
@@ -835,8 +853,7 @@ class MeterReadingController extends Controller
             $sheet->setCellValue("{$cols[4]}2", 'รวมยอด');
 
             $sheet->mergeCells("{$cols[0]}3:{$cols[4]}3");
-            $datesInPeriod = $allReadings->where('billing_year', $y)->where('billing_month', $m)
-                ->pluck('reading_date')->filter();
+            $datesInPeriod = $readingDatesByPeriod->get("{$y}_{$m}", collect())->pluck('reading_date');
             if ($datesInPeriod->isNotEmpty()) {
                 $min = $datesInPeriod->min()->format('d/m/Y');
                 $max = $datesInPeriod->max()->format('d/m/Y');

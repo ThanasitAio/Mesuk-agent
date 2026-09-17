@@ -223,8 +223,8 @@
         </div>
 
         {{-- ส่งออกรายงาน Excel --}}
-        <div class="w-full lg:w-auto lg:self-end">
-            <x-btn href="{{ route('meters.export') }}" variant="outline" size="md" class="w-full lg:w-auto whitespace-nowrap">
+        <div class="self-start">
+            <x-btn type="button" onclick="openModal('export-meters-modal')" variant="outline" size="md" class="whitespace-nowrap">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
                 </svg>
@@ -589,12 +589,123 @@
     </div>
 </x-confirm-modal>
 
+{{-- ── ส่งออกรายงานมิเตอร์น้ำ/ไฟ (Excel) ── --}}
+<x-modal id="export-meters-modal" title="ส่งออกรายงานมิเตอร์น้ำ/ไฟ" size="md">
+    <p class="text-sm text-gray-500 -mt-1 mb-4">เลือกช่วงงวดอ่านมิเตอร์และทรัพย์สินที่ต้องการ แล้วกดดาวน์โหลด</p>
+
+    <form id="exportMetersForm" class="space-y-5" onsubmit="return false;">
+        <x-form.month-year
+            name-month="start_month"
+            name-year="start_year"
+            label="ตั้งแต่งวดอ่านมิเตอร์"
+            required
+            :value-month="now()->month"
+            :value-year="now()->year"
+            :year-from="2025"
+            :year-to="now()->year + 1"
+        />
+        <x-form.month-year
+            name-month="end_month"
+            name-year="end_year"
+            label="ถึงงวดอ่านมิเตอร์"
+            required
+            :value-month="now()->month"
+            :value-year="now()->year"
+            :year-from="2025"
+            :year-to="now()->year + 1"
+        />
+        <x-form.select name="property_code" label="ทรัพย์สิน (ไม่ระบุ = ส่งออกทุกรายการ)" placeholder="ทุกรายการ">
+            <option value="">ทุกรายการ</option>
+            @foreach($exportProperties as $p)
+                <option value="{{ $p->property_code }}">{{ $p->property_code }} - {{ $p->title }}</option>
+            @endforeach
+        </x-form.select>
+    </form>
+
+    <div id="exportMetersError" class="hidden mt-4 flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-3.5 py-3 text-sm"></div>
+
+    <x-slot:footer>
+        <button type="button" onclick="closeModal('export-meters-modal')"
+                class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
+            ยกเลิก
+        </button>
+        <button type="button" id="exportMetersSubmitBtn" onclick="submitExportMetersForm()"
+                class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+            <svg id="exportMetersSpinner" class="hidden w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span id="exportMetersSubmitLabel">ดาวน์โหลดรายงาน Excel</span>
+        </button>
+    </x-slot:footer>
+</x-modal>
+
 @push('scripts')
 <script>
     function openDeleteMeterConfirm(url, targetLabel) {
         document.getElementById('delete-meter-confirm_form').action = url;
         document.getElementById('delete-meter-confirm_target').textContent = targetLabel;
         openModal('delete-meter-confirm');
+    }
+
+    async function submitExportMetersForm() {
+        const form   = document.getElementById('exportMetersForm');
+        const btn    = document.getElementById('exportMetersSubmitBtn');
+        const spinner = document.getElementById('exportMetersSpinner');
+        const label  = document.getElementById('exportMetersSubmitLabel');
+        const errorBox = document.getElementById('exportMetersError');
+
+        errorBox.classList.add('hidden');
+        errorBox.textContent = '';
+
+        const params = new URLSearchParams(new FormData(form));
+        const url = "{{ route('meters.export.download') }}?" + params.toString();
+
+        btn.disabled = true;
+        spinner.classList.remove('hidden');
+        label.textContent = 'กำลังสร้างไฟล์ กรุณารอสักครู่...';
+
+        try {
+            const res = await fetch(url, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+            });
+
+            if (!res.ok) {
+                let message = 'ไม่สามารถสร้างไฟล์ Excel ได้ กรุณาลองใหม่';
+                try {
+                    const data = await res.json();
+                    if (data.message) message = data.message;
+                } catch (e) { /* non-JSON error body - keep generic message */ }
+                errorBox.textContent = message;
+                errorBox.classList.remove('hidden');
+                return;
+            }
+
+            const blob = await res.blob();
+            const cd = res.headers.get('content-disposition') || '';
+            const utf8Match = cd.match(/filename\*=UTF-8''([^;]+)/);
+            const asciiMatch = cd.match(/filename="([^"]+)"/);
+            const filename = utf8Match ? decodeURIComponent(utf8Match[1]) : (asciiMatch ? asciiMatch[1] : 'meter-export.xlsx');
+
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+
+            closeModal('export-meters-modal');
+        } catch (e) {
+            errorBox.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่';
+            errorBox.classList.remove('hidden');
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('hidden');
+            label.textContent = 'ดาวน์โหลดรายงาน Excel';
+        }
     }
 </script>
 @endpush
