@@ -221,6 +221,16 @@
                 />
             </form>
         </div>
+
+        {{-- ส่งออกรายงาน Excel --}}
+        <div class="w-full lg:w-auto lg:self-end">
+            <x-btn href="{{ route('meters.export') }}" variant="outline" size="md" class="w-full lg:w-auto whitespace-nowrap">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+                ส่งออก Excel
+            </x-btn>
+        </div>
     </div>
 
     <div class="flex items-center gap-2 flex-wrap">

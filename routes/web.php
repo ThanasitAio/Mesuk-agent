@@ -51,6 +51,8 @@ Route::middleware('auth.agent')->group(function () {
     Route::get('/invoices/{invoice}/print', [PropertyBillingController::class, 'printInvoice'])->name('invoices.print');
 
     // Meter Readings (บันทึกมิเตอร์)
+    Route::get('/meters/export', [MeterReadingController::class, 'exportForm'])->name('meters.export');
+    Route::get('/meters/export/download', [MeterReadingController::class, 'exportDownload'])->name('meters.export.download');
     Route::get('/meters', [MeterReadingController::class, 'index'])->name('meters.index');
     Route::get('/meters/{property}', [MeterReadingController::class, 'show'])->name('meters.show');
     Route::post('/meters/{property}', [MeterReadingController::class, 'store'])->name('meters.store');
