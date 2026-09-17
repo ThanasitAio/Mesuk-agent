@@ -16,6 +16,7 @@
         'success'      => 'bg-brand-600 hover:bg-brand-700 text-white',
         'outline'      => 'border border-gray-300 hover:bg-gray-50 text-gray-700',
         'blue'         => 'bg-blue-600 hover:bg-blue-700 text-white',
+        'excel'        => 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white',
     ];
     $sizes = [
         'sm' => 'text-xs px-3 py-1.5 rounded-lg',

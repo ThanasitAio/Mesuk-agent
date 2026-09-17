@@ -142,6 +142,53 @@
 }
 .meter-badge-pop { animation: meter-badge-pop 0.4s cubic-bezier(.34,1.56,.64,1) both; }
 
+/* ลำดับแถวที่นับเฉพาะรายการที่มองเห็นจริง (ไม่นับแถวที่ถูกกรองซ่อนด้วย x-show) -
+   ใช้ CSS counter แทนเลข loop ของ Blade เพราะ element ที่ display:none จะไม่ถูกนับ
+   โดยธรรมชาติของ spec โดยไม่ต้องคำนวณลำดับใหม่ด้วย JS ทุกครั้งที่กรอง */
+.meter-list-counter { counter-reset: meter-row; }
+.meter-list-counter .meter-row-in,
+.meter-list-counter .meter-card-in {
+    counter-increment: meter-row;
+}
+.meter-row-num::before {
+    content: counter(meter-row);
+}
+
+/* ─── Meters Page - Excel Export Button ────────────────────────────── */
+.meter-export-btn {
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 14px -4px rgba(5, 150, 105, 0.45);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.meter-export-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px -6px rgba(5, 150, 105, 0.55);
+}
+.meter-export-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px -3px rgba(5, 150, 105, 0.45);
+}
+.meter-export-btn::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.4), transparent);
+    transform: skewX(-20deg);
+    animation: meter-export-shimmer 3.2s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes meter-export-shimmer {
+    0%   { left: -60%; }
+    55%  { left: 130%; }
+    100% { left: 130%; }
+}
+.meter-export-btn svg { transition: transform 0.25s ease; }
+.meter-export-btn:hover svg { transform: translateY(2px); }
+
 /* ─── Form element enhancements ────────────────────────────────────── */
 
 /* Native select: gray text when placeholder option is selected */

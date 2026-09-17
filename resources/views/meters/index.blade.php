@@ -106,12 +106,12 @@
     });
 
     // ตัวเลือกตัวกรองสถานะพื้นที่ - เอาเฉพาะสถานะที่มีอยู่จริงในทรัพย์สินของตัวแทนคนนี้
+    // (จำนวนต่อสถานะคำนวณฝั่ง client ด้วย countByStatus() ให้ตรงกับตัวกรองอื่นที่ใช้งานอยู่จริง)
     $propertyStatusOptions = $rows->unique('property_status_slug')
         ->map(fn ($row) => [
             'slug'  => $row->property_status_slug,
             'label' => $row->property_status_label,
             'color' => $row->property_status_color,
-            'count' => $rows->where('property_status_slug', $row->property_status_slug)->count(),
         ])
         ->sortBy('label')
         ->values();
@@ -137,6 +137,27 @@
         },
         get hasMatches() {
             return this.filteredCount > 0;
+        },
+        matchesSearch(it) {
+            const q = this.search.toLowerCase().trim();
+            return q === '' || it.search.includes(q);
+        },
+        // จำนวนบน tab สถานะการบันทึก: นับตามตัวกรองอื่นที่ใช้งานอยู่จริง (ค้นหา + สถานะพื้นที่)
+        // ไม่รวม recordFilter เอง เพื่อให้ตัวเลขบน tab อัปเดตตามผลกรองจริงเสมอ
+        countByRecord(recorded) {
+            return this.items.filter(it =>
+                this.matchesSearch(it)
+                && (this.propertyStatusFilter === 'all' || this.propertyStatusFilter === it.status)
+                && it.recorded === recorded
+            ).length;
+        },
+        // จำนวนบน pill สถานะพื้นที่: นับตามตัวกรองอื่นที่ใช้งานอยู่จริง (ค้นหา + สถานะการบันทึก)
+        countByStatus(slug) {
+            return this.items.filter(it =>
+                this.matchesSearch(it)
+                && (this.recordFilter === 'all' || (this.recordFilter === 'recorded') === it.recorded)
+                && (slug === 'all' || it.status === slug)
+            ).length;
         },
     }">
 
@@ -224,7 +245,7 @@
 
         {{-- ส่งออกรายงาน Excel --}}
         <div class="self-start">
-            <x-btn type="button" onclick="openModal('export-meters-modal')" variant="outline" size="md" class="whitespace-nowrap">
+            <x-btn type="button" onclick="openModal('export-meters-modal')" variant="excel" size="md" class="whitespace-nowrap meter-export-btn">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
                 </svg>
@@ -240,13 +261,13 @@
                     :class="recordFilter === 'unrecorded' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                     class="flex-shrink-0 flex items-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">
                 ยังไม่บันทึก
-                <span class="text-[10px] font-bold bg-gray-400 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none flex-shrink-0">{{ $unrecordedCount }}</span>
+                <span class="text-[10px] font-bold bg-gray-400 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none flex-shrink-0" x-text="countByRecord(false)"></span>
             </button>
             <button type="button" @click="recordFilter = 'recorded'"
                     :class="recordFilter === 'recorded' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                     class="flex-shrink-0 flex items-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">
                 บันทึกแล้ว
-                <span class="text-[10px] font-bold bg-brand-500 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none flex-shrink-0">{{ $recordedCount }}</span>
+                <span class="text-[10px] font-bold bg-brand-500 text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none flex-shrink-0" x-text="countByRecord(true)"></span>
             </button>
             <button type="button" @click="recordFilter = 'all'"
                     :class="recordFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
@@ -269,7 +290,7 @@
                             class="flex-shrink-0 flex items-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">
                         <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background: {{ $opt['color'] }};"></span>
                         {{ $opt['label'] }}
-                        <span class="text-[10px] font-bold text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none flex-shrink-0" style="background: {{ $opt['color'] }};">{{ $opt['count'] }}</span>
+                        <span class="text-[10px] font-bold text-white rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center leading-none flex-shrink-0" style="background: {{ $opt['color'] }};" x-text="countByStatus('{{ $opt['slug'] }}')"></span>
                     </button>
                 @endforeach
             </div>
@@ -306,7 +327,7 @@
 @else
 
     {{-- Mobile cards --}}
-    <div class="md:hidden space-y-3">
+    <div class="md:hidden space-y-3 meter-list-counter">
         @foreach($rows as $row)
             @php $status = $statusFor($row); $imgUrl = $resolveImageUrl($row->property); @endphp
             <a href="{{ route('meters.show', ['property' => $row->property->id, 'year' => $year, 'month' => $month]) }}"
@@ -317,7 +338,7 @@
 
                 {{-- Card header --}}
                 <div class="flex items-center gap-3 p-3 pb-2.5">
-                    <span class="flex-shrink-0 w-6 text-center text-xs font-bold text-gray-400 tabular-nums">{{ $loop->iteration }}</span>
+                    <span class="meter-row-num flex-shrink-0 w-6 text-center text-xs font-bold text-gray-400 tabular-nums"></span>
                     <div class="w-12 h-12 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center ring-1 ring-black/5">
                         @if($imgUrl)
                             <img src="{{ $imgUrl }}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" alt="">
@@ -443,13 +464,13 @@
                     <th class="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">จัดการ</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="meter-list-counter">
                 @foreach($rows as $row)
                     @php $status = $statusFor($row); @endphp
                     <tr x-show="matches(@js($row->search_text), @js($row->recorded_count > 0), @js($row->property_status_slug))"
                         class="meter-row-in border-t border-gray-100 hover:bg-brand-50/30 transition-colors duration-200 {{ ! $row->meter_enabled ? 'opacity-60' : '' }}"
                         style="animation-delay: {{ min($loop->index, 11) * 40 }}ms">
-                        <td class="px-5 py-3.5 text-xs font-bold text-gray-400 tabular-nums">{{ $loop->iteration }}</td>
+                        <td class="px-5 py-3.5 text-xs font-bold text-gray-400 tabular-nums"><span class="meter-row-num"></span></td>
                         <td class="px-5 py-3.5">
                             @if($row->property->property_code)
                                 <p class="font-mono font-bold text-sm text-gray-800 leading-snug">{{ $row->property->property_code }}</p>
