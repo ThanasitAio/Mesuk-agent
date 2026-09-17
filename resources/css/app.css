@@ -155,9 +155,16 @@
 }
 
 /* ─── Meters Page - Excel Export Button ────────────────────────────── */
+/* กระตุกตอนก่อนแก้ไข เกิดจาก 2 สาเหตุ:
+   1) shimmer วิ่งด้วย `left` (ไปกระทบ layout ทุกเฟรม ตลอดเวลาที่ animation infinite ทำงาน)
+   2) hover เปลี่ยนสีด้วย hover:from-/hover:to- ซึ่งเป็นการเปลี่ยน background-image
+      (gradient) - เบราว์เซอร์ transition แบบนี้ไม่ได้ จึงสะดุด/กระพริบ ไม่ไล่สีนุ่มนวล
+   แก้โดยเปลี่ยนทุกอย่างให้เหลือแค่ transform/opacity (compositor-only, ไม่ trigger
+   layout/paint) - กฎนี้ใช้กับ animation/hover แบบ infinite หรือถี่ทุกจุดในโปรเจกต์นี้ */
 .meter-export-btn {
     position: relative;
     overflow: hidden;
+    isolation: isolate;
     box-shadow: 0 4px 14px -4px rgba(5, 150, 105, 0.45);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -169,22 +176,36 @@
     transform: translateY(0);
     box-shadow: 0 2px 8px -3px rgba(5, 150, 105, 0.45);
 }
+.meter-export-btn > * { position: relative; z-index: 1; }
+/* hover ใช้ overlay สีเข้มขึ้นแบบ opacity แทนการสลับ gradient เดิม */
+.meter-export-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.08);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+.meter-export-btn:hover::before { opacity: 1; }
+.meter-export-btn:active::before { opacity: 0.16; }
 .meter-export-btn::after {
     content: '';
     position: absolute;
     top: 0;
-    left: -60%;
+    left: 0;
     width: 40%;
     height: 100%;
     background: linear-gradient(120deg, transparent, rgba(255,255,255,0.4), transparent);
-    transform: skewX(-20deg);
+    transform: translateX(-250%) skewX(-20deg);
     animation: meter-export-shimmer 3.2s ease-in-out infinite;
+    will-change: transform;
     pointer-events: none;
 }
 @keyframes meter-export-shimmer {
-    0%   { left: -60%; }
-    55%  { left: 130%; }
-    100% { left: 130%; }
+    0%   { transform: translateX(-250%) skewX(-20deg); }
+    55%  { transform: translateX(350%) skewX(-20deg); }
+    100% { transform: translateX(350%) skewX(-20deg); }
 }
 .meter-export-btn svg { transition: transform 0.25s ease; }
 .meter-export-btn:hover svg { transform: translateY(2px); }

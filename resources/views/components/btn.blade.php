@@ -16,7 +16,9 @@
         'success'      => 'bg-brand-600 hover:bg-brand-700 text-white',
         'outline'      => 'border border-gray-300 hover:bg-gray-50 text-gray-700',
         'blue'         => 'bg-blue-600 hover:bg-blue-700 text-white',
-        'excel'        => 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white',
+        // ไม่ใช้ hover:from-/hover:to- เพราะ background-image (gradient) เปลี่ยนสีแบบ transition ไม่ได้ (จะกระตุก/สะดุด
+        // ตอนชี้เมาส์) - ให้ .meter-export-btn (app.css) จัดการเอฟเฟกต์ hover ด้วย overlay opacity แทน
+        'excel'        => 'bg-gradient-to-r from-emerald-600 to-green-600 text-white',
     ];
     $sizes = [
         'sm' => 'text-xs px-3 py-1.5 rounded-lg',
