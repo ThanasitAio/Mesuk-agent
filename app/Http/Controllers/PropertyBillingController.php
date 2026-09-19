@@ -372,6 +372,79 @@ class PropertyBillingController extends Controller
             ->with('success', 'ยกเลิกสลิปรายการนี้เรียบร้อยแล้ว');
     }
 
+    public function deleteSlip(HrPaymentRecord $record, int $index)
+    {
+        $record->load('booking.paymentRecords');
+        $booking = $record->booking;
+        abort_if(! $booking, 404, 'ไม่พบข้อมูลการจอง');
+
+        $property = HrProperty::where('id', $booking->property_id)
+            ->where('manager_agent_code', session('agent_code'))
+            ->firstOrFail();
+
+        if ($record->payment_status !== 'pending_verification') {
+            return back()->with('error', 'ไม่สามารถลบไฟล์สลิปได้ - สถานะไม่ใช่รอตรวจสอบ');
+        }
+
+        $slips = $record->payment_slips ?? [];
+        if (empty($slips) && $record->payment_slip_path) {
+            $slips = [$record->payment_slip_path];
+        }
+
+        if (count($slips) <= 1) {
+            return back()->with('error', 'ต้องมีสลิปเหลืออย่างน้อย 1 ไฟล์ กรุณาใช้ปุ่ม "ยกเลิกทั้งหมด" แทน');
+        }
+
+        if (! isset($slips[$index])) {
+            return back()->with('error', 'ไม่พบไฟล์สลิปที่ต้องการลบ');
+        }
+
+        $removedPath = $slips[$index];
+        unset($slips[$index]);
+        $slips = array_values($slips);
+
+        // ตัดไฟล์นี้ออกจาก batch ที่แนบมันไว้ด้วย - ถ้า batch เหลือ path ว่างให้ตัด batch ทั้งก้อนทิ้ง
+        $batches = $record->payment_slip_batches ?? [];
+        foreach ($batches as &$batch) {
+            $paths = $batch['paths'] ?? [];
+            $pos   = array_search($removedPath, $paths, true);
+            if ($pos !== false) {
+                unset($paths[$pos]);
+                $batch['paths'] = array_values($paths);
+            }
+        }
+        unset($batch);
+        $batches = array_values(array_filter($batches, fn ($b) => ! empty($b['paths'])));
+
+        // ลบไฟล์จริงเฉพาะกรณีไม่มี record อื่นในบุ๊คกิ้งเดียวกันอ้างอิงสลิปเดียวกันอยู่ (เคสแนบรวมค่าเช่า+ค่าน้ำ/ไฟ)
+        $stillReferencedElsewhere = $booking->paymentRecords
+            ->where('id', '!=', $record->id)
+            ->flatMap(fn ($r) => collect($r->payment_slip_batches ?? [])->flatMap(fn ($b) => $b['paths'] ?? []))
+            ->contains($removedPath);
+
+        if (! $stillReferencedElsewhere) {
+            Storage::disk('payment_storage')->delete($removedPath);
+        }
+
+        $record->update([
+            'payment_slips'        => $slips,
+            'payment_slip_path'    => $slips[0] ?? null,
+            'payment_slip_batches' => $batches,
+        ]);
+
+        logSystem(
+            userType: 'agent',
+            userId: session('agent_id'),
+            module: 'Property',
+            action: 'DELETE',
+            description: "ลบไฟล์สลิปบางไฟล์: {$record->getTypeLabel()} - {$property->title}"
+        );
+
+        return redirect()
+            ->route('properties.show', $property->id)
+            ->with('success', 'ลบไฟล์สลิปเรียบร้อยแล้ว');
+    }
+
     public function viewSlip(Request $request, HrPaymentRecord $record)
     {
         $booking = $record->booking()->withTrashed()->first();

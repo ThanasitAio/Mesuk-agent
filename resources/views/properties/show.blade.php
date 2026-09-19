@@ -973,13 +973,25 @@
                                             @endforeach
                                         @endif
                                         @foreach($recSlips as $si => $_)
-                                        <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
-                                           class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-gray-700 transition-colors">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                            </svg>
-                                            ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
-                                        </a>
+                                        <div class="flex items-center gap-1">
+                                            <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
+                                               class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-gray-700 transition-colors">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                                </svg>
+                                                ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
+                                            </a>
+                                            @if($slipCount > 1)
+                                            <button type="button"
+                                                    onclick="openCancelSlipSingleConfirm('{{ route('billing.slip.delete', [$record->id, $si]) }}')"
+                                                    title="ลบไฟล์นี้"
+                                                    class="text-red-400 hover:text-red-600 transition-colors">
+                                                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                            @endif
+                                        </div>
                                         @endforeach
                                         <button type="button"
                                                 onclick="openCancelSlipConfirm('{{ route('billing.slip.cancel', $record->id) }}')"
@@ -1217,13 +1229,25 @@
                                 @endforeach
                             @endif
                             @foreach($recSlips as $si => $_)
-                            <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
-                               class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                </svg>
-                                ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
-                            </a>
+                            <div class="flex items-center gap-1">
+                                <a href="{{ route('billing.slip.view', $record->id) }}?index={{ $si }}" target="_blank"
+                                   class="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-500 hover:text-brand-600">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                    ดูสลิป{{ $slipCount > 1 ? ' #'.($si+1) : '' }}
+                                </a>
+                                @if($slipCount > 1)
+                                <button type="button"
+                                        onclick="openCancelSlipSingleConfirm('{{ route('billing.slip.delete', [$record->id, $si]) }}')"
+                                        title="ลบไฟล์นี้"
+                                        class="text-red-400 hover:text-red-600 transition-colors">
+                                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                                @endif
+                            </div>
                             @endforeach
                             <button type="button"
                                     onclick="openCancelSlipConfirm('{{ route('billing.slip.cancel', $record->id) }}')"
@@ -1570,6 +1594,31 @@
     </div>
 </x-confirm-modal>
 
+{{-- ── Delete Single Slip File Confirm Modal ── --}}
+<x-confirm-modal
+    id="cancel-slip-single-confirm"
+    title="ยืนยันลบไฟล์สลิป"
+    action=""
+    method="DELETE"
+    icon-variant="danger"
+    confirm-label="ยืนยันลบ"
+    cancel-label="ไม่ลบ">
+    <div class="flex flex-col gap-3">
+        <p class="text-sm text-gray-700 leading-relaxed">
+            คุณต้องการ<span class="font-semibold text-red-600">ลบไฟล์สลิปนี้</span>ใช่หรือไม่?
+        </p>
+        <div class="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
+            <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.07 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+            <p class="text-xs text-amber-700 leading-relaxed">
+                ไฟล์อื่นที่แนบไว้จะไม่ถูกลบ - สถานะจะยังเป็น <span class="font-semibold">รอตรวจสอบ</span> ต่อไป
+            </p>
+        </div>
+    </div>
+</x-confirm-modal>
+
 @endsection
 
 @push('scripts')
@@ -1582,6 +1631,11 @@ function openCancelSlipConfirm(url) {
 function openCancelSlipBatchConfirm(url) {
     document.getElementById('cancel-slip-batch-confirm_form').action = url;
     openModal('cancel-slip-batch-confirm');
+}
+
+function openCancelSlipSingleConfirm(url) {
+    document.getElementById('cancel-slip-single-confirm_form').action = url;
+    openModal('cancel-slip-single-confirm');
 }
 
 window.billingRecordMeta = @json($recordMeta);
