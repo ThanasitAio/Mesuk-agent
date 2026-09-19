@@ -26,6 +26,10 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.post');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth.agent');
 
+// happyest admin "เข้าสู่ระบบในนามผู้บริหารโครงการ" - token ใช้ครั้งเดียวจาก hr_admin_agent_sso_tokens
+// (ตารางที่ happyest สร้าง/insert ใน DB เดียวกัน) - ดู AuthController::ssoLogin()
+Route::get('/sso/{token}', [AuthController::class, 'ssoLogin'])->name('sso.login')->middleware('throttle:20,1');
+
 // --- Protected Routes ---
 Route::middleware('auth.agent')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
