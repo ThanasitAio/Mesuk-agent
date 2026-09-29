@@ -266,7 +266,19 @@ class TenantInvoiceController extends Controller
         }
         abort_if($invoice->status !== 'approved', 403, 'ใบแจ้งหนี้นี้ยังไม่ได้รับการอนุมัติ');
 
-        $content = HappyestAdminPdf::fetchInvoicePdf($invoice->id, $this->resolvePrintFormat($invoice));
+        try {
+            $content = HappyestAdminPdf::fetchInvoicePdf($invoice->id, $this->resolvePrintFormat($invoice));
+        } catch (\Throwable $e) {
+            // ส่งสาเหตุกลับไปให้หน้ารายการแสดงใน alert แทน error 500 เปล่าๆ ที่บอกแค่ "สร้าง PDF ไม่สำเร็จ" - ข้อความ
+            // RuntimeException ของ HappyestAdminPdf เขียนเองทั้งหมด (ไม่มีข้อมูลลับ) ส่วน exception อื่นใช้ข้อความกลาง
+            report($e);
+
+            return response(
+                $e instanceof \RuntimeException ? $e->getMessage() : 'เชื่อมต่อ happyest ไม่สำเร็จ',
+                502,
+                ['Content-Type' => 'text/plain; charset=UTF-8']
+            );
+        }
 
         logSystem(
             userType: 'agent',
@@ -303,8 +315,10 @@ class TenantInvoiceController extends Controller
     }
 
     /**
-     * ชื่อไฟล์ (ไม่รวม .pdf) - พอร์ตมาจาก happyest InvoicePdfService::buildDisplayName() เพื่อให้ชื่อไฟล์
-     * ที่ผู้บริหารโครงการเห็นตรงกับที่เจ้าของทรัพย์เห็นจากหน้า investor.invoices รูปแบบเดียวกัน
+     * ชื่อไฟล์ (ไม่รวม .pdf) - พอร์ตมาจาก happyest InvoicePdfService::buildDisplayName() ทุกเงื่อนไข เพื่อให้ชื่อไฟล์
+     * ที่ผู้บริหารโครงการเห็นตรงกับที่แอดมิน/เจ้าของทรัพย์ได้จาก happyest และไม่ซ้ำกันในกรณีที่ happyest แยกไว้แล้ว
+     * (มัดจำ 2 งวด, ค่าเช่า/ค่าภาษีที่ดินที่แยกใบตามผู้รับเงิน) - ถ้ายังชนกันได้อีก (เคสที่ happyest เองก็ชน) หน้ารายการ
+     * ต่อท้าย " (2)" ให้ตอนดาวน์โหลดหลายไฟล์ ดู uniqueFilename() ใน tenant-invoices/index.blade.php
      */
     private function buildDisplayName(HrInvoice $invoice): string
     {
@@ -322,10 +336,14 @@ class TenantInvoiceController extends Controller
             $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'electric' => 'ค่าไฟ',
             $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'common_fee' => 'ค่าส่วนกลาง',
             $invoice->invoice_type === 'utility' => 'ค่าน้ำไฟ',
-            $invoice->invoice_type === 'deposit' => 'ค่ามัดจำ',
+            // งวดที่N เฉพาะมัดจำแบบแบ่ง 2 งวดจริง (booking->deposit_type=half) - ใบมัดจำจ่ายครั้งเดียวบางใบมี
+            // deposit_phase ค้างเป็น 1 จากบั๊กเก่าของ happyest ตอนสร้าง (เงื่อนไขเดียวกับ happyest)
+            $invoice->invoice_type === 'deposit' => ($invoice->booking?->isHalfDeposit() && $invoice->deposit_phase)
+                ? "ค่ามัดจำงวดที่{$invoice->deposit_phase}"
+                : 'ค่ามัดจำ',
             $invoice->invoice_type === 'service_fee' => 'ค่าดำเนินการ',
-            $invoice->invoice_type === 'monthly_rent' => 'ค่าเช่า',
-            default => $invoice->detailed_type_label ?: 'ใบแจ้งหนี้',
+            $invoice->invoice_type === 'monthly_rent' => $this->monthlyRentFilenameLabel($invoice),
+            default => $invoice->invoice_type_label ?: 'ใบแจ้งหนี้',
         };
 
         // billing_month_short() ของ happyest คืน "ด.8/69" - "/" เป็น path separator จริง เขียนเป็นชื่อไฟล์
@@ -342,6 +360,19 @@ class TenantInvoiceController extends Controller
         $name = trim(preg_replace('/[\/\\\\:*?"<>|\r\n]+/u', '-', $name) ?? $name);
 
         return $name !== '' ? $name : ($invoice->invoice_code ?: 'invoice');
+    }
+
+    /**
+     * ใบค่าเช่าที่แยกตามผู้รับเงิน (บริษัท/เจ้าของทรัพย์) มี invoice_type='monthly_rent' และ sub_type=null เหมือนกัน
+     * ป้าย 'ค่าเช่า' ตายตัวทำให้ชื่อไฟล์ 2 ใบซ้ำกัน - อ่านจากรายการแรกของ billing_items ของใบนั้นจริงแทน
+     * (พอร์ตจาก happyest InvoicePdfService::monthlyRentFilenameLabel())
+     */
+    private function monthlyRentFilenameLabel(HrInvoice $invoice): string
+    {
+        $items = $invoice->billing_items;
+        $firstLabel = is_array($items) ? ($items[0]['label'] ?? null) : null;
+
+        return str_contains((string) $firstLabel, 'ภาษีที่ดิน') ? 'ค่าภาษีที่ดิน' : 'ค่าเช่า';
     }
 
     /**

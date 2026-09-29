@@ -250,6 +250,11 @@
             <span>สำเร็จ: <strong id="ti-progress-ok">0</strong></span>
             <span>ทั้งหมด: <strong id="ti-progress-total">0</strong></span>
         </div>
+        {{-- แสดงระหว่างดาวน์โหลดเท่านั้น (สลับกับปุ่มปิดด้านล่างตอนจบ) - หยุดหลังไฟล์ที่กำลังโหลดอยู่ทันที --}}
+        <x-btn variant="secondary" id="ti-progress-cancel" class="mt-4 w-full disabled:opacity-50 disabled:cursor-not-allowed">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+            ยกเลิกการดาวน์โหลด
+        </x-btn>
         <button type="button" id="ti-progress-close" style="display:none;"
                 class="mt-4 pt-3.5 border-t border-gray-100 w-full flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold rounded-xl text-white bg-brand-600 hover:bg-brand-700 active:scale-[0.98] transition-all">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -285,12 +290,12 @@
     function removeSelection(id) { selection = selection.filter(s => s.id !== id); saveSelection(); }
     function emptySelection() { selection = []; saveSelection(); }
 
-    async function fetchAllMatchingItems() {
+    async function fetchAllMatchingItems(signal) {
         const url = bulkListUrl + '?month=' + encodeURIComponent(currentMonth)
             + '&kind=' + encodeURIComponent(currentKind)
             + '&q=' + encodeURIComponent(currentQuery)
             + '&pay_status=' + encodeURIComponent(currentPayStatus);
-        const res = await fetch(url, { credentials: 'same-origin' });
+        const res = await fetch(url, { credentials: 'same-origin', signal: signal });
         const data = await res.json();
         return (data.items || []).map(it => ({ id: it.invoice_id, invoice_code: it.invoice_code, download_url: it.download_url }));
     }
@@ -413,6 +418,14 @@
         return plainMatch ? plainMatch[1] : fallback;
     }
 
+    // สาเหตุที่ TenantInvoiceController::download() ส่งกลับเป็น text/plain ตอนดึง PDF จาก happyest ไม่สำเร็จ
+    // (เช่น หมดเวลา, happyest ตอบ HTTP 500) - หน้า error แบบอื่น (HTML) แสดงแค่รหัส HTTP
+    async function failureReason(res) {
+        const fallback = 'HTTP ' + res.status;
+        if (!(res.headers.get('content-type') || '').startsWith('text/plain')) return fallback;
+        try { return (await res.text()).trim().slice(0, 300) || fallback; } catch (e) { return fallback; }
+    }
+
     async function pickDirectoryHandle() {
         if (!window.showDirectoryPicker) return { handle: null, cancelled: false };
         try {
@@ -440,7 +453,7 @@
         btn.querySelector('.ti-dl-icon')?.classList.add('animate-spin');
         try {
             const res = await fetch(url, { credentials: 'same-origin' });
-            if (!res.ok) throw new Error('bad response');
+            if (!res.ok) throw new Error(await failureReason(res));
             const blob = await res.blob();
             const filename = parseFilename(res.headers.get('content-disposition'), fallbackName);
             const blobUrl = URL.createObjectURL(blob);
@@ -452,7 +465,7 @@
             a.remove();
             setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
         } catch (e) {
-            alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่');
+            alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่' + (e && e.message ? '\n\nสาเหตุ: ' + e.message : ''));
         } finally {
             btn.disabled = false;
             btn.querySelector('.ti-dl-icon')?.classList.remove('animate-spin');
@@ -466,24 +479,70 @@
     const okEl = document.getElementById('ti-progress-ok');
     const totalEl = document.getElementById('ti-progress-total');
     const closeBtn = document.getElementById('ti-progress-close');
+    const cancelBtn = document.getElementById('ti-progress-cancel');
 
-    // dirHandle มาจาก showDirectoryPicker ที่เรียกครั้งเดียวก่อนเริ่ม loop (ไม่ใช่ถามทีละไฟล์) ถ้าเบราว์เซอร์
-    // ไม่รองรับ (มือถือทุกตัว/Safari/Firefox) หรือผู้ใช้ไม่ได้เลือกโฟลเดอร์ จะ fallback ไปที่ a.download ทีละไฟล์
-    async function downloadItems(items, dirHandle) {
+    // ยกเลิกกลางคัน: abort request ที่กำลังโหลดอยู่และไม่เริ่มไฟล์ถัดไป - ไฟล์ที่บันทึกเสร็จไปแล้วยังอยู่ครบ
+    let cancelRequested = false;
+    let activeController = null;
+
+    function startProgress(message, total) {
+        cancelRequested = false;
+        cancelBtn.disabled = false;
+        cancelBtn.style.display = '';
         closeBtn.style.display = 'none';
         overlay.classList.remove('hidden');
         overlay.classList.add('flex');
+        sub.textContent = message;
         barFill.style.width = '0%';
         okEl.textContent = '0';
+        totalEl.textContent = total;
+    }
+
+    function finishProgress(message) {
+        activeController = null;
+        sub.textContent = message;
+        cancelBtn.style.display = 'none';
+        closeBtn.style.display = 'inline-flex';
+    }
+
+    cancelBtn?.addEventListener('click', () => {
+        cancelRequested = true;
+        cancelBtn.disabled = true;
+        sub.textContent = 'กำลังยกเลิก...';
+        activeController?.abort();
+    });
+
+    // ใบต่างกันแต่ชื่อไฟล์ชนกันในรอบเดียวกัน (เคสที่ happyest เองก็ตั้งชื่อซ้ำ) ต่อท้าย " (2)", " (3)" แทนการเขียนทับ
+    // เงียบๆ ในโหมดเลือกโฟลเดอร์ - เทียบแบบไม่สนตัวพิมพ์เล็ก/ใหญ่ (ระบบไฟล์ Windows/macOS ไม่แยก) และไม่นับข้ามรอบ
+    // (ดาวน์โหลดเดือนเดิมซ้ำอีกรอบ = เขียนทับไฟล์เดิมของใบเดียวกันตามปกติ ไม่เกิดไฟล์ " (2)" สะสม)
+    function uniqueFilename(name, usedNames) {
+        const dot = name.lastIndexOf('.');
+        const base = dot > 0 ? name.slice(0, dot) : name;
+        const ext = dot > 0 ? name.slice(dot) : '';
+        let candidate = name;
+        for (let n = 2; usedNames.has(candidate.toLowerCase()); n++) {
+            candidate = base + ' (' + n + ')' + ext;
+        }
+        usedNames.add(candidate.toLowerCase());
+        return candidate;
+    }
+
+    // dirHandle มาจาก showDirectoryPicker ที่เรียกครั้งเดียวก่อนเริ่ม loop (ไม่ใช่ถามทีละไฟล์) ถ้าเบราว์เซอร์
+    // ไม่รองรับ (มือถือทุกตัว/Safari/Firefox) หรือผู้ใช้ไม่ได้เลือกโฟลเดอร์ จะ fallback ไปที่ a.download ทีละไฟล์
+    // - ผู้เรียกต้อง startProgress() ก่อนเสมอ (ไม่ reset สถานะยกเลิกที่นี่ กันกดยกเลิกตอนโหลดรายการแล้วถูกล้างทิ้ง)
+    async function downloadItems(items, dirHandle) {
         totalEl.textContent = items.length;
 
         let ok = 0;
-        for (let i = 0; i < items.length; i++) {
+        let lastError = '';
+        const usedNames = new Set();
+        for (let i = 0; i < items.length && !cancelRequested; i++) {
             sub.textContent = 'กำลังเตรียมไฟล์ ' + (i + 1) + '/' + items.length + '...';
+            activeController = new AbortController();
             try {
-                const res = await fetch(items[i].download_url, { credentials: 'same-origin' });
-                if (!res.ok) throw new Error('bad response');
-                const filename = parseFilename(res.headers.get('content-disposition'), 'invoice-' + items[i].invoice_code + '.pdf');
+                const res = await fetch(items[i].download_url, { credentials: 'same-origin', signal: activeController.signal });
+                if (!res.ok) throw new Error(await failureReason(res));
+                const filename = uniqueFilename(parseFilename(res.headers.get('content-disposition'), 'invoice-' + items[i].invoice_code + '.pdf'), usedNames);
                 sub.textContent = 'กำลังดาวน์โหลด ' + filename;
                 const blob = await res.blob();
                 if (dirHandle) {
@@ -503,19 +562,28 @@
                 }
                 ok++;
             } catch (e) {
+                if (cancelRequested) break; // abort จากปุ่มยกเลิก ไม่นับเป็นไฟล์ที่ล้มเหลว
+                lastError = (e && e.message) || '';
                 console.error('[ti] download failed:', items[i].invoice_code, e);
             }
             okEl.textContent = ok;
             barFill.style.width = Math.round(((i + 1) / items.length) * 100) + '%';
         }
-        sub.textContent = 'ดาวน์โหลดเสร็จสิ้น';
-        closeBtn.style.display = 'inline-flex';
+
+        if (cancelRequested) {
+            finishProgress('ยกเลิกแล้ว - ดาวน์โหลดสำเร็จ ' + ok + ' จาก ' + items.length + ' ไฟล์');
+            return;
+        }
+        finishProgress(ok === items.length
+            ? 'ดาวน์โหลดเสร็จสิ้น'
+            : 'ดาวน์โหลดเสร็จสิ้น - ไม่สำเร็จ ' + (items.length - ok) + ' ไฟล์' + (lastError ? ' (' + lastError + ')' : ''));
     }
 
     async function downloadSelected(items) {
         if (items.length === 0) return;
         const { handle, cancelled } = await pickDirectoryHandle();
         if (cancelled) return;
+        startProgress('กำลังเตรียมไฟล์...', items.length);
         await downloadItems(items, handle);
     }
 
@@ -523,29 +591,23 @@
         const { handle, cancelled } = await pickDirectoryHandle();
         if (cancelled) return;
 
-        closeBtn.style.display = 'none';
-        overlay.classList.remove('hidden');
-        overlay.classList.add('flex');
-        sub.textContent = 'กำลังโหลดรายการ...';
-        barFill.style.width = '0%';
-        okEl.textContent = '0';
-        totalEl.textContent = '0';
+        startProgress('กำลังโหลดรายการ...', 0);
+        activeController = new AbortController();
 
         let items = [];
         try {
-            items = await fetchAllMatchingItems();
+            items = await fetchAllMatchingItems(activeController.signal);
         } catch (e) {
-            sub.textContent = 'โหลดรายการไม่สำเร็จ กรุณาลองใหม่';
-            closeBtn.style.display = 'inline-flex';
+            finishProgress(cancelRequested ? 'ยกเลิกแล้ว' : 'โหลดรายการไม่สำเร็จ กรุณาลองใหม่');
             return;
         }
 
         if (items.length === 0) {
-            sub.textContent = 'ไม่มีใบแจ้งหนี้ให้ดาวน์โหลดตามตัวกรองนี้';
-            closeBtn.style.display = 'inline-flex';
+            finishProgress('ไม่มีใบแจ้งหนี้ให้ดาวน์โหลดตามตัวกรองนี้');
             return;
         }
 
+        // กดยกเลิกหลังโหลดรายการเสร็จพอดี - downloadItems() เห็น cancelRequested แล้วจบเป็น "ยกเลิกแล้ว" เอง
         await downloadItems(items, handle);
     }
 

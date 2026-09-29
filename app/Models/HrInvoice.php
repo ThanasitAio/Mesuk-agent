@@ -56,12 +56,15 @@ class HrInvoice extends Model
         return $query->where('status', 'approved');
     }
 
+    /** mapping เดียวกับ happyest Invoice::getInvoiceTypeLabelAttribute() (ใช้เป็นป้ายตั้งต้นของชื่อไฟล์ PDF ด้วย) */
     public function getInvoiceTypeLabelAttribute(): string
     {
         return match ($this->invoice_type ?? 'monthly_rent') {
             'deposit'      => 'ค่ามัดจำ',
             'service_fee'  => 'ค่าดำเนินการ',
             'monthly_rent' => 'ค่าเช่ารายเดือน',
+            'utility'      => 'ค่าน้ำ/ไฟ',
+            'late_fee'     => 'ค่าปรับล่าช้า',
             'multi'        => 'หลายรายการ',
             default        => $this->invoice_type ?? '-',
         };

@@ -3,6 +3,7 @@
 namespace App\Helpers;
 
 use GuzzleHttp\Cookie\CookieJar;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -20,20 +21,30 @@ class HappyestAdminPdf
 {
     private const COOKIE_CACHE_KEY = 'happyest_admin_pdf_cookies';
 
+    /**
+     * ใบน้ำ/ไฟของทรัพย์ที่เปิด "แสดงรูปถ่ายมิเตอร์บนใบแจ้งหนี้" ฝังรูปจากมือถือขนาดเต็ม (เก็บไม่ย่อ สูงสุด 10MB ต่อรูป)
+     * PDF ใหญ่กว่าใบค่าเช่าหลายสิบเท่าและ happyest สร้างนานกว่ามาก (รูป PNG ต้องแปลงใหม่ทั้งภาพ) - timeout 20 วิ
+     * เดิมพอสำหรับใบค่าเช่า แต่ตัดใบน้ำ/ไฟทิ้งกลางทางเป็น HTTP 500 ทั้งที่ happyest ยังสร้างไม่เสร็จ ส่วนหน้าแอดมิน
+     * (เบราว์เซอร์เปิด PDF เอง ไม่มีเพดาน 20 วิ) ยังดาวน์โหลดได้ปกติ - ไม่ตั้งเกิน 90 วิ เผื่อ timeout ของ web
+     * server/proxy ด้านหน้าที่เบราว์เซอร์รอ route ดาวน์โหลดของแอปนี้อยู่
+     */
+    private const PDF_TIMEOUT_SECONDS = 90;
+
     public static function fetchInvoicePdf(int $invoiceId, string $format): string
     {
         $base = rtrim(env('HAPPYEST_APP_URL', 'http://127.0.0.1/happyest/public'), '/');
         $jar = self::loadCookieJar();
 
-        $content = self::requestPdf($base, $invoiceId, $format, $jar, 'cached-session');
+        $failure = null;
+        $content = self::requestPdf($base, $invoiceId, $format, $jar, 'cached-session', $failure);
 
         if ($content === null) {
             self::login($base, $jar);
-            $content = self::requestPdf($base, $invoiceId, $format, $jar, 'after-login');
+            $content = self::requestPdf($base, $invoiceId, $format, $jar, 'after-login', $failure);
         }
 
         if ($content === null) {
-            throw new RuntimeException('ไม่สามารถดึงไฟล์ PDF ใบแจ้งหนี้จาก happyest ได้ (เข้าสู่ระบบหรือสิทธิ์บัญชีแอดมินบริการไม่ผ่าน) - ดูรายละเอียดใน storage/logs/laravel.log (HappyestAdminPdf)');
+            throw new RuntimeException("ไม่สามารถดึงไฟล์ PDF ใบแจ้งหนี้จาก happyest ได้ ({$failure}) - ดูรายละเอียดใน storage/logs/laravel.log (HappyestAdminPdf)");
         }
 
         self::saveCookieJar($jar);
@@ -42,11 +53,11 @@ class HappyestAdminPdf
     }
 
     /** PendingRequest ตัวเดียวกันทุกจุด (User-Agent จริงกันบาง WAF/CDN บล็อก request ที่ไม่มี UA, timeout กันค้าง) */
-    private static function client(CookieJar $jar)
+    private static function client(CookieJar $jar, int $timeout = 20)
     {
         return Http::withOptions(['cookies' => $jar])
             ->withHeaders(['User-Agent' => 'Mozilla/5.0 (compatible; MesukAgentPdfBridge/1.0)'])
-            ->timeout(20);
+            ->timeout($timeout);
     }
 
     /**
@@ -54,12 +65,24 @@ class HappyestAdminPdf
      * application/pdf) - log สถานะ + ตัวอย่างเนื้อหาที่ได้กลับมาไว้เสมอตอนไม่ใช่ PDF เพื่อวินิจฉัยปัญหา
      * บน production ได้ (เช่น ถูก WAF บล็อก, permission ไม่พอ, session ไม่ persist ข้าม request)
      */
-    private static function requestPdf(string $base, int $invoiceId, string $format, CookieJar $jar, string $attempt): ?string
+    private static function requestPdf(string $base, int $invoiceId, string $format, CookieJar $jar, string $attempt, ?string &$failure = null): ?string
     {
-        $response = self::client($jar)->get("{$base}/admin/invoices/{$invoiceId}/print", [
-            'format' => $format,
-            'output' => 'stream',
-        ]);
+        try {
+            $response = self::client($jar, self::PDF_TIMEOUT_SECONDS)->get("{$base}/admin/invoices/{$invoiceId}/print", [
+                'format' => $format,
+                'output' => 'stream',
+            ]);
+        } catch (ConnectionException $e) {
+            // หมดเวลา/เชื่อมต่อไม่ได้ไม่ใช่ปัญหา session - ไม่ต้องลอง login แล้วรอซ้ำอีกรอบ
+            Log::error('HappyestAdminPdf: print request did not complete', [
+                'attempt' => $attempt,
+                'invoice_id' => $invoiceId,
+                'base' => $base,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new RuntimeException('happyest สร้างหรือส่งไฟล์ PDF ไม่เสร็จภายใน '.self::PDF_TIMEOUT_SECONDS.' วินาที (หรือเชื่อมต่อไม่ได้)', 0, $e);
+        }
 
         $contentType = (string) $response->header('Content-Type');
 
@@ -72,6 +95,8 @@ class HappyestAdminPdf
                 'content_type' => $contentType,
                 'body_snippet' => mb_substr(strip_tags($response->body()), 0, 300),
             ]);
+
+            $failure = "happyest ตอบกลับ HTTP {$response->status()}".($contentType !== '' ? " {$contentType}" : '');
 
             return null;
         }
