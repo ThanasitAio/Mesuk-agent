@@ -1,16 +1,30 @@
 @extends('layouts.app')
 
-@section('title', $monthLabel . ' · ใบแจ้งหนี้ผู้เช่า')
-@section('breadcrumb', 'ใบแจ้งหนี้ผู้เช่า งวด ' . $monthLabel)
+@php
+    // แท็บค่าน้ำ/ไฟ (?kind=utility) - $month คือ "งวดใช้งาน" (billing_month) ไม่ใช่เดือนที่ออกใบแบบแท็บค่าเช่า
+    $isUtility = $kind === 'utility';
+    $kindQuery = $isUtility ? ['kind' => 'utility'] : [];
+@endphp
+
+@section('title', $monthLabel . ' · ' . ($isUtility ? 'ใบแจ้งหนี้น้ำ/ไฟ' : 'ใบแจ้งหนี้ผู้เช่า'))
+@section('breadcrumb', ($isUtility ? 'ใบแจ้งหนี้น้ำ/ไฟ งวด ' : 'ใบแจ้งหนี้ผู้เช่า งวด ') . $monthLabel)
 
 @section('content')
 
 @php
-    $typeStyleFor = function ($invoice) {
+    $dropletIcon = 'M12 3.5c-3.2 4.1-5.5 7.2-5.5 10a5.5 5.5 0 0011 0c0-2.8-2.3-5.9-5.5-10z';
+    $boltIcon = 'M13 10V3L4 14h7v7l9-11h-7z';
+    $buildingIcon = 'M3 21h18M5 21V7l8-4v18M13 9h6v12M9 9v.01M9 12v.01M9 15v.01M9 18v.01';
+
+    $typeStyleFor = function ($invoice) use ($dropletIcon, $boltIcon, $buildingIcon) {
         $key = match (true) {
             ($invoice->invoice_sub_type ?? null) === 'land_tax' => 'land_tax',
             ($invoice->invoice_sub_type ?? null) === 'stamp_duty' => 'stamp_duty',
             ($invoice->invoice_sub_type ?? null) === 'side_area' => 'side_area',
+            $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'water' => 'water',
+            $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'electric' => 'electric',
+            $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'common_fee' => 'common_fee',
+            $invoice->invoice_type === 'utility' => 'utility',
             $invoice->invoice_type === 'monthly_rent' => 'rent',
             $invoice->invoice_type === 'deposit' => 'deposit',
             $invoice->invoice_type === 'service_fee' => 'service_fee',
@@ -24,6 +38,10 @@
             'side_area'    => ['bg-cyan-50 text-cyan-700', 'M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4'],
             'deposit'      => ['bg-sky-50 text-sky-700', 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z'],
             'service_fee'  => ['bg-amber-50 text-amber-700', 'M9 7h6m0 10v-3m-3 3v-1m-3 1v-2m9-4H5a2 2 0 00-2 2v6a2 2 0 002 2h14a2 2 0 002-2v-6a2 2 0 00-2-2z'],
+            'water'        => ['bg-sky-50 text-sky-700', $dropletIcon],
+            'electric'     => ['bg-amber-50 text-amber-700', $boltIcon],
+            'common_fee'   => ['bg-violet-50 text-violet-700', $buildingIcon],
+            'utility'      => ['bg-cyan-50 text-cyan-700', $boltIcon],
             default        => ['bg-gray-100 text-gray-600', 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
         };
     };
@@ -49,17 +67,24 @@
 {{-- ── Header ──────────────────────────────────────────────────────────────── --}}
 <div class="flex items-center justify-between gap-3 mb-4">
     <div class="min-w-0">
-        <a href="{{ route('tenant-invoices.index') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-brand-600 transition-colors mb-1.5">
+        <a href="{{ route('tenant-invoices.index', $kindQuery) }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-brand-600 transition-colors mb-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-            ใบแจ้งหนี้ผู้เช่าทั้งหมด
+            {{ $isUtility ? 'ใบแจ้งหนี้น้ำ/ไฟทั้งหมด' : 'ใบแจ้งหนี้ผู้เช่าทั้งหมด' }}
         </a>
         <h2 class="text-xl font-black text-gray-800 truncate">{{ $monthLabel }}</h2>
+        @if($isUtility)
+            <p class="text-xs text-gray-400 mt-0.5">ใบแจ้งหนี้ค่าน้ำ/ค่าไฟที่ใช้ในงวดนี้</p>
+        @endif
     </div>
 </div>
 
 {{-- ── Search + Filters ────────────────────────────────────────────────────── --}}
 <form method="GET" action="{{ route('tenant-invoices.show', $month) }}" id="ti-filter-form" class="mb-4">
     <input type="hidden" name="pay_status" value="{{ $payFilter }}">
+    @if($isUtility)
+        {{-- ไม่ใส่ไว้ ค้นหาแล้วจะหลุดกลับไปแท็บค่าเช่า --}}
+        <input type="hidden" name="kind" value="utility">
+    @endif
     <div class="relative border border-gray-300 rounded-xl bg-white transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500 mb-2.5">
         <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -120,6 +145,8 @@
             [$payClasses, $payLabel, $payIcon] = $payStyleFor($invoice->pay_summary['status'] ?? null);
             [$payeeClasses, $payeeLabel, $payeeIcon] = $payeeStyleFor($invoice);
             $transferDates = $invoice->pay_summary['transfer_dates'] ?? collect();
+            $utilityAmounts = $invoice->invoice_type === 'utility' ? $invoice->utilityBreakdown() : null;
+            $issuedAt = ($invoice->issued_date ?? $invoice->created_at)->format('d/m/Y');
         @endphp
         <div class="ti-row flex flex-col gap-2 bg-white border border-gray-100 rounded-xl px-3.5 py-3 shadow-sm hover:shadow-md transition-shadow"
              data-id="{{ $invoice->id }}" data-invoice-code="{{ $invoice->invoice_code }}" data-download-url="{{ $downloadUrl }}">
@@ -150,7 +177,40 @@
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $payeeIcon }}"/></svg>
                     ผู้รับเงิน: {{ $payeeLabel }}
                 </span>
-                <span class="text-[11px] text-gray-400 whitespace-nowrap">จอง {{ $bookingCode }} · เลขที่ {{ $invoice->invoice_code }} · {{ ($invoice->issued_date ?? $invoice->created_at)->format('d/m/Y') }}</span>
+                @if($utilityAmounts)
+                    {{-- ยอดแยกแสดงเฉพาะที่ > 0 เหมือนหน้า happyest admin/utility-invoices, "รวม" = total_amount จริงของใบ --}}
+                    <span class="w-full flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] tabular-nums">
+                        @if($utilityAmounts['water'] > 0)
+                            <span class="inline-flex items-center gap-1 text-sky-700 whitespace-nowrap">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $dropletIcon }}"/></svg>
+                                น้ำ ฿{{ number_format($utilityAmounts['water'], 2) }}
+                            </span>
+                        @endif
+                        @if($utilityAmounts['electric'] > 0)
+                            <span class="inline-flex items-center gap-1 text-amber-700 whitespace-nowrap">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $boltIcon }}"/></svg>
+                                ไฟ ฿{{ number_format($utilityAmounts['electric'], 2) }}
+                            </span>
+                        @endif
+                        @if($utilityAmounts['common_fee'] > 0)
+                            <span class="inline-flex items-center gap-1 text-violet-700 whitespace-nowrap">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="{{ $buildingIcon }}"/></svg>
+                                ส่วนกลาง ฿{{ number_format($utilityAmounts['common_fee'], 2) }}
+                            </span>
+                        @endif
+                        <span class="font-bold text-gray-800 whitespace-nowrap">
+                            รวม ฿{{ number_format((float) $invoice->total_amount, 2) }}
+                            @if($invoice->include_vat)
+                                <span class="font-normal text-gray-400">(รวม VAT 7%)</span>
+                            @endif
+                        </span>
+                    </span>
+                    {{-- โฟลเดอร์เป็นงวดใช้งาน ไม่ใช่วันที่ออกใบ - ระบุ "ออกใบ" ให้ชัด และแยก span ให้ตัดบรรทัดได้บนมือถือ --}}
+                    <span class="text-[11px] text-gray-400 whitespace-nowrap">จอง {{ $bookingCode }} · เลขที่ {{ $invoice->invoice_code }}</span>
+                    <span class="text-[11px] text-gray-400 whitespace-nowrap">ออกใบ {{ $issuedAt }}</span>
+                @else
+                    <span class="text-[11px] text-gray-400 whitespace-nowrap">จอง {{ $bookingCode }} · เลขที่ {{ $invoice->invoice_code }} · {{ $issuedAt }}</span>
+                @endif
                 @if($transferDates->isNotEmpty())
                     <span class="text-[11px] text-gray-400 w-full">โอนวันที่ {{ $transferDates->map(fn ($d) => $d->format('d/m/Y'))->implode(', ') }}</span>
                 @endif
@@ -202,6 +262,7 @@
 <script>
 (function () {
     const currentMonth = @js($month);
+    const currentKind = @js($kind);
     const currentQuery = @js($search);
     const currentPayStatus = @js($payFilter);
     const totalFilteredCount = {{ (int) $invoices->total() }};
@@ -209,8 +270,9 @@
 
     // ── Persistent cross-page selection cart (sessionStorage, keyed per month) - pagination
     // is a full page reload, so a selected item must stay selected/counted after visiting
-    // page 2 and back, and "select all" must cover every page, not just the one on screen. ──
-    const STORAGE_KEY = 'ti_sel_' + currentMonth;
+    // page 2 and back, and "select all" must cover every page, not just the one on screen.
+    // Keyed per tab too: rent's issued month and utility's usage period can share the same YYYY-MM. ──
+    const STORAGE_KEY = 'ti_sel_' + currentKind + '_' + currentMonth;
     function loadSelection() {
         try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
     }
@@ -225,6 +287,7 @@
 
     async function fetchAllMatchingItems() {
         const url = bulkListUrl + '?month=' + encodeURIComponent(currentMonth)
+            + '&kind=' + encodeURIComponent(currentKind)
             + '&q=' + encodeURIComponent(currentQuery)
             + '&pay_status=' + encodeURIComponent(currentPayStatus);
         const res = await fetch(url, { credentials: 'same-origin' });

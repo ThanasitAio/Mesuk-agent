@@ -19,13 +19,30 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * server-to-server ด้วยบัญชีแอดมินบริการ) แล้วส่งต่อกลับพร้อม Content-Disposition: attachment (คนละ
  * endpoint กับ invoices.print เดิมที่ยังเป็นหน้าพิมพ์ HTML แบบ print-to-PDF สำหรับใช้งานจุดอื่นในแอปนี้
  * อยู่ - ไม่แตะ)
+ *
+ * แท็บ "ค่าน้ำ/ไฟ" (?kind=utility) ใช้ route/view ชุดเดียวกัน แต่แสดงเฉพาะ invoice_type='utility' และแท็บค่าเช่า
+ * ตัดใบน้ำ/ไฟออก - happyest เองก็แยกเป็น 2 หน้า (AdminInvoiceController::index() กรอง utility ออก /
+ * AdminUtilityInvoiceController) ดาวน์โหลดใช้ endpoint เดิมได้เลย เพราะ AdminInvoiceController::print() ไม่กรอง
+ * ประเภท และ InvoicePdfService เลือก template ใบน้ำ/ไฟเองจาก invoice_type + billing_route (ได้ PDF ตัวเดียวกับ
+ * ปุ่มในหน้า admin/utility-invoices)
  */
 class TenantInvoiceController extends Controller
 {
-    private function ownedInvoiceQuery(string $agentCode)
+    /** ค่าอื่นทั้งหมดที่ไม่ใช่ 'utility' (รวมไม่ส่งมา) = แท็บค่าเช่า */
+    private function resolveKind(Request $request): string
+    {
+        return $request->get('kind') === 'utility' ? 'utility' : 'rent';
+    }
+
+    private function ownedInvoiceQuery(string $agentCode, string $kind)
     {
         return HrInvoice::approved()
-            ->whereHas('property', fn ($q) => $q->where('manager_agent_code', $agentCode));
+            ->whereHas('property', fn ($q) => $q->where('manager_agent_code', $agentCode))
+            ->when(
+                $kind === 'utility',
+                fn ($q) => $q->where('invoice_type', 'utility'),
+                fn ($q) => $q->where('invoice_type', '!=', 'utility')
+            );
     }
 
     /**
@@ -35,6 +52,16 @@ class TenantInvoiceController extends Controller
     private function issuedMonthExpr(): string
     {
         return "DATE_FORMAT(COALESCE(issued_date, created_at), '%Y-%m')";
+    }
+
+    /**
+     * ใบน้ำ/ไฟแยกโฟลเดอร์ตาม "งวดใช้งาน" (billing_month) แทนวันที่เปิดใบ - เหมือนตัวเลือกเดือนของ happyest
+     * admin/utility-invoices และงวดในหน้าบันทึกมิเตอร์ (ใบน้ำ/ไฟงวด ส.ค. ปกติออกใน ก.ย. หลังยืนยันมิเตอร์
+     * แต่ยังอยู่โฟลเดอร์ ส.ค.)
+     */
+    private function folderMonthExpr(string $kind): string
+    {
+        return $kind === 'utility' ? 'billing_month' : $this->issuedMonthExpr();
     }
 
     private function resolveMonth(Request $request): string
@@ -61,15 +88,20 @@ class TenantInvoiceController extends Controller
      * หน้าแรกแสดงเป็น "โฟลเดอร์" ตามเดือนที่มีใบแจ้งหนี้จริงเท่านั้น (เหมือน Google Drive) กดเข้าไปดู
      * รายการของเดือนนั้นใน show() - แนวคิดเดียวกับ happyest investor.invoices.index
      */
-    public function index()
+    public function index(Request $request)
     {
         $agentCode = session('agent_code');
+        $kind = $this->resolveKind($request);
 
-        $months = $this->ownedInvoiceQuery($agentCode)
-            ->selectRaw($this->issuedMonthExpr().' as issue_month, COUNT(*) as invoice_count')
+        $months = $this->ownedInvoiceQuery($agentCode, $kind)
+            ->selectRaw($this->folderMonthExpr($kind).' as issue_month, COUNT(*) as invoice_count')
             ->groupBy('issue_month')
             ->orderByDesc('issue_month')
             ->get()
+            // billing_month เป็นคอลัมน์ string ธรรมดา (ไม่ได้ผ่าน DATE_FORMAT แบบฝั่งค่าเช่า) - ตัดค่าที่ไม่ใช่ YYYY-MM
+            // (เช่น null) ทิ้งก่อน กัน monthLabel()/route show พัง
+            ->filter(fn ($row) => preg_match('/^\d{4}-\d{2}$/', (string) $row->issue_month))
+            ->values()
             ->map(fn ($row) => [
                 'month' => $row->issue_month,
                 'label' => $this->monthLabel($row->issue_month),
@@ -81,10 +113,10 @@ class TenantInvoiceController extends Controller
             userId: session('agent_id'),
             module: 'TenantInvoice',
             action: 'VIEW',
-            description: 'ดูรายการโฟลเดอร์ใบแจ้งหนี้ผู้เช่า'
+            description: $kind === 'utility' ? 'ดูรายการโฟลเดอร์ใบแจ้งหนี้น้ำ/ไฟ' : 'ดูรายการโฟลเดอร์ใบแจ้งหนี้ผู้เช่า'
         );
 
-        return view('tenant-invoices.folders', compact('months'));
+        return view('tenant-invoices.folders', compact('months', 'kind'));
     }
 
     /**
@@ -93,9 +125,9 @@ class TenantInvoiceController extends Controller
      * กรองสถานะการชำระที่ระดับ SQL ไม่ได้เพราะมาจาก HrInvoice::paymentSummary() (จับคู่
      * hr_payment_records ผ่าน booking ไม่ใช่คอลัมน์ตรงๆ) จึงดึงมาทั้งเดือนแล้วกรองใน PHP แทน
      */
-    private function matchingInvoices(string $agentCode, string $month, string $search)
+    private function matchingInvoices(string $agentCode, string $kind, string $month, string $search)
     {
-        $query = $this->ownedInvoiceQuery($agentCode)->whereRaw($this->issuedMonthExpr().' = ?', [$month]);
+        $query = $this->ownedInvoiceQuery($agentCode, $kind)->whereRaw($this->folderMonthExpr($kind).' = ?', [$month]);
 
         if ($search !== '') {
             $query->where(function ($outer) use ($search) {
@@ -118,6 +150,16 @@ class TenantInvoiceController extends Controller
             ->orderByRaw('COALESCE(issued_date, created_at) DESC')
             ->get();
 
+        // ใบน้ำ/ไฟของงวดเดียวกันมักออกพร้อมกันเป็นชุด - เรียงตามรหัสทรัพย์เหมือนหน้า happyest admin/utility-invoices
+        // ให้ใบน้ำ/ไฟ/ส่วนกลาง (separate_utility_invoice) ของทรัพย์เดียวกันอยู่ติดกัน
+        if ($kind === 'utility') {
+            $all = $all->sortBy(fn (HrInvoice $invoice) => sprintf(
+                '%s|%010d',
+                $invoice->snapshot_property['property_code'] ?? $invoice->property?->property_code ?? '',
+                $invoice->id
+            ))->values();
+        }
+
         $all->each(fn (HrInvoice $invoice) => $invoice->setAttribute('pay_summary', $invoice->paymentSummary()));
 
         return $all;
@@ -137,10 +179,11 @@ class TenantInvoiceController extends Controller
         abort_unless(preg_match('/^\d{4}-\d{2}$/', $month), 404);
 
         $agentCode = session('agent_code');
+        $kind = $this->resolveKind($request);
         $search = trim((string) $request->get('q'));
         $payFilter = in_array($request->get('pay_status'), ['paid', 'unpaid'], true) ? $request->get('pay_status') : 'all';
 
-        $all = $this->matchingInvoices($agentCode, $month, $search);
+        $all = $this->matchingInvoices($agentCode, $kind, $month, $search);
 
         $payCounts = [
             'all' => $all->count(),
@@ -167,28 +210,31 @@ class TenantInvoiceController extends Controller
             userId: session('agent_id'),
             module: 'TenantInvoice',
             action: 'VIEW',
-            description: "ดูรายการใบแจ้งหนี้ผู้เช่า งวด {$monthLabel}"
+            description: $kind === 'utility'
+                ? "ดูรายการใบแจ้งหนี้น้ำ/ไฟ งวด {$monthLabel}"
+                : "ดูรายการใบแจ้งหนี้ผู้เช่า งวด {$monthLabel}"
         );
 
         return view('tenant-invoices.index', [
-            'invoices' => $invoices, 'month' => $month, 'monthLabel' => $monthLabel,
+            'invoices' => $invoices, 'month' => $month, 'monthLabel' => $monthLabel, 'kind' => $kind,
             'search' => $search, 'payFilter' => $payFilter, 'payCounts' => $payCounts,
         ]);
     }
 
     /**
      * รายการ id/รหัส/ลิงก์ดาวน์โหลดของใบแจ้งหนี้ทั้งหมดที่ตรงกับตัวกรองปัจจุบัน (q + pay_status) - ใช้ตอน
-     * ติ๊ก "เลือกทั้งหมด" (ต้องเลือกครบทุกหน้า ไม่ใช่แค่หน้าที่เห็น) ต้องรับ q/pay_status แบบเดียวกับ
+     * ติ๊ก "เลือกทั้งหมด" (ต้องเลือกครบทุกหน้า ไม่ใช่แค่หน้าที่เห็น) ต้องรับ kind/q/pay_status แบบเดียวกับ
      * show() เพื่อให้ผลลัพธ์ตรงกับสิ่งที่ผู้ใช้กำลังกรองอยู่จริง
      */
     public function bulkList(Request $request)
     {
         $agentCode = session('agent_code');
+        $kind = $this->resolveKind($request);
         $month = $this->resolveMonth($request);
         $search = trim((string) $request->get('q'));
         $payFilter = in_array($request->get('pay_status'), ['paid', 'unpaid'], true) ? $request->get('pay_status') : 'all';
 
-        $all = $this->matchingInvoices($agentCode, $month, $search);
+        $all = $this->matchingInvoices($agentCode, $kind, $month, $search);
         $filtered = $this->filterByPayStatus($all, $payFilter);
 
         $items = $filtered->sortBy('id')->values()
@@ -270,6 +316,11 @@ class TenantInvoiceController extends Controller
             ($invoice->invoice_sub_type ?? null) === 'rent' => 'ค่าเช่า',
             ($invoice->invoice_sub_type ?? null) === 'stamp_duty' => 'อากรแสตมป์',
             ($invoice->invoice_sub_type ?? null) === 'side_area' => 'ค่าเช่าพื้นที่ด้านข้าง',
+            // ทรัพย์ที่ตั้ง separate_utility_invoice ออกใบน้ำ/ไฟ/ส่วนกลางแยกกันในงวดเดียวกัน - ต้องใช้ป้าย sub-type
+            // ไม่งั้นชื่อไฟล์ซ้ำกันแล้วดาวน์โหลดหลายใบลงโฟลเดอร์เดียวจะทับกัน (ตรงกับ happyest)
+            $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'water' => 'ค่าน้ำ',
+            $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'electric' => 'ค่าไฟ',
+            $invoice->invoice_type === 'utility' && ($invoice->invoice_sub_type ?? null) === 'common_fee' => 'ค่าส่วนกลาง',
             $invoice->invoice_type === 'utility' => 'ค่าน้ำไฟ',
             $invoice->invoice_type === 'deposit' => 'ค่ามัดจำ',
             $invoice->invoice_type === 'service_fee' => 'ค่าดำเนินการ',

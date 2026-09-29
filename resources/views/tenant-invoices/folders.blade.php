@@ -1,7 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'ใบแจ้งหนี้ผู้เช่า')
-@section('breadcrumb', 'ใบแจ้งหนี้ผู้เช่าตามเดือนที่ออก')
+@php
+    // แท็บค่าน้ำ/ไฟ (?kind=utility) - โฟลเดอร์เป็น "งวดใช้งาน" (billing_month) ไม่ใช่เดือนที่ออกใบแบบแท็บค่าเช่า
+    $isUtility = $kind === 'utility';
+@endphp
+
+@section('title', $isUtility ? 'ใบแจ้งหนี้น้ำ/ไฟ' : 'ใบแจ้งหนี้ผู้เช่า')
+@section('breadcrumb', $isUtility ? 'ใบแจ้งหนี้น้ำ/ไฟตามงวดใช้งาน' : 'ใบแจ้งหนี้ผู้เช่าตามเดือนที่ออก')
 
 @section('content')
 
@@ -21,16 +26,34 @@
             <p class="text-xs font-medium mb-1" style="color: rgba(255,255,255,0.6)">ทรัพย์สินในความดูแลของคุณ</p>
             <h2 class="text-xl lg:text-2xl font-black text-white leading-tight truncate">ใบแจ้งหนี้ผู้เช่า</h2>
             <p class="text-sm mt-1.5" style="color: rgba(255,255,255,0.65)">
-                เลือกเดือนที่ต้องการดู แล้วดาวน์โหลดใบแจ้งหนี้ของผู้เช่าในทรัพย์ที่คุณดูแลได้ทันที
+                @if($isUtility)
+                    เลือกงวดที่ต้องการดู แล้วดาวน์โหลดใบแจ้งหนี้ค่าน้ำ/ค่าไฟของผู้เช่าในทรัพย์ที่คุณดูแลได้ทันที
+                @else
+                    เลือกเดือนที่ต้องการดู แล้วดาวน์โหลดใบแจ้งหนี้ของผู้เช่าในทรัพย์ที่คุณดูแลได้ทันที
+                @endif
             </p>
         </div>
         <div class="flex-shrink-0">
             <span class="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold text-white"
                   style="background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.2); backdrop-filter:blur(8px);">
-                {{ $months->count() }} เดือน
+                {{ $months->count() }} {{ $isUtility ? 'งวด' : 'เดือน' }}
             </span>
         </div>
     </div>
+</div>
+
+{{-- ── Tabs (ค่าเช่า / ค่าน้ำ-ไฟ) ─────────────────────────────────────────── --}}
+<div class="flex gap-1.5 bg-gray-100 rounded-xl p-1.5 overflow-x-auto w-fit mb-4">
+    <a href="{{ route('tenant-invoices.index') }}" @if(! $isUtility) aria-current="page" @endif
+       class="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap {{ ! $isUtility ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' }}">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        ค่าเช่า
+    </a>
+    <a href="{{ route('tenant-invoices.index', ['kind' => 'utility']) }}" @if($isUtility) aria-current="page" @endif
+       class="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap {{ $isUtility ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' }}">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        ค่าน้ำ/ไฟ
+    </a>
 </div>
 
 @if($months->isEmpty())
@@ -40,13 +63,18 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
         </div>
-        <p class="text-gray-700 font-semibold text-sm">ยังไม่มีใบแจ้งหนี้สำหรับทรัพย์ที่คุณดูแล</p>
-        <p class="text-gray-400 text-xs mt-1">เมื่อแอดมินออกใบแจ้งหนี้ให้ผู้เช่าแล้ว จะแสดงเป็นโฟลเดอร์ตามเดือนที่นี่</p>
+        @if($isUtility)
+            <p class="text-gray-700 font-semibold text-sm">ยังไม่มีใบแจ้งหนี้น้ำ/ไฟสำหรับทรัพย์ที่คุณดูแล</p>
+            <p class="text-gray-400 text-xs mt-1">เมื่อแอดมินออกใบแจ้งหนี้ค่าน้ำ/ค่าไฟให้ผู้เช่าแล้ว จะแสดงเป็นโฟลเดอร์ตามงวดใช้งานที่นี่</p>
+        @else
+            <p class="text-gray-700 font-semibold text-sm">ยังไม่มีใบแจ้งหนี้สำหรับทรัพย์ที่คุณดูแล</p>
+            <p class="text-gray-400 text-xs mt-1">เมื่อแอดมินออกใบแจ้งหนี้ให้ผู้เช่าแล้ว จะแสดงเป็นโฟลเดอร์ตามเดือนที่นี่</p>
+        @endif
     </div>
 @else
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         @foreach($months as $i => $m)
-            <a href="{{ route('tenant-invoices.show', $m['month']) }}"
+            <a href="{{ route('tenant-invoices.show', $isUtility ? ['month' => $m['month'], 'kind' => 'utility'] : $m['month']) }}"
                class="group relative flex flex-col gap-2.5 bg-white border border-gray-100 rounded-2xl p-3.5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-brand-200 transition-all duration-300">
                 <div class="flex items-center justify-between gap-1.5">
                     <span class="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center flex-shrink-0 transition-colors group-hover:bg-brand-600 group-hover:text-white">

@@ -111,6 +111,23 @@ class HrInvoice extends Model
     }
 
     /**
+     * ยอดแยกน้ำ/ไฟ/ส่วนกลางของใบแจ้งหนี้น้ำ/ไฟ จาก billing_items ที่ freeze ไว้ตอนออกใบ - สูตรเดียวกับ happyest
+     * UtilityInvoiceBillingRowService (แถวที่ออกใบแล้ว): รายการมิเตอร์แยกตาม meter_type, รายการที่ไม่มี meter_type
+     * (ค่าส่วนกลาง + หัก ณ ที่จ่ายค่าส่วนกลางที่เก็บเป็นยอดติดลบ) รวมเป็นค่าส่วนกลาง
+     */
+    public function utilityBreakdown(): array
+    {
+        $items = array_filter(is_array($this->billing_items) ? $this->billing_items : [], 'is_array');
+        $sum = fn (callable $match) => (float) array_sum(array_column(array_filter($items, $match), 'amount'));
+
+        return [
+            'water' => $sum(fn ($item) => ($item['meter_type'] ?? null) === 'water'),
+            'electric' => $sum(fn ($item) => ($item['meter_type'] ?? null) === 'electric'),
+            'common_fee' => $sum(fn ($item) => ! array_key_exists('meter_type', $item)),
+        ];
+    }
+
+    /**
      * PaymentRecord(s) ของ booking ที่ตรงกับใบแจ้งหนี้นี้ - hr_invoices ไม่มี FK ไป hr_payment_records
      * โดยตรง จับคู่ผ่าน invoice_type/deposit_phase/billing_month เหมือนฝั่ง happyest ต้อง
      * loadMissing(['booking.paymentRecords']) ไว้ก่อนเรียกกันวน N+1 ต่อแถวในหน้า list
