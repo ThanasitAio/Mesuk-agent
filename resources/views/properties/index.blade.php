@@ -166,6 +166,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         $searchText = strtolower(
             ($property->title ?? '') . ' ' .
             ($property->property_code ?? '') . ' ' .
+            ($booking?->booking_code ?? '') . ' ' .
             ($tenant?->full_name ?? '') . ' ' .
             ($tenant?->mobile ?? '')
         );
@@ -494,9 +495,11 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
                     <div class="min-w-0">
                         @if($row->property->property_code)
                         <p class="font-mono font-bold text-sm text-gray-800 truncate leading-snug">{{ $row->property->property_code }}</p>
-                        <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
                         @else
                         <p class="font-semibold text-gray-800 truncate leading-snug">{{ $row->property->title ?? '-' }}</p>
+                        @endif
+                        @if($row->booking?->booking_code)
+                        <p class="font-mono text-[11px] text-gray-400 mt-0.5" title="เลขที่จอง">{{ $row->booking->booking_code }}</p>
                         @endif
                     </div>
                     <svg class="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -529,7 +532,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
                         <span class="text-white text-[9px] font-bold leading-none">{{ $row->tenantInitial }}</span>
                     </div>
                 @endif
-                <span class="text-xs text-gray-700 font-medium truncate">{{ $row->tenant?->full_name ?? '(ไม่ระบุ)' }}</span>
+                <span class="min-w-0 text-xs text-gray-700 font-medium">{{ $row->tenantFullName }}</span>
                 @if($row->tenant?->mobile)
                 <span class="text-[10px] text-gray-400 flex-shrink-0">· {{ $row->tenant->mobile }}</span>
                 @endif
@@ -596,7 +599,6 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
             <div class="min-w-0 flex-1">
                 @if($row->property->property_code)
                 <p class="font-mono font-bold text-sm text-gray-600 truncate leading-snug">{{ $row->property->property_code }}</p>
-                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
                 @else
                 <p class="font-medium text-gray-600 truncate leading-snug">{{ $row->property->title ?? '-' }}</p>
                 @endif
@@ -622,7 +624,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     <x-slot:head>
         <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 w-12">ลำดับ</th>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">ทรัพย์สิน</th>
-        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 md:w-32">ผู้เช่า</th>
+        <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">ผู้เช่า</th>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5">สถานะ / การชำระ</th>
         <th class="text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 hidden md:table-cell">ค่าเช่า/เดือน</th>
         <th class="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide px-5 py-3.5 hidden lg:table-cell lg:w-72 xl:w-80">ข้อมูลสัญญา</th>
@@ -644,9 +646,11 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         <td class="px-5 py-3.5 align-top">
             @if($row->property->property_code)
                 <p class="font-mono font-bold text-sm text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->property_code }}</p>
-                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
             @else
                 <p class="font-semibold text-gray-800 group-hover:text-brand-600 transition-colors leading-snug">{{ $row->property->title ?? '-' }}</p>
+            @endif
+            @if($row->booking?->booking_code)
+                <p class="font-mono text-[11px] text-gray-400 mt-0.5 whitespace-nowrap" title="เลขที่จอง">{{ $row->booking->booking_code }}</p>
             @endif
         </td>
 
@@ -662,7 +666,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
                     </div>
                 @endif
                 <div class="min-w-0">
-                    <p class="text-sm font-semibold text-gray-700 whitespace-nowrap" title="{{ $row->tenantFullName }}">{{ $row->tenantNameShort }}</p>
+                    <p class="text-xs font-semibold text-gray-700">{{ $row->tenantFullName }}</p>
                     @if($row->tenant?->mobile)
                     <p class="text-[11px] text-gray-400 mt-0.5">{{ $row->tenant->mobile }}</p>
                     @endif
@@ -781,7 +785,6 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         <td class="px-5 py-3.5">
             @if($row->property->property_code)
                 <p class="font-mono font-bold text-sm text-gray-600 leading-snug">{{ $row->property->property_code }}</p>
-                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $row->property->title ?? '-' }}</p>
             @else
                 <p class="font-medium text-gray-600 leading-snug">{{ $row->property->title ?? '-' }}</p>
             @endif

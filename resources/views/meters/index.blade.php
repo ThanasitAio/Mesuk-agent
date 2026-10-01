@@ -357,7 +357,6 @@
                                     {{ $status['short'] }}
                                 </span>
                             </div>
-                            <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $titleShort($row->property->title) }}</p>
                         @else
                             <div class="flex items-center gap-2">
                                 <p class="text-sm font-semibold text-gray-800 truncate">{{ $titleShort($row->property->title) }}</p>
@@ -474,7 +473,6 @@
                         <td class="px-5 py-3.5">
                             @if($row->property->property_code)
                                 <p class="font-mono font-bold text-sm text-gray-800 leading-snug">{{ $row->property->property_code }}</p>
-                                <p class="text-[11px] text-gray-400 truncate mt-0.5">{{ $titleShort($row->property->title) }}</p>
                             @else
                                 <p class="font-medium text-gray-800">{{ $titleShort($row->property->title) }}</p>
                             @endif
