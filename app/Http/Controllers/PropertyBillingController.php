@@ -147,7 +147,7 @@ class PropertyBillingController extends Controller
             'payment_slips.*'  => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'transfer_date'    => 'required|date|before_or_equal:today',
             'rental_types'     => 'nullable|array',
-            'rental_types.*'   => 'string|in:rent,land_tax,utility,deposit,processing_fee',
+            'rental_types.*'   => 'string|in:rent,land_tax,side_area,utility,deposit,processing_fee',
         ], [
             'payment_slips.required'  => 'กรุณาเลือกไฟล์สลิปอย่างน้อย 1 ไฟล์',
             'payment_slips.max'       => 'อัพโหลดได้สูงสุด 5 ไฟล์',
@@ -163,6 +163,11 @@ class PropertyBillingController extends Controller
 
         $rentalTypeLabels = HrPaymentRecord::rentalTypeLabels();
         $rentalTypeTags = array_values($request->input('rental_types', []));
+        // รับเฉพาะประเภทที่มีอยู่จริงในบิลนี้ (เหมือนปุ่มใน popup) - เงินมัดจำ/ค่าดำเนินการไม่มีปุ่มให้เลือก จึงคงแท็กเดิมไว้
+        $applicableRentalTags = $record->applicableRentalTypeTags();
+        if (! empty($applicableRentalTags)) {
+            $rentalTypeTags = array_values(array_intersect($rentalTypeTags, $applicableRentalTags));
+        }
         $selectedRentalTypes = collect($rentalTypeTags)
             ->map(fn ($key) => $rentalTypeLabels[$key] ?? $key)
             ->implode(', ');
@@ -769,6 +774,7 @@ class PropertyBillingController extends Controller
                 'promptpay_id'          => $promptpayId,
                 'payment_type'          => $record->payment_type,
                 'has_land_tax'          => (float) ($record->land_tax_amount ?? 0) > 0,
+                'applicable_tags'       => $record->applicableRentalTypeTags(),
             ];
         }
 

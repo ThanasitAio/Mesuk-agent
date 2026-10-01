@@ -1477,18 +1477,33 @@
                 <div x-show="files.length > 0" class="space-y-1.5" @click.stop>
                     <template x-for="(file, index) in files" :key="index">
                         <div class="flex items-center gap-2.5 bg-white rounded-lg px-2.5 py-2 text-left shadow-sm border border-gray-100 hover:border-gray-200 transition-colors">
-                            <div class="w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center"
-                                 :class="file.type === 'application/pdf' ? 'bg-red-100' : 'bg-sky-100'">
-                                <svg style="width:14px;height:14px"
-                                     :class="file.type === 'application/pdf' ? 'text-red-600' : 'text-sky-600'"
-                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                </svg>
-                            </div>
+                            {{-- กดรูปย่อ/ชื่อไฟล์/ปุ่มดู เพื่อเปิดไฟล์ที่เลือกในแท็บใหม่ (blob URL ในเครื่อง ยังไม่อัพโหลด) ตรวจสอบก่อนกดยืนยันส่งสลิป --}}
+                            <a :href="file._previewUrl" target="_blank" rel="noopener"
+                               class="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center ring-1 ring-gray-100"
+                               :class="file.type === 'application/pdf' ? 'bg-red-100' : 'bg-sky-100'"
+                               title="เปิดดูไฟล์ในแท็บใหม่">
+                                <template x-if="file.type !== 'application/pdf'">
+                                    <img :src="file._previewUrl" :alt="file.name" class="w-full h-full object-cover">
+                                </template>
+                                <template x-if="file.type === 'application/pdf'">
+                                    <svg style="width:16px;height:16px" class="text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    </svg>
+                                </template>
+                            </a>
                             <div class="flex-1 min-w-0 text-left">
-                                <p class="text-xs font-semibold text-gray-800 truncate" x-text="file.name"></p>
+                                <a :href="file._previewUrl" target="_blank" rel="noopener"
+                                   class="block text-xs font-semibold text-gray-800 hover:text-brand-700 hover:underline truncate"
+                                   x-text="file.name"></a>
                                 <p class="text-[10px] text-gray-400" x-text="formatSize(file.size)"></p>
                             </div>
+                            <a :href="file._previewUrl" target="_blank" rel="noopener"
+                               class="flex items-center gap-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700 hover:bg-brand-50 border border-brand-200 rounded-full px-2 py-1 transition-colors flex-shrink-0">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                </svg>
+                                ดูไฟล์
+                            </a>
                             <button type="button"
                                     @click.stop="removeFile(index)"
                                     class="w-6 h-6 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0">
@@ -1807,27 +1822,23 @@ function applyBillingTabFilter() {
         const panel = document.getElementById('slip-modal_panel');
         if (panel._x_dataStack) {
             const alpineData = Alpine.$data(panel);
-            alpineData.files             = [];
+            alpineData.clearFiles();
             alpineData.errorMsg          = '';
             alpineData.submitting        = false;
-            alpineData.currentPaymentType = (window.billingRecordMeta[recordId] || {}).payment_type || null;
+            alpineData.applicableTags    = (window.billingRecordMeta[recordId] || {}).applicable_tags || [];
             alpineData.rentalTypes       = defaultRentalTypesFor(recordId);
         }
 
         openModal('slip-modal');
     }
 
+    // ค่าเริ่มต้น = ติ๊กทุกประเภทที่มีอยู่จริงในบิลนี้ (applicable_tags) เหมือน popup อนุมัติสลิปฝั่งแอดมิน
     function defaultRentalTypesFor(recordId) {
         const meta = window.billingRecordMeta[recordId] || {};
+        if ((meta.applicable_tags || []).length > 0) {
+            return [...meta.applicable_tags];
+        }
         switch (meta.payment_type) {
-            case 'monthly_rent':
-            case 'late_fee': {
-                const tags = meta.has_land_tax ? ['rent', 'land_tax'] : ['rent'];
-                if (meta.is_utility_combo) tags.push('utility');
-                return tags;
-            }
-            case 'utility':
-                return ['utility'];
             case 'deposit':
                 return ['deposit'];
             case 'processing_fee':
@@ -1849,26 +1860,13 @@ function applyBillingTabFilter() {
             submitting: false,
             errorMsg: '',
             rentalTypes: [],
-            currentPaymentType: null,
-            rentalTypeOptions: [
-                { key: 'rent',           label: 'ค่าเช่า' },
-                { key: 'land_tax',       label: 'ค่าภาษีที่ดิน' },
-                { key: 'utility',        label: 'ค่าน้ำ/ไฟ' },
-                { key: 'deposit',        label: 'เงินมัดจำ' },
-                { key: 'processing_fee', label: 'ค่าดำเนินการ' },
-            ],
+            applicableTags: [],
+            rentalTypeOptions: Object.entries(@json(\App\Models\HrPaymentRecord::rentalTypeLabels()))
+                .map(([key, label]) => ({ key, label })),
 
+            // แสดงเฉพาะปุ่มประเภทที่มีรายการจริงในบิลนี้ (applicable_tags จาก HrPaymentRecord::applicableRentalTypeTags())
             get visibleRentalTypeOptions() {
-                if (this.currentPaymentType === 'utility') {
-                    return this.rentalTypeOptions.filter(o => o.key === 'utility');
-                }
-                if (this.currentPaymentType === 'monthly_rent' || this.currentPaymentType === 'late_fee') {
-                    return this.rentalTypeOptions.filter(o => ['rent', 'land_tax', 'utility'].includes(o.key));
-                }
-                if (this.currentPaymentType === 'deposit' || this.currentPaymentType === 'processing_fee') {
-                    return [];
-                }
-                return this.rentalTypeOptions;
+                return this.rentalTypeOptions.filter(o => this.applicableTags.includes(o.key));
             },
 
             toggleRentalType(key) {
@@ -1907,13 +1905,20 @@ function applyBillingTabFilter() {
                         continue;
                     }
                     this.errorMsg = '';
+                    file._previewUrl = URL.createObjectURL(file);
                     this.files.push(file);
                 }
             },
 
             removeFile(index) {
-                this.files.splice(index, 1);
+                const [removed] = this.files.splice(index, 1);
+                if (removed && removed._previewUrl) URL.revokeObjectURL(removed._previewUrl);
                 if (this.files.length < 5) this.errorMsg = '';
+            },
+
+            clearFiles() {
+                this.files.forEach(f => f._previewUrl && URL.revokeObjectURL(f._previewUrl));
+                this.files = [];
             },
 
             formatSize(bytes) {

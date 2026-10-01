@@ -42,10 +42,29 @@ class HrPaymentRecord extends Model
         return [
             'rent'           => 'ค่าเช่า',
             'land_tax'       => 'ค่าภาษีที่ดิน',
+            'side_area'      => 'ค่าเช่าพื้นที่ด้านข้าง',
             'utility'        => 'ค่าน้ำ/ไฟ',
             'deposit'        => 'เงินมัดจำ',
             'processing_fee' => 'ค่าดำเนินการ',
         ];
+    }
+
+    /**
+     * ประเภทค่าเช่าที่เลือกได้จริงสำหรับบิลนี้เท่านั้น (ไม่ใช่โชว์ครบทุกปุ่มเสมอ) - เหมือนกับ $pmtApplicableTags
+     * ใน happyest admin/payments/index.blade.php (SlipVerificationPanelService::applicableTags())
+     * ฝั่ง agent ไม่มีการแนบสลิปรวมค่าเช่า+ค่าน้ำ/ไฟ (ดู PropertyBillingController::uploadSlip()) จึงไม่มี 'utility' ในค่าเช่า
+     */
+    public function applicableRentalTypeTags(): array
+    {
+        return match (true) {
+            in_array($this->payment_type, ['deposit', 'processing_fee', 'late_fee'], true) => [],
+            $this->payment_type === 'utility' => ['utility'],
+            default => array_values(array_filter([
+                'rent',
+                ((float) ($this->land_tax_amount ?? 0) > 0) ? 'land_tax' : null,
+                ((float) ($this->side_area_amount ?? 0) > 0) ? 'side_area' : null,
+            ])),
+        };
     }
 
     public function getTypeLabel(): string
