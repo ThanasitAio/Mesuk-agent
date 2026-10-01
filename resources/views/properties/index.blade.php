@@ -54,21 +54,34 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         'red' => 'bg-red-500', 'blue' => 'bg-blue-500', 'yellow' => 'bg-yellow-500',
         'green' => 'bg-green-500', 'gray' => 'bg-gray-400',
     ];
-    $statusMap = [
-        'checked_in'        => ['color' => 'red',    'label' => 'ไม่ว่าง',        'pulse' => true],
-        'confirmed'         => ['color' => 'red',    'label' => 'ยืนยันแล้ว',      'pulse' => false],
-        'deposit_confirmed' => ['color' => 'blue',   'label' => 'โครงการในอนาคต', 'pulse' => false],
-        'pending'           => ['color' => 'yellow', 'label' => 'จองแล้ว',        'pulse' => false],
-    ];
-
-    // สถานะของทรัพย์ที่ยังไม่มีสัญญา/booking ในระบบ - อ้างอิงจาก property_status_id จริง
-    // (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ไม่ใช่เหมาว่า "ไม่มี booking = ว่าง" เสมอไป
+    // สถานะพื้นที่ของทรัพย์ (ทั้งที่มีและไม่มีสัญญา) - อ้างอิงจาก property_status_id จริง ให้ตรงกับ
+    // แอดมิน happyest และหน้าเว็บ (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ไม่ใช้สถานะ booking มาแปลงเป็นสถานะพื้นที่
     $vacantStatusMap = [
         'available'      => ['color' => 'green',  'label' => 'ว่าง'],
         'unavailable'    => ['color' => 'red',    'label' => 'ไม่ว่าง'],
         'booked'         => ['color' => 'yellow', 'label' => 'จอง'],
         'future_project' => ['color' => 'blue',   'label' => 'โครงการในอนาคต'],
     ];
+
+    $areaStatusOf = function ($property) use ($vacantStatusMap) {
+        $slug   = optional($property->propertyStatus)->slug ?? 'available';
+        $status = $vacantStatusMap[$slug] ?? $vacantStatusMap['available'];
+
+        // ประเภทสำหรับใช้กรองแท็บ - สถานะ "ไม่ว่าง" (unavailable) ใช้แท็บ "ไม่ว่าง" (active)
+        $filterType = match ($slug) {
+            'unavailable'    => 'active',
+            'booked'         => 'booked',
+            'future_project' => 'future_project',
+            default          => 'available',
+        };
+
+        return (object) [
+            'slug'       => $slug,
+            'color'      => $status['color'],
+            'label'      => $status['label'],
+            'filterType' => $filterType,
+        ];
+    };
 
     $resolveImageUrl = function ($property) use ($happyestPublic) {
         $media = $property->primaryImageMedia;
@@ -82,13 +95,13 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     };
 
     // ─── เตรียมข้อมูลแสดงผลล่วงหน้า (คำนวณครั้งเดียว ใช้ได้ทั้งการ์ดมือถือ/ตารางเดสก์ท็อป) ───
-    $contractRows = $withContract->flatMap(function ($property) use ($happyestPublic, $duePendingRecords, $isPropertyVacant, $statusMap, $resolveImageUrl) {
+    $contractRows = $withContract->flatMap(function ($property) use ($happyestPublic, $duePendingRecords, $isPropertyVacant, $areaStatusOf, $resolveImageUrl) {
         // ปกติมี active booking แค่รายการเดียว แต่ช่วงต่อสัญญา (สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว)
         // อาจซ้อนกัน 2 รายการ - สร้างแยกเป็นคนละแถวเพื่อไม่ให้รายการใดถูกซ่อนไป
         $bookings      = $property->activeBookings->sortBy('id')->values();
         $isOverlapping = $bookings->count() > 1;
 
-        return $bookings->map(function ($booking) use ($property, $happyestPublic, $duePendingRecords, $isPropertyVacant, $statusMap, $resolveImageUrl, $isOverlapping) {
+        return $bookings->map(function ($booking) use ($property, $happyestPublic, $duePendingRecords, $isPropertyVacant, $areaStatusOf, $resolveImageUrl, $isOverlapping) {
         $tenant        = $booking?->customer;
         $bookingStatus = $booking?->status ?? 'pending';
 
@@ -157,7 +170,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
             ($tenant?->mobile ?? '')
         );
 
-        $status = $statusMap[$bookingStatus] ?? ['color' => 'gray', 'label' => 'มีสัญญา', 'pulse' => false];
+        $area = $areaStatusOf($property);
 
         return (object) [
             'property'          => $property,
@@ -185,33 +198,26 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
             'dueDateClass'      => $dueDateClass,
             'pendingSlipLabel'  => $pendingSlipLabel,
             'searchText'        => $searchText,
-            'statusColor'       => $status['color'],
-            'statusLabel'       => $status['label'],
-            'statusPulse'       => $status['pulse'],
+            'statusColor'       => $area->color,
+            'statusLabel'       => $area->label,
+            'statusPulse'       => $area->slug === 'unavailable',
+            'slug'              => $area->slug,
+            'filterType'        => $area->filterType,
         ];
         });
     })->values();
 
-    $vacantRows = $withoutContract->map(function ($property) use ($resolveImageUrl, $vacantStatusMap) {
-        $slug   = optional($property->propertyStatus)->slug ?? 'available';
-        $status = $vacantStatusMap[$slug] ?? $vacantStatusMap['available'];
-
-        // ประเภทสำหรับใช้กรองแท็บ - สถานะ "ไม่ว่าง" ที่ไม่มีสัญญา (unavailable) นับรวมกับแท็บ "ไม่ว่าง"
-        $filterType = match ($slug) {
-            'unavailable'    => 'active',
-            'booked'         => 'booked',
-            'future_project' => 'future_project',
-            default          => 'available',
-        };
+    $vacantRows = $withoutContract->map(function ($property) use ($resolveImageUrl, $areaStatusOf) {
+        $area = $areaStatusOf($property);
 
         return (object) [
             'property'    => $property,
             'imageUrl'    => $resolveImageUrl($property),
             'searchText'  => strtolower(($property->title ?? '') . ' ' . ($property->property_code ?? '')),
-            'statusColor' => $status['color'],
-            'statusLabel' => $status['label'],
-            'slug'        => $slug,
-            'filterType'  => $filterType,
+            'statusColor' => $area->color,
+            'statusLabel' => $area->label,
+            'slug'        => $area->slug,
+            'filterType'  => $area->filterType,
         ];
     });
 
@@ -231,18 +237,19 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         ->count();
     $totalSlipVerify  = $contractRows->where('slipPendingVerify', true)->count();
 
-    // ─── จำนวนแยกตามสถานะจริง (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ───
-    // นับ "ไม่ว่าง" ตามจำนวนทรัพย์จริง (unique) ไม่ใช่ตามจำนวนแถว เพราะทรัพย์ที่มีสัญญาซ้อนกัน
+    // ─── จำนวนแยกตามสถานะพื้นที่จริง (ว่าง / ไม่ว่าง / จอง / โครงการในอนาคต) ───
+    // นับตามจำนวนทรัพย์จริง (unique) ไม่ใช่ตามจำนวนแถว เพราะทรัพย์ที่มีสัญญาซ้อนกัน
     // (ต่อสัญญา) จะมีมากกว่า 1 แถวใน $contractRows แต่ยังนับเป็นทรัพย์เดียว
-    $totalActive       = $contractRows->pluck('property.id')->unique()->count() + $vacantRows->where('slug', 'unavailable')->count();
-    $totalAvailable    = $vacantRows->where('slug', 'available')->count();
-    $totalBooked       = $vacantRows->where('slug', 'booked')->count();
-    $totalFutureProject = $vacantRows->where('slug', 'future_project')->count();
+    $propertyAreaRows  = $contractRows->unique(fn ($row) => $row->property->id)->concat($vacantRows);
+    $totalActive       = $propertyAreaRows->where('slug', 'unavailable')->count();
+    $totalAvailable    = $propertyAreaRows->where('slug', 'available')->count();
+    $totalBooked       = $propertyAreaRows->where('slug', 'booked')->count();
+    $totalFutureProject = $propertyAreaRows->where('slug', 'future_project')->count();
 
     // ─── รายการทั้งหมดแบบย่อ ใช้เช็คว่ามีแถวที่ตรงกับแท็บ/คำค้นหาที่เลือกอยู่หรือไม่ ───
     $allRowsForMatch = $contractRows
         ->map(fn ($row) => [
-            'type'          => 'active',
+            'type'          => $row->filterType,
             'text'          => $row->searchText,
             'slipNeeded'    => $row->slipNeeded,
             'slipVerifying' => $row->slipPendingVerify,
@@ -261,8 +268,8 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     filter: 'all',
     rows: @js($allRowsForMatch),
     matchRow(type, text, slipNeeded, slipVerifying) {
-        if (this.filter === 'slip_needed') return type === 'active' && slipNeeded;
-        if (this.filter === 'slip_verify') return type === 'active' && slipVerifying;
+        if (this.filter === 'slip_needed') return slipNeeded;
+        if (this.filter === 'slip_verify') return slipVerifying;
         if (this.filter !== 'all' && this.filter !== type) return false;
         if (!this.search.trim()) return true;
         return text.toLowerCase().includes(this.search.toLowerCase().trim());
@@ -464,7 +471,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
 
     @foreach($contractRows as $row)
     <a href="{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}"
-       x-show="matchRow('active', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
+       x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
        class="property-row block bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:bg-gray-50 active:scale-[0.99] transition-all">
 
         <div class="flex items-start gap-3">
@@ -623,7 +630,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     </x-slot:head>
 
     @foreach($contractRows as $row)
-    <tr x-show="matchRow('active', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
+    <tr x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
         class="property-row hover:bg-gray-50 cursor-pointer group"
         onclick="window.location='{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}'"
         role="button"

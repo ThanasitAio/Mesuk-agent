@@ -411,10 +411,11 @@
                 $initial  = mb_strtoupper(mb_substr($fullName, 0, 1));
 
                 $statusMap = [
-                    'checked_in'        => ['label' => 'ไม่ว่าง',      'bg' => 'bg-red-50',     'text' => 'text-red-700'],
-                    'confirmed'         => ['label' => 'ยืนยันแล้ว',   'bg' => 'bg-red-50',     'text' => 'text-red-700'],
-                    'deposit_confirmed' => ['label' => 'โครงการในอนาคต', 'bg' => 'bg-blue-50',    'text' => 'text-blue-700'],
-                    'pending'           => ['label' => 'จองแล้ว',      'bg' => 'bg-yellow-50',  'text' => 'text-yellow-700'],
+                    // ป้ายสถานะการจอง (booking) - ตรงกับ Booking::statusLabels() ของ happyest (ไม่ใช่สถานะพื้นที่)
+                    'checked_in'        => ['label' => 'เข้าพักแล้ว',     'bg' => 'bg-red-50',     'text' => 'text-red-700'],
+                    'confirmed'         => ['label' => 'ยืนยันการจอง',   'bg' => 'bg-red-50',     'text' => 'text-red-700'],
+                    'deposit_confirmed' => ['label' => 'ยืนยันเงินมัดจำ', 'bg' => 'bg-blue-50',    'text' => 'text-blue-700'],
+                    'pending'           => ['label' => 'รอการยืนยัน',    'bg' => 'bg-yellow-50',  'text' => 'text-yellow-700'],
                     'checked_out'       => ['label' => 'ออกแล้ว',      'bg' => 'bg-gray-50',    'text' => 'text-gray-500'],
                     'completed'         => ['label' => 'เสร็จสิ้น',    'bg' => 'bg-gray-50',    'text' => 'text-gray-500'],
                     'cancelled'         => ['label' => 'ยกเลิก',       'bg' => 'bg-red-50',     'text' => 'text-red-600'],
