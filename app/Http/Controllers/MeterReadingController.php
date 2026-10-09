@@ -260,11 +260,9 @@ class MeterReadingController extends Controller
             'readings.*.current_reading'           => 'nullable|integer|min:0',
             'readings.*.reading_date'              => 'nullable|date|before_or_equal:today',
             'readings.*.previous_reading'          => 'nullable|integer|min:0',
-            'readings.*.meter_reset'               => 'sometimes|boolean',
             'readings.*.meter_changed'             => 'sometimes|boolean',
             'readings.*.old_meter_final_reading'   => 'nullable|integer|min:0',
             'readings.*.new_meter_start_reading'   => 'nullable|integer|min:0',
-            'readings.*.meter_max_value'           => 'nullable|integer|min:1',
             'readings.*.image'                     => 'nullable|file|mimes:jpg,jpeg,png|max:10240',
             'remark'                               => 'nullable|string|max:1000',
         ], [
@@ -300,15 +298,12 @@ class MeterReadingController extends Controller
             $meterId = (int) $meterId;
             $meter   = $meters->get($meterId);
 
-            $meterReset   = (bool) ($data['meter_reset'] ?? false);
+            // "มิเตอร์เริ่มนับใหม่" (meter_changed) ใช้แทนทั้งรีเซ็ตและเปลี่ยนมิเตอร์ - ไม่มีโหมดรีเซ็ตแยกแล้ว
+            // จึงบันทึก meter_reset = false เสมอ (แถวเก่าที่เคยรีเซ็ตไว้ บันทึกซ้ำแล้วจะถูกคำนวณใหม่ตามนี้)
             $meterChanged = (bool) ($data['meter_changed'] ?? false);
 
-            if ($meterReset && $meterChanged) {
-                return back()->with('error', "มิเตอร์{$meter->type_label}: เลือกได้แค่ \"รีเซ็ต\" หรือ \"เปลี่ยนมิเตอร์\" อย่างใดอย่างหนึ่ง")->withInput();
-            }
-
             if ($meterChanged && (blank($data['old_meter_final_reading'] ?? null) || blank($data['new_meter_start_reading'] ?? null))) {
-                return back()->with('error', "มิเตอร์{$meter->type_label}: กรุณาระบุเลขมิเตอร์เก่าสุดท้ายและมิเตอร์ใหม่เริ่มต้นให้ครบ")->withInput();
+                return back()->with('error', "มิเตอร์{$meter->type_label}: กรุณาระบุเลขสุดท้ายและเลขเริ่มใหม่ของ \"มิเตอร์เริ่มนับใหม่\" ให้ครบ")->withInput();
             }
 
             $priorRow = $this->findPriorReading($meterId, $year, $month);
@@ -321,20 +316,20 @@ class MeterReadingController extends Controller
 
             $currentReading = (int) ($data['current_reading'] ?? 0);
 
-            if (! $meterReset && ! $meterChanged && $currentReading < $previousReading) {
+            if (! $meterChanged && $currentReading < $previousReading) {
                 return back()
-                    ->with('error', "มิเตอร์{$meter->type_label}: เลขมิเตอร์ปัจจุบัน ({$currentReading}) น้อยกว่าเดือนก่อน ({$previousReading}) กรุณาตรวจสอบ หรือติ๊ก \"รีเซ็ต\"/\"เปลี่ยนมิเตอร์\" ถ้าถูกต้อง")
+                    ->with('error', "มิเตอร์{$meter->type_label}: เลขมิเตอร์ปัจจุบัน ({$currentReading}) น้อยกว่าเดือนก่อน ({$previousReading}) กรุณาตรวจสอบ หรือกด \"มิเตอร์เริ่มนับใหม่\" ถ้ามิเตอร์วนกลับเป็น 0 หรือเปลี่ยนมิเตอร์ใหม่")
                     ->withInput();
             }
 
             $calc = MeterReading::calculateUnits([
                 'previous_reading'        => $previousReading,
                 'current_reading'         => $currentReading,
-                'meter_reset'             => $meterReset,
+                'meter_reset'             => false,
                 'meter_changed'           => $meterChanged,
                 'old_meter_final_reading' => $data['old_meter_final_reading'] ?? null,
                 'new_meter_start_reading' => $data['new_meter_start_reading'] ?? null,
-                'meter_max_value'         => $data['meter_max_value'] ?? null,
+                'meter_max_value'         => null,
             ]);
 
             // เคยบันทึกงวดนี้ไว้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ครั้งล่าสุด ไม่ดึงจาก
@@ -353,11 +348,11 @@ class MeterReadingController extends Controller
                 'previous_reading'         => $previousReading,
                 'current_reading'          => $currentReading,
                 'reading_date'             => $data['reading_date'] ?? null,
-                'meter_reset'              => $meterReset,
+                'meter_reset'              => false,
                 'meter_changed'            => $meterChanged,
                 'old_meter_final_reading'  => $data['old_meter_final_reading'] ?? null,
                 'new_meter_start_reading'  => $data['new_meter_start_reading'] ?? null,
-                'meter_max_value'          => $data['meter_max_value'] ?? null,
+                'meter_max_value'          => null,
                 'units_used'               => $calc['units_used'],
                 'price_per_unit'           => $pricePerUnit,
                 'image'                    => $request->file("readings.$meterId.image"),
@@ -918,7 +913,8 @@ class MeterReadingController extends Controller
                         continue;
                     }
 
-                    $suffix = $reading->meter_reset ? ' (รีเซ็ต)' : ($reading->meter_changed ? ' (เปลี่ยนมิเตอร์)' : '');
+                    // (รีเซ็ต) เหลือไว้สำหรับแถวเก่าที่บันทึกก่อนตัดโหมดรีเซ็ต / แอดมินบันทึก
+                    $suffix = $reading->meter_reset ? ' (รีเซ็ต)' : ($reading->meter_changed ? ' (เริ่มนับใหม่)' : '');
                     $sheet->setCellValue("{$cols[0]}{$row}", ($reading->previous_reading ?? '') . $suffix);
                     $sheet->setCellValue("{$cols[1]}{$row}", $reading->current_reading);
                     $sheet->setCellValue("{$cols[2]}{$row}", $reading->units_used);

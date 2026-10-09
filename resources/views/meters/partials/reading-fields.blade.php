@@ -1,5 +1,8 @@
-{{-- ฟิลด์กรอกมิเตอร์ 1 ตัว (เลขก่อน/ปัจจุบัน, วันที่, รูปภาพ, ปุ่มรีเซ็ต/เปลี่ยนมิเตอร์) --}}
-{{-- ใช้ร่วมกันทั้งกรณีมิเตอร์ตัวเดียวและหลายตัวต่อประเภท ต้องอยู่ภายใน element ที่มี x-data="meterImageRow(...)" --}}
+{{-- ฟิลด์กรอกมิเตอร์ 1 ตัว (เลขก่อน/ปัจจุบัน, วันที่, รูปภาพ, ปุ่มมิเตอร์เริ่มนับใหม่) --}}
+{{-- ใช้ร่วมกันทั้งมิเตอร์ย่อย (meters/show, x-data="meterImageRow(...)") และมิเตอร์หลัก (master-meters/show,
+     x-data="masterMeterRow(...)") - ต้องอยู่ภายใน element ที่มี x-data แบบใดแบบหนึ่งนั้น --}}
+{{-- ไม่มีปุ่ม "มิเตอร์รีเซ็ต" แยกแล้ว (ผู้ใช้ขอตัด 2026-10-09): "มิเตอร์เริ่มนับใหม่" (meter_changed) ใช้ได้ทั้งมิเตอร์วนกลับเป็น 0
+     และเปลี่ยนมิเตอร์ใหม่ ฝั่งเซิร์ฟเวอร์บันทึก meter_reset = false เสมอ --}}
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1.5">เลขมิเตอร์เดือนก่อน</label>
@@ -94,58 +97,46 @@
 </div>
 
 <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2.5 pt-2.5 sm:mt-3 sm:pt-3 border-t border-gray-100">
-    <input type="hidden" name="{{ $namePrefix }}[meter_reset]" :value="reset ? 1 : 0">
+    <input type="hidden" name="{{ $namePrefix }}[meter_changed]" :value="changed ? 1 : 0">
     <button type="button"
-            @click="toggleReset()"
-            :class="reset ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
+            @click="changed = !changed"
+            :class="changed ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
             @disabled($alreadyInvoiced)
             class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
         </svg>
-        มิเตอร์รีเซ็ต
+        มิเตอร์เริ่มนับใหม่
     </button>
-
-    <input type="hidden" name="{{ $namePrefix }}[meter_changed]" :value="changed ? 1 : 0">
-    <button type="button"
-            @click="toggleChanged()"
-            :class="changed ? 'bg-brand-600 border-brand-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
-            @disabled($alreadyInvoiced)
-            class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h18M16.5 3L21 7.5m0 0L16.5 12M21 7.5H3"/>
-        </svg>
-        เปลี่ยนมิเตอร์ใหม่
-    </button>
+    <span x-show="!changed" class="text-[11px] text-gray-400">มิเตอร์วนกลับเป็น 0 หรือเปลี่ยนมิเตอร์ใหม่ (เช่น มิเตอร์เสีย)</span>
 </div>
 
-<div x-show="changed" x-cloak class="grid grid-cols-2 gap-2.5 sm:gap-3 mt-2.5 sm:mt-3">
-    <x-form.number
-        :name="$namePrefix . '[old_meter_final_reading]'"
-        label="เลขมิเตอร์เก่าสุดท้าย"
-        :value="$oldFinalInit"
-        class="text-right"
-        x-model.number="oldFinal"
-        :disabled="$alreadyInvoiced"
-        min="0" />
-    <x-form.number
-        :name="$namePrefix . '[new_meter_start_reading]'"
-        label="เลขมิเตอร์ใหม่เริ่มต้น"
-        :value="$newStartInit"
-        class="text-right"
-        x-model.number="newStart"
-        :disabled="$alreadyInvoiced"
-        min="0" />
-</div>
+@if($reading?->meter_reset)
+    {{-- แถวเก่าที่บันทึกแบบ "มิเตอร์รีเซ็ต" ไว้ (ก่อนตัดปุ่มนี้ หรือแอดมินบันทึก) - บันทึกซ้ำจากหน้านี้จะไม่ใช้สูตรรีเซ็ตแล้ว --}}
+    <p class="flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-2">
+        <svg class="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>งวดนี้บันทึกแบบ "มิเตอร์รีเซ็ต" (แบบเดิม) ไว้ ถ้าบันทึกซ้ำ ให้กด "มิเตอร์เริ่มนับใหม่" แล้วกรอกเลขให้ครบ</span>
+    </p>
+@endif
 
-<div x-show="reset" x-cloak class="mt-2.5 sm:mt-3">
-    <x-form.number
-        :name="$namePrefix . '[meter_max_value]'"
-        label="จุดสูงสุดของมิเตอร์ (ถ้าทราบ)"
-        :value="$maxValueInit"
-        hint="ถ้าไม่ระบุ ระบบจะประมาณจากจำนวนหลักของเลขมิเตอร์เดือนก่อนให้อัตโนมัติ"
-        class="text-right"
-        x-model.number="maxOverride"
-        :disabled="$alreadyInvoiced"
-        min="1" />
+<div x-show="changed" x-cloak class="mt-2.5 sm:mt-3">
+    <div class="grid grid-cols-2 items-end gap-2.5 sm:gap-3">
+        <x-form.number
+            :name="$namePrefix . '[old_meter_final_reading]'"
+            label="เลขสุดท้าย"
+            :value="$oldFinalInit"
+            class="text-right"
+            x-model.number="oldFinal"
+            :disabled="$alreadyInvoiced"
+            min="0" />
+        <x-form.number
+            :name="$namePrefix . '[new_meter_start_reading]'"
+            label="เลขเริ่มใหม่"
+            :value="$newStartInit"
+            class="text-right"
+            x-model.number="newStart"
+            :disabled="$alreadyInvoiced"
+            min="0" />
+    </div>
+    <p class="text-gray-400 text-xs mt-1.5">เลขสุดท้ายก่อนมิเตอร์วนกลับ/ก่อนถอดตัวเก่า และเลขที่เริ่มนับใหม่ - หน่วยที่ใช้ = (เลขสุดท้าย - เลขเดือนก่อน) + (เลขปัจจุบัน - เลขเริ่มใหม่)</p>
 </div>

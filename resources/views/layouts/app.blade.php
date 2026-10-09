@@ -96,6 +96,17 @@
             @endif
 
             @if(session('agent_is_manager'))
+            <a href="{{ route('master-meters.index') }}"
+               class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                      {{ request()->routeIs('master-meters.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16a8 8 0 1116 0M12 16l3.5-3.5M12 16h.01"/>
+                </svg>
+                บันทึกมิเตอร์หลัก
+            </a>
+            @endif
+
+            @if(session('agent_is_manager'))
             <a href="{{ route('tenant-invoices.index') }}"
                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                       {{ request()->routeIs('tenant-invoices.*') ? 'bg-brand-600 text-white' : 'text-slate-300 hover:bg-brand-800 hover:text-white' }}">
@@ -354,6 +365,13 @@
                     </a>
                     @endif
                     @if(session('agent_is_manager'))
+                    <a href="{{ route('master-meters.index') }}"
+                       class="text-xs font-medium transition-colors
+                              {{ request()->routeIs('master-meters.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
+                        บันทึกมิเตอร์หลัก
+                    </a>
+                    @endif
+                    @if(session('agent_is_manager'))
                     <a href="{{ route('tenant-invoices.index') }}"
                        class="text-xs font-medium transition-colors
                               {{ request()->routeIs('tenant-invoices.*') ? 'text-brand-600 font-semibold' : 'text-gray-400 hover:text-brand-600' }}">
@@ -538,6 +556,12 @@
                 'pattern' => 'meters.*',
                 'label'   => 'บันทึกมิเตอร์',
                 'icon'    => '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>',
+            ];
+            $extraMenus[] = [
+                'route'   => 'master-meters.index',
+                'pattern' => 'master-meters.*',
+                'label'   => 'มิเตอร์หลัก',
+                'icon'    => '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16a8 8 0 1116 0M12 16l3.5-3.5M12 16h.01"/></svg>',
             ];
             $extraMenus[] = [
                 'route'   => 'tenant-invoices.index',

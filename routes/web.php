@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MasterMeterReadingController;
 use App\Http\Controllers\MeterReadingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PropertyBillingController;
@@ -63,6 +64,13 @@ Route::middleware('auth.agent')->group(function () {
     Route::post('/meters/{property}/confirm', [MeterReadingController::class, 'confirm'])->name('meters.confirm');
     Route::delete('/meters/{property}', [MeterReadingController::class, 'destroy'])->name('meters.destroy');
     Route::get('/meters/reading/{reading}/image', [MeterReadingController::class, 'viewImage'])->name('meters.image');
+
+    // Master Meter Readings (บันทึกมิเตอร์หลัก) - เฉพาะมิเตอร์หลักที่ตัวแทนคนนี้เป็นผู้จด (แอดมินกำหนดฝั่ง happyest)
+    Route::get('/master-meters', [MasterMeterReadingController::class, 'index'])->name('master-meters.index');
+    Route::get('/master-meters/reading/{reading}/image', [MasterMeterReadingController::class, 'viewImage'])->whereNumber('reading')->name('master-meters.image');
+    Route::get('/master-meters/{group}', [MasterMeterReadingController::class, 'show'])->whereNumber('group')->name('master-meters.show');
+    Route::post('/master-meters/{group}', [MasterMeterReadingController::class, 'store'])->whereNumber('group')->name('master-meters.store');
+    Route::delete('/master-meters/{group}', [MasterMeterReadingController::class, 'destroy'])->whereNumber('group')->name('master-meters.destroy');
 
     // Tenant Invoices (ใบแจ้งหนี้ผู้เช่า)
     Route::get('/tenant-invoices', [TenantInvoiceController::class, 'index'])->name('tenant-invoices.index');

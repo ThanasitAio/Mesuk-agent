@@ -206,7 +206,6 @@
                                 $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
                                 $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
                                 $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
-                                $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
                                 // เคยบันทึกมิเตอร์งวดนี้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ (snapshot ใน ag_meter_readings)
                                 // ไม่ใช้ราคาจาก master (hr_property_meters) ซ้ำ เพื่อไม่ให้ราคาขยับถ้าแอดมินแก้ราคา master ทีหลัง
                                 $effectiveUnitPrice = $reading?->price_per_unit ?? $meter->price_per_unit;
@@ -215,14 +214,12 @@
                                  style="animation-delay: {{ $i * 70 }}ms"
                                  x-data="meterImageRow({
                                      existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
-                                     reset: {{ ($reading->meter_reset ?? false) ? 'true' : 'false' }},
                                      changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
                                      pricePerUnit: {{ (float) $effectiveUnitPrice }},
                                      previousReading: {{ (int) $previousInit }},
                                      currentReading: {{ (int) $currentInit }},
                                      oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
                                      newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
-                                     maxOverride: @js($maxValueInit === null || $maxValueInit === '' ? null : (int) $maxValueInit),
                                  })">
                                 <span class="meter-accent-bar absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b {{ $style['icon'] }}" style="animation-delay: {{ $i * 70 }}ms"></span>
                                 <div class="flex items-center justify-between mb-2 sm:mb-2.5 flex-wrap gap-1">
@@ -253,7 +250,6 @@
                     $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
                     $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
                     $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
-                    $maxValueInit = old('readings.' . $meter->id . '.meter_max_value', $reading->meter_max_value ?? null);
                     // เคยบันทึกมิเตอร์งวดนี้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ (snapshot ใน ag_meter_readings)
                     // ไม่ใช้ราคาจาก master (hr_property_meters) ซ้ำ เพื่อไม่ให้ราคาขยับถ้าแอดมินแก้ราคา master ทีหลัง
                     $effectiveUnitPrice = $reading?->price_per_unit ?? $meter->price_per_unit;
@@ -262,14 +258,12 @@
                      style="animation-delay: {{ $loop->index * 60 }}ms"
                      x-data="meterImageRow({
                          existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
-                         reset: {{ ($reading->meter_reset ?? false) ? 'true' : 'false' }},
                          changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
                          pricePerUnit: {{ (float) $effectiveUnitPrice }},
                          previousReading: {{ (int) $previousInit }},
                          currentReading: {{ (int) $currentInit }},
                          oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
                          newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
-                         maxOverride: @js($maxValueInit === null || $maxValueInit === '' ? null : (int) $maxValueInit),
                      })">
                     <div class="flex items-center justify-between mb-2.5 sm:mb-3 flex-wrap gap-2">
                         <div class="flex items-center gap-2">
@@ -409,41 +403,21 @@
 <script>
     const METER_IMAGE_MAX_BYTES = 10 * 1024 * 1024; // ต้องตรงกับ max:10240 ใน MeterReadingController::store()
 
-    // ประมาณจุดสูงสุดของมิเตอร์จากจำนวนหลักของเลขเดือนก่อน - ต้องตรงกับ
-    // MeterReading::heuristicMaxValue() ฝั่งเซิร์ฟเวอร์ เพื่อให้ตัวเลขพรีวิวตรงกับค่าที่บันทึกจริง
-    function heuristicMaxValue(previous) {
-        if (previous >= 10000) return 99999;
-        if (previous >= 1000) return 9999;
-        if (previous >= 100) return 999;
-        return 9999;
-    }
-
     function meterImageRow(cfg) {
         return {
             previewUrl: cfg.existingImageUrl,
             lightboxOpen: false,
             sizeError: '',
 
-            reset: cfg.reset,
             changed: cfg.changed,
             pricePerUnit: cfg.pricePerUnit,
             previousReading: cfg.previousReading,
             currentReading: cfg.currentReading,
             oldFinal: cfg.oldFinal,
             newStart: cfg.newStart,
-            maxOverride: cfg.maxOverride,
-
-            toggleReset() {
-                this.reset = !this.reset;
-                if (this.reset) this.changed = false;
-            },
-            toggleChanged() {
-                this.changed = !this.changed;
-                if (this.changed) this.reset = false;
-            },
 
             // พรีวิวจำนวนหน่วย/ยอดเงินแบบเรียลไทม์ - สูตรเดียวกับ MeterReading::calculateUnits()
-            // เพื่อให้ผู้ใช้เห็นผลลัพธ์ทันทีที่พิมพ์ โดยไม่ต้องกดบันทึกก่อน
+            // (ไม่มีกรณีรีเซ็ตแล้ว - "มิเตอร์เริ่มนับใหม่" ใช้สูตร changed แทน)
             get liveUnits() {
                 const current  = Number(this.currentReading) || 0;
                 const previous = (this.previousReading === '' || this.previousReading === null)
@@ -454,10 +428,6 @@
                     const oldFinal = Number(this.oldFinal) || 0;
                     const newStart = Number(this.newStart) || 0;
                     units = (oldFinal - (previous ?? 0)) + (current - newStart);
-                } else if (this.reset) {
-                    const maxVal = Number(this.maxOverride) || heuristicMaxValue(previous ?? 0);
-                    const percentFull = maxVal > 0 ? Math.floor((previous ?? 0) / maxVal) * 100 : 0;
-                    units = percentFull > 90 ? (maxVal - (previous ?? 0)) + current + 1 : current;
                 } else if (previous === null) {
                     units = current;
                 } else {
