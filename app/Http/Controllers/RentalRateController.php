@@ -67,6 +67,10 @@ class RentalRateController extends Controller
         $properties = DB::table('hr_properties as p')
             ->leftJoin('hr_agents as a', 'p.manager_agent_code', '=', 'a.agent_code')
             ->leftJoin('hr_property_statuses as ps', 'p.property_status_id', '=', 'ps.id')
+            ->leftJoin('hr_property_group as g', function ($join) {
+                $join->on('p.property_group_id', '=', 'g.property_group_id')
+                     ->whereNull('g.deleted_at');
+            })
             ->whereNull('p.deleted_at')
             ->where('p.status', 'published')
             ->select(
@@ -75,6 +79,7 @@ class RentalRateController extends Controller
                 'p.title',
                 'p.price_per_month',
                 'p.district',
+                'g.property_group_name',
                 'p.manager_agent_code',
                 DB::raw("COALESCE(a.name, 'ไม่ระบุผู้บริหาร') AS manager_name"),
                 'a.avatar AS manager_avatar',

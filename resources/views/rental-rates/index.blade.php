@@ -347,6 +347,7 @@
                     <thead style="background:#f9fafb">
                         <tr>
                             <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">รหัส</th>
+                            <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">กลุ่มอสังหา</th>
                             <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">ชื่อทรัพย์</th>
                             <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide text-right">ราคา/ด.</th>
                             <th class="px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">ผู้เช่า</th>
@@ -394,7 +395,14 @@
                                 </span>
                             </td>
                             <td class="px-3 py-2">
-                                <p class="text-sm text-gray-800 font-medium max-w-xs truncate">{{ $prop->title ?: '-' }}</p>
+                                @if($prop->property_group_name)
+                                    <span class="text-xs text-gray-700 whitespace-nowrap">{{ $prop->property_group_name }}</span>
+                                @else
+                                    <span class="text-gray-300 text-xs">-</span>
+                                @endif
+                            </td>
+                            <td class="px-3 py-2">
+                                <p class="text-sm text-gray-600 font-normal whitespace-nowrap" title="{{ $prop->title }}">{{ $prop->title ? Str::limit($prop->title, 25) : '-' }}</p>
                             </td>
                             <td class="px-3 py-2 text-right">
                                 @if($rent > 0)
@@ -485,7 +493,10 @@
                     </div>
                     
                     <div class="mb-2">
-                        <p class="text-sm font-semibold text-gray-800">{{ $prop->title ?: '-' }}</p>
+                        @if($prop->property_group_name)
+                            <p class="text-xs text-gray-500 mb-0.5">กลุ่ม: <span class="text-gray-700">{{ $prop->property_group_name }}</span></p>
+                        @endif
+                        <p class="text-sm font-normal text-gray-600" title="{{ $prop->title }}">{{ $prop->title ? Str::limit($prop->title, 25) : '-' }}</p>
                         @if($rent > 0)
                             <p class="text-xs text-gray-500 mt-1">
                                 ราคา: <span class="font-bold text-gray-900 tabular-nums">{{ number_format($rent, 0) }} ฿/ด.</span>
