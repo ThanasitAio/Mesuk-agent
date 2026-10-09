@@ -20,8 +20,20 @@ use Illuminate\Support\Facades\DB;
  */
 class MasterMeterReadingController extends Controller
 {
+    /**
+     * เฉพาะผู้บริหารโครงการ (session agent_is_manager - ค่าเดียวกับที่ใช้ซ่อนเมนู) - กันพิมพ์ URL เข้าตรง
+     */
+    private function authorize(): void
+    {
+        if (! session('agent_is_manager')) {
+            abort(403, 'หน้านี้สำหรับผู้บริหารโครงการเท่านั้น');
+        }
+    }
+
     public function index(Request $request)
     {
+        $this->authorize();
+
         $agentCode = (string) session('agent_code');
 
         $year  = (int) $request->query('year', now()->year);
@@ -74,6 +86,8 @@ class MasterMeterReadingController extends Controller
 
     public function show(Request $request, HrPropertyGroup $group)
     {
+        $this->authorize();
+
         $agentCode = (string) session('agent_code');
 
         $year  = (int) $request->query('year', now()->year);
@@ -121,6 +135,8 @@ class MasterMeterReadingController extends Controller
 
     public function store(Request $request, HrPropertyGroup $group)
     {
+        $this->authorize();
+
         $agentCode = (string) session('agent_code');
 
         $validated = $request->validate([
@@ -303,6 +319,8 @@ class MasterMeterReadingController extends Controller
      */
     public function destroy(Request $request, HrPropertyGroup $group)
     {
+        $this->authorize();
+
         $agentCode = (string) session('agent_code');
 
         $year  = (int) $request->query('year', now()->year);
@@ -347,6 +365,8 @@ class MasterMeterReadingController extends Controller
 
     public function viewImage(HrMasterMeterReading $reading)
     {
+        $this->authorize();
+
         // เปิดได้เฉพาะรูปของมิเตอร์หลักที่ตัวแทนคนนี้เป็นผู้จดอยู่ตอนนี้
         $isMine = HrMasterMeter::forRecorder((string) session('agent_code'), $reading->property_group_id)['record']
             ->contains('id', $reading->master_meter_id);
