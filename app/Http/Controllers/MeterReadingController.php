@@ -2,12 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\HrAdmin;
+use App\Models\HrBooking;
+use App\Models\HrInvoice;
 use App\Models\HrProperty;
 use App\Models\HrPropertyMeter;
+use App\Models\HrPropertyStatus;
 use App\Models\MeterReading;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -18,8 +26,25 @@ use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
+/**
+ * บันทึกมิเตอร์น้ำ/ไฟ (ผู้บริหารโครงการ) - เงื่อนไข การแสดงผล และข้อความแจ้งเตือนต้องตรงกับหน้าแอดมิน
+ * happyest AdminMeterReadingController (/admin/meter-readings) และคู่มือ "จดมิเตอร์น้ำ/ไฟ ทีละทรัพย์จนครบ"
+ * (/admin/help/staff-meter-readings) ต่างแค่ขอบเขต: ตัวแทนเห็นเฉพาะทรัพย์ที่ตัวเองเป็นผู้บริหารโครงการ
+ */
 class MeterReadingController extends Controller
 {
+    /** สถานะงวดต่อทรัพย์ (ลำดับ = ลำดับแท็บ) - ดู periodStatuses() */
+    private const PERIOD_STATUSES = ['unrecorded', 'partial', 'draft', 'recorded', 'invoiced'];
+
+    /** สถานะที่ยังต้องจด/ยืนยัน - ปุ่ม "เริ่มจดมิเตอร์" และ "บันทึก แล้วไปทรัพย์ถัดไป" ข้ามทรัพย์ที่เสร็จแล้ว */
+    private const NEEDS_WORK_STATUSES = ['unrecorded', 'partial', 'draft'];
+
+    /** ตัวกรองของหน้ารายการที่พกไปหน้าบันทึกด้วย (ลำดับก่อนหน้า/ถัดไป ใช้ชุดเดียวกับรายการที่เห็น) */
+    private const SCOPE_KEYS = ['search', 'property_status_id'];
+
+    /** ป้ายบันทึกล่าสุด: log ของแอดมินต้องอยู่ภายในกี่วินาทีหลัง updated_at (เหมือน MeterReadingRecorderService ของ happyest) */
+    private const RECORDER_LOG_WINDOW_SECONDS = 60;
+
     private const EXPORT_MAX_MONTHS = 24;
 
     private const THAI_MONTHS = [
@@ -30,56 +55,138 @@ class MeterReadingController extends Controller
 
     public function index(Request $request)
     {
-        $agentCode = session('agent_code');
+        $agentCode = (string) session('agent_code');
 
-        $year  = (int) $request->query('year', now()->year);
-        $month = (int) $request->query('month', now()->month);
-        $searchQuery = (string) $request->query('q', '');
+        $year   = (int) $request->query('year', now()->year);
+        $month  = (int) $request->query('month', now()->month);
+        $status = (string) $request->query('status', 'all');
+        if ($status !== 'all' && ! in_array($status, self::PERIOD_STATUSES, true)) {
+            $status = 'all';
+        }
+        $scope = $this->scopeFrom($request);
 
-        // ไม่กรอง is_utility_metering_enabled ที่นี่แล้ว - แสดงทุกทรัพย์สินที่มีมิเตอร์ตั้งค่าไว้
-        // เสมอไม่ว่าสถานะพื้นที่จะเป็นอะไร ฝั่ง view จะปิดการบันทึกเองถ้าระบบมิเตอร์ไม่ได้เปิด
-        $properties = HrProperty::where('manager_agent_code', $agentCode)
-            ->with(['activeMeters', 'propertyStatus', 'primaryImageMedia', 'activeBooking.customer'])
-            ->get()
-            ->filter(fn ($p) => $p->activeMeters->isNotEmpty())
+        // ทรัพย์ทุกหลังที่มีมิเตอร์เปิดใช้งาน (รวมที่ปิดระบบมิเตอร์ไว้ - แสดง "ปิดใช้งานมิเตอร์" แทนปุ่ม เหมือนแอดมิน)
+        // คำนวณจากชุดที่กรองแค่คำค้นก่อน เพื่อนับจำนวนบนปุ่มสถานะพื้นที่ได้ แล้วค่อยกรองสถานะพื้นที่ทีหลัง
+        $searchOnlyById    = $this->scopedProperties($agentCode, array_diff_key($scope, ['property_status_id' => true]));
+        $propertyStatusIds = HrProperty::whereIn('id', $searchOnlyById->keys())->pluck('property_status_id', 'id');
+        $statusFilter      = (string) ($scope['property_status_id'] ?? '');
+        $enabledById       = $statusFilter === ''
+            ? $searchOnlyById
+            : $searchOnlyById->filter(fn ($enabled, $id) => (string) ($propertyStatusIds[$id] ?? '') === $statusFilter);
+        $propertyIds = $enabledById->keys();
+
+        [
+            'meterCounts'         => $meterCounts,
+            'readingsByProperty'  => $readingsByProperty,
+            'invoicedPropertyIds' => $invoicedPropertyIds,
+            'status'              => $statusByPropertyId,
+        ] = $this->periodStatuses($searchOnlyById->keys(), $year, $month);
+
+        $counts = ['all' => $propertyIds->count()];
+        foreach (self::PERIOD_STATUSES as $key) {
+            $counts[$key] = $propertyIds->filter(fn ($id) => $statusByPropertyId[$id] === $key)->count();
+        }
+
+        // จำนวนบนปุ่มสถานะพื้นที่: นับตามคำค้น + แท็บสถานะงวดที่เลือกอยู่ (ไม่รวมตัวกรองสถานะพื้นที่เอง)
+        $propertyStatusCounts = $searchOnlyById->keys()
+            ->filter(fn ($id) => $status === 'all' || $statusByPropertyId[$id] === $status)
+            ->countBy(fn ($id) => (string) ($propertyStatusIds[$id] ?? ''));
+
+        // ปุ่ม "เริ่มจดมิเตอร์" = ทรัพย์แรก (ตามลำดับรายการ/ตัวกรองเดียวกัน) ที่ยังต้องจด/ยืนยัน แล้วใช้ "บันทึก แล้วไปทรัพย์ถัดไป" ต่อ
+        // ทรัพย์ที่ปิดระบบมิเตอร์เปิดหน้าบันทึกไม่ได้ จึงไม่นับ
+        $workIds          = $propertyIds->filter(fn ($id) => $enabledById[$id] && in_array($statusByPropertyId[$id] ?? null, self::NEEDS_WORK_STATUSES, true))->values();
+        $needsWorkCount   = $workIds->count();
+        $firstNeedsWorkId = $workIds->first();
+
+        $filteredIds = $status === 'all'
+            ? $propertyIds
+            : $propertyIds->filter(fn ($id) => $statusByPropertyId[$id] === $status)->values();
+
+        // แบ่งหน้าเองบนรายการ id ที่กรองแล้ว - status ไม่ใช่คอลัมน์จริง คำนวณจากหลายตาราง (เหมือนแอดมิน)
+        $perPage     = 15;
+        $currentPage = max(1, (int) $request->query('page', 1));
+        $pagedIds    = $filteredIds->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $properties = HrProperty::whereIn('id', $pagedIds)
+            ->with('propertyStatus:id,name,slug,color')
+            ->get(['id', 'title', 'property_code', 'property_status_id', 'is_utility_metering_enabled'])
+            ->sortBy(fn ($p) => $pagedIds->search($p->id))
             ->values();
 
-        // Filtered by rent_year/rent_month (the ค่าเช่า period a reading gets billed
-        // together with), not billing_year/billing_month (the calendar month the meter
-        // was actually read) - agents think in terms of "which rent invoice", not the
-        // technical reading month.
-        $readingsByProperty = MeterReading::whereIn('property_id', $properties->pluck('id'))
-            ->forRentPeriod($year, $month)
-            ->get()
+        // เลขที่การจอง = การจองที่ใบแจ้งหนี้น้ำ/ไฟของงวดนี้เรียกเก็บ ให้ตรงกับหน้าแอดมิน: ออกใบแล้ว -> การจองของใบนั้น,
+        // ยังไม่ออก -> กติกาเดียวกับ UtilityInvoiceBillingRowService ของ happyest (billingBookingsForPeriod())
+        // เลขที่ใบแจ้งหนี้ใต้สถานะมาจากใบชุดเดียวกัน (1 ทรัพย์อาจมีหลายใบ เช่น แยกบริษัท/เจ้าของทรัพย์)
+        $periodInvoices = HrInvoice::where('invoice_type', 'utility')
+            ->where('billing_month', sprintf('%04d-%02d', $year, $month))
+            ->whereNotIn('status', ['cancelled', 'voided'])
+            ->whereIn('property_id', $pagedIds)
+            ->with('booking:id,booking_code')
+            ->orderBy('id')
+            ->get(['id', 'property_id', 'booking_id', 'invoice_code'])
             ->groupBy('property_id');
 
-        $rows = $properties->map(function ($property) use ($readingsByProperty, $year, $month) {
-            $meterCount     = $property->activeMeters->count();
-            $waterCount     = $property->activeMeters->where('meter_type', 'water')->count();
-            $electricCount  = $property->activeMeters->where('meter_type', 'electric')->count();
-            $periodReadings = $readingsByProperty->get($property->id, collect());
+        $invoiceCodesByProperty = $periodInvoices->map(fn ($g) => $g->pluck('invoice_code')->filter()->unique()->values()->all());
 
-            $waterAmt    = $periodReadings->where('meter_type', 'water')->sum('amount');
-            $electricAmt = $periodReadings->where('meter_type', 'electric')->sum('amount');
-            $commonFee   = (float) ($property->common_fee_per_month ?? 0);
+        $contractByProperty = $periodInvoices
+            ->map(fn ($g) => $g->first(fn ($inv) => $inv->booking_id && $inv->booking)?->booking)
+            ->filter();
+
+        $fallbackContracts = $this->billingBookingsForPeriod($pagedIds->diff($contractByProperty->keys())->values()->all(), $year, $month);
+
+        // บันทึกล่าสุดเมื่อไร โดยใคร (ผู้บริหารโครงการ หรือแอดมินที่บันทึกแทน) - เฉพาะทรัพย์ในหน้านี้
+        $recordedBy = $this->latestRecorders($readingsByProperty->toBase()->only($pagedIds->all()));
+
+        $rows = $properties->map(function ($property) use ($meterCounts, $readingsByProperty, $invoicedPropertyIds, $invoiceCodesByProperty, $contractByProperty, $fallbackContracts, $statusByPropertyId, $recordedBy) {
+            $meters          = $meterCounts->get($property->id, collect());
+            $periodReadings  = $readingsByProperty->get($property->id, collect());
+            $readingsByMeter = $periodReadings->keyBy('property_meter_id');
+
+            // เลขมิเตอร์เดือนก่อน → เดือนนี้ 1 บรรทัดต่อมิเตอร์ (น้ำก่อนไฟ) - มิเตอร์ที่ยังไม่จดงวดนี้ = missing
+            $meterItems = $meters->sortBy('id')
+                ->sortBy(fn ($m) => $m->meter_type === 'water' ? 0 : 1)
+                ->map(function ($meter) use ($readingsByMeter) {
+                    $reading = $readingsByMeter->get($meter->id);
+
+                    return [
+                        'meter_type'       => $meter->meter_type,
+                        'missing'          => $reading === null,
+                        'previous_reading' => $reading?->previous_reading,
+                        'current_reading'  => $reading?->current_reading,
+                        'units_used'       => $reading ? (float) $reading->units_used : null,
+                    ];
+                })
+                ->values()
+                ->all();
 
             return (object) [
                 'property'         => $property,
-                'meter_count'      => $meterCount,
-                'water_count'      => $waterCount,
-                'electric_count'   => $electricCount,
+                'meter_count'      => $meters->count(),
                 'recorded_count'   => $periodReadings->count(),
-                'water_units'      => $periodReadings->where('meter_type', 'water')->sum('units_used'),
-                'electric_units'   => $periodReadings->where('meter_type', 'electric')->sum('units_used'),
-                'water_amount'     => $waterAmt,
-                'electric_amount'  => $electricAmt,
-                'total_amount'     => $waterAmt + $electricAmt + $commonFee,
-                // $year/$month on this page IS the rent period (rows are grouped via
-                // forRentPeriod above), unlike show() where rentYear/rentMonth is derived
-                // separately from the calendar billing period.
-                'already_invoiced' => $this->hasIssuedUtilityInvoice($property->id, $year, $month),
+                'meter_items'      => $meterItems,
+                'recorded'         => $recordedBy->get($property->id),
+                'already_invoiced' => isset($invoicedPropertyIds[$property->id]),
+                'invoice_codes'    => $invoiceCodesByProperty->get($property->id, []),
+                'status'           => $statusByPropertyId[$property->id] ?? 'unrecorded',
+                'contract'         => $contractByProperty->get($property->id) ?? $fallbackContracts->get($property->id),
             ];
         });
+
+        $paginator = new LengthAwarePaginator(
+            $rows,
+            $filteredIds->count(),
+            $perPage,
+            $currentPage,
+            ['path' => route('meters.index'), 'query' => $request->except('page')]
+        );
+
+        // ตัวเลือกสถานะพื้นที่ = เฉพาะสถานะที่มีอยู่จริงในทรัพย์ (ที่มีมิเตอร์) ของตัวแทนคนนี้
+        $propertyStatuses = HrPropertyStatus::whereIn('id', HrProperty::where('manager_agent_code', $agentCode)
+                ->whereHas('activeMeters')
+                ->whereNotNull('property_status_id')
+                ->distinct()
+                ->pluck('property_status_id'))
+            ->orderBy('id')
+            ->get(['id', 'name', 'slug', 'color']);
 
         $exportProperties = $this->eligibleProperties($agentCode);
 
@@ -91,7 +198,10 @@ class MeterReadingController extends Controller
             description: "ดูรายการบันทึกมิเตอร์ งวด {$month}/{$year}"
         );
 
-        return view('meters.index', compact('rows', 'year', 'month', 'searchQuery', 'exportProperties'));
+        return view('meters.index', compact(
+            'paginator', 'year', 'month', 'status', 'scope', 'counts', 'propertyStatuses', 'propertyStatusCounts',
+            'exportProperties', 'needsWorkCount', 'firstNeedsWorkId'
+        ));
     }
 
     /**
@@ -217,11 +327,37 @@ class MeterReadingController extends Controller
 
         $previousReadings = [];
         $previousReadingDates = [];
+        $previousUnits = [];
+        $suggestedPrevious = [];
+        $nextReadings = [];
         foreach ($meters as $meter) {
             $priorReading = $this->findPriorReading($meter->id, $year, $month);
             $previousReadings[$meter->id] = $priorReading?->current_reading;
             $previousReadingDates[$meter->id] = $priorReading?->reading_date?->format('Y-m-d');
+            $previousUnits[$meter->id] = $priorReading?->units_used;
+
+            // เดือนก่อนไม่ได้จด: เสนอเลขล่าสุดของงวดที่เก่ากว่าเป็นค่าเริ่มต้น (สีเหลือง แก้ได้) แทนการปล่อยว่าง
+            // - ค่าที่บันทึกจริงยังเป็นเลขที่ส่งมาจากฟอร์ม (เหมือนแอดมิน)
+            if (! $priorReading && ! isset($currentReadings[$meter->id])) {
+                $earlier = $this->findLatestEarlierReading($meter->id, $year, $month);
+                if ($earlier) {
+                    $suggestedPrevious[$meter->id] = [
+                        'value'  => (int) $earlier->current_reading,
+                        'period' => MeterReading::periodLabel((int) $earlier->billing_year, (int) $earlier->billing_month),
+                    ];
+                }
+            }
+
+            $next = $this->findNextReading($meter->id, $year, $month);
+            if ($next) {
+                $nextReadings[$meter->id] = [
+                    'previous' => (int) $next->previous_reading,
+                    'period'   => MeterReading::periodLabel((int) $next->billing_year, (int) $next->billing_month),
+                    'locked'   => $this->hasIssuedUtilityInvoice($property->id, $next->rent_year, $next->rent_month),
+                ];
+            }
         }
+        $meterLabels = $this->meterLabels($meters);
 
         $existingRentPeriod = $currentReadings->first(fn ($r) => $r->rent_year && $r->rent_month);
         $rentYear  = $existingRentPeriod->rent_year  ?? $year;
@@ -230,6 +366,17 @@ class MeterReadingController extends Controller
         $allRecorded     = $currentReadings->count() === $meters->count();
         $allConfirmed    = $allRecorded && $currentReadings->every(fn ($r) => $r->status === 'confirmed');
         $alreadyInvoiced = $this->hasIssuedUtilityInvoice($property->id, $rentYear, $rentMonth);
+
+        // ทรัพย์ก่อนหน้า/ถัดไป ตามตัวกรองเดียวกับหน้ารายการที่กดเข้ามา (ไม่ต้องกลับไปหน้ารายการทีละทรัพย์)
+        // เฉพาะทรัพย์ที่เปิดระบบมิเตอร์ - ทรัพย์ที่ปิดไว้เปิดหน้านี้ไม่ได้
+        $scope      = $this->scopeFrom($request);
+        $scopeIds   = $this->scopedProperties((string) session('agent_code'), $scope)->filter()->keys()->values();
+        $position   = $scopeIds->search($property->id);
+        $prevId     = $position !== false && $position > 0 ? $scopeIds[$position - 1] : null;
+        $nextId     = $position !== false ? $scopeIds->get($position + 1) : null;
+        $navCodes   = HrProperty::whereIn('id', array_filter([$prevId, $nextId]))->pluck('property_code', 'id');
+        $listStatus = in_array($request->query('status'), self::PERIOD_STATUSES, true) ? (string) $request->query('status') : '';
+        $restartPhoto = MeterReading::supportsRestartPhoto();
 
         logSystem(
             userType: 'agent',
@@ -241,7 +388,9 @@ class MeterReadingController extends Controller
 
         return view('meters.show', compact(
             'property', 'meters', 'currentReadings', 'previousReadings', 'previousReadingDates', 'year', 'month',
-            'rentYear', 'rentMonth', 'allRecorded', 'allConfirmed', 'alreadyInvoiced'
+            'previousUnits', 'suggestedPrevious', 'nextReadings', 'meterLabels',
+            'rentYear', 'rentMonth', 'allRecorded', 'allConfirmed', 'alreadyInvoiced',
+            'scope', 'scopeIds', 'position', 'prevId', 'nextId', 'navCodes', 'listStatus', 'restartPhoto'
         ));
     }
 
@@ -251,93 +400,123 @@ class MeterReadingController extends Controller
             abort(403, 'คุณไม่มีสิทธิ์เข้าถึงอสังหาริมทรัพย์นี้');
         }
 
-        $validated = $request->validate([
-            'billing_year'                        => 'required|integer|min:2020|max:' . (now()->year + 1),
-            'billing_month'                        => 'required|integer|between:1,12',
-            'rent_year'                            => 'required|integer|min:2020|max:' . (now()->year + 1),
-            'rent_month'                            => 'required|integer|between:1,12',
-            'readings'                             => 'required|array|min:1',
-            'readings.*.current_reading'           => 'nullable|integer|min:0',
-            'readings.*.reading_date'              => 'nullable|date|before_or_equal:today',
-            'readings.*.previous_reading'          => 'nullable|integer|min:0',
-            'readings.*.meter_changed'             => 'sometimes|boolean',
-            'readings.*.old_meter_final_reading'   => 'nullable|integer|min:0',
-            'readings.*.new_meter_start_reading'   => 'nullable|integer|min:0',
-            'readings.*.image'                     => 'nullable|file|mimes:jpg,jpeg,png|max:10240',
-            'remark'                               => 'nullable|string|max:1000',
-        ], [
-            'readings.required'                   => 'กรุณากรอกข้อมูลมิเตอร์อย่างน้อย 1 รายการ',
-            'readings.*.reading_date.before_or_equal' => 'วันที่อ่านมิเตอร์ต้องไม่เกินวันนี้',
-            'readings.*.image.mimes'              => 'ไฟล์รูปต้องเป็น JPG หรือ PNG เท่านั้น',
-            'readings.*.image.max'                => 'ขนาดรูปต้องไม่เกิน 10MB',
-        ]);
+        $request->merge(array_map(fn ($v) => is_string($v) ? trim($v) : $v, $request->all()));
 
-        $year  = (int) $validated['billing_year'];
-        $month = (int) $validated['billing_month'];
+        $activeMeters = $property->activeMeters()->get();
+        $labels       = $this->meterLabels($activeMeters);
+
+        $validator = Validator::make($request->all(), [
+            'billing_year'                       => 'required|integer|min:2020|max:' . (now()->year + 1),
+            'billing_month'                      => 'required|integer|between:1,12',
+            'rent_year'                          => 'required|integer|min:2020|max:' . (now()->year + 1),
+            'rent_month'                         => 'required|integer|between:1,12',
+            'readings'                           => 'required|array|min:1',
+            // เลขมิเตอร์ตรวจเป็นข้อความใน MeterReading::checkInput() (ครบหลักพอดี 0 นำหน้าได้) - กฎ integer ไม่รับ "02345"
+            'readings.*.current_reading'         => 'nullable|string|max:10',
+            'readings.*.reading_date'            => 'nullable|date|before_or_equal:today',
+            'readings.*.previous_reading'        => 'nullable|string|max:10',
+            'readings.*.meter_changed'           => 'sometimes|boolean',
+            'readings.*.old_meter_final_reading' => 'nullable|string|max:10',
+            'readings.*.new_meter_start_reading' => 'nullable|string|max:10',
+            'readings.*.image'                   => 'nullable|file|mimes:jpg,jpeg,png|max:10240',
+            'readings.*.restart_image'           => 'nullable|file|mimes:jpg,jpeg,png|max:10240',
+            'remark'                             => 'nullable|string|max:1000',
+        ], MeterReading::validationMessages(), MeterReading::validationAttributes($labels));
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        $validated = $validator->validated();
+
+        $year      = (int) $validated['billing_year'];
+        $month     = (int) $validated['billing_month'];
         $rentYear  = (int) $validated['rent_year'];
         $rentMonth = (int) $validated['rent_month'];
 
+        // ข้อผิดพลาดของหน้านี้ส่งเป็น $errors ทั้งหมด หน้าบันทึกแสดงเป็น popup กลางจอรายการเดียว (meters/partials/reading-scripts)
         if ($this->hasIssuedUtilityInvoice($property->id, $rentYear, $rentMonth)) {
-            return back()->with('error', 'ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ไม่สามารถแก้ไขข้อมูลมิเตอร์ได้')->withInput();
+            return back()->withErrors(['form' => 'ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว แก้เลขมิเตอร์ไม่ได้'])->withInput();
         }
 
         // IDOR guard: re-verify every submitted meter id truly belongs to THIS
         // already-ownership-verified property, never trust the posted array keys.
-        $activeMeterIds = $property->activeMeters()->pluck('id');
-        $submittedIds   = array_map('intval', array_keys($validated['readings']));
-        if (! empty(array_diff($submittedIds, $activeMeterIds->all()))) {
-            return back()->with('error', 'พบข้อมูลมิเตอร์ที่ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง')->withInput();
+        $submittedIds = array_map('intval', array_keys($validated['readings']));
+        if (! empty(array_diff($submittedIds, $activeMeters->pluck('id')->all()))) {
+            return back()->withErrors(['form' => 'รายการมิเตอร์ในหน้านี้ไม่ตรงกับข้อมูลล่าสุด (มีมิเตอร์ถูกเพิ่ม/ปิดใช้งานหลังเปิดหน้านี้) โหลดหน้าใหม่แล้วกรอกอีกครั้ง'])->withInput();
         }
 
-        $meters = HrPropertyMeter::whereIn('id', $submittedIds)->get()->keyBy('id');
+        $meters         = $activeMeters->keyBy('id');
+        $remark         = $validated['remark'] ?? null;
+        $restartPhotoOn = MeterReading::supportsRestartPhoto();
 
-        $remark = $validated['remark'] ?? null;
+        $existingRows = MeterReading::whereIn('property_meter_id', $submittedIds)
+            ->forPeriod($year, $month)
+            ->get()
+            ->keyBy('property_meter_id');
+
+        $checkMeta = [];
+        foreach ($submittedIds as $meterId) {
+            $next = $this->findNextReading($meterId, $year, $month);
+            $checkMeta[$meterId] = [
+                'type'        => $meters[$meterId]->meter_type,
+                'label'       => $labels[$meterId],
+                'prior'       => $this->findPriorReading($meterId, $year, $month),
+                'existing'    => $existingRows->get($meterId),
+                'next'        => $next,
+                'next_locked' => $next && $this->hasIssuedUtilityInvoice($property->id, $next->rent_year, $next->rent_month),
+                'next_label'  => $next ? MeterReading::periodLabel((int) $next->billing_year, (int) $next->billing_month) : null,
+            ];
+        }
+
+        ['values' => $checked, 'errors' => $inputErrors, 'skipped' => $skipped] = MeterReading::checkInput($validated['readings'], $checkMeta);
+        if ($inputErrors) {
+            return back()->withErrors($inputErrors)->withInput();
+        }
+
+        // ไม่ได้กรอกเลขปัจจุบันเลยสักตัว = ไม่บันทึกอะไร (ไม่บังคับกรอก - ผู้ใช้ขอ 2026-10-15 ต่างจากแอดมินโดยตั้งใจ)
+        // "บันทึก แล้วไปทรัพย์ถัดไป" จึงใช้ข้ามทรัพย์นี้ไปก่อนได้ ไม่มีข้อมูลเปลี่ยน จึงไม่เขียน log
+        if (! $checked) {
+            $scope = $this->scopeFrom($request);
+            $code  = $property->property_code ?: $property->title;
+
+            if ($request->boolean('next')) {
+                $nextId = $this->nextPropertyNeedingWork($property->id, $scope, $year, $month);
+                if ($nextId && $nextId !== $property->id) {
+                    return redirect()
+                        ->route('meters.show', ['property' => $nextId, 'year' => $year, 'month' => $month] + $scope)
+                        ->with('success', "ข้าม {$code} ไปก่อน (ไม่ได้กรอกเลขมิเตอร์) - ต่อด้วยทรัพย์ถัดไป");
+                }
+            }
+
+            $listStatus = (string) $request->input('list_status', '');
+
+            return redirect()
+                ->route('meters.index', ['year' => $year, 'month' => $month] + $scope
+                    + (in_array($listStatus, self::PERIOD_STATUSES, true) ? ['status' => $listStatus] : []))
+                ->with('success', "ไม่ได้กรอกเลขมิเตอร์ของ {$code} จึงยังไม่ได้บันทึก (จดทีหลังได้)");
+        }
 
         $entries = [];
-        foreach ($validated['readings'] as $meterId => $data) {
-            $meterId = (int) $meterId;
-            $meter   = $meters->get($meterId);
+        foreach ($checked as $meterId => $value) {
+            $meter = $meters->get($meterId);
 
             // "มิเตอร์เริ่มนับใหม่" (meter_changed) ใช้แทนทั้งรีเซ็ตและเปลี่ยนมิเตอร์ - ไม่มีโหมดรีเซ็ตแยกแล้ว
             // จึงบันทึก meter_reset = false เสมอ (แถวเก่าที่เคยรีเซ็ตไว้ บันทึกซ้ำแล้วจะถูกคำนวณใหม่ตามนี้)
-            $meterChanged = (bool) ($data['meter_changed'] ?? false);
-
-            if ($meterChanged && (blank($data['old_meter_final_reading'] ?? null) || blank($data['new_meter_start_reading'] ?? null))) {
-                return back()->with('error', "มิเตอร์{$meter->type_label}: กรุณาระบุเลขสุดท้ายและเลขเริ่มใหม่ของ \"มิเตอร์เริ่มนับใหม่\" ให้ครบ")->withInput();
-            }
-
-            $priorRow = $this->findPriorReading($meterId, $year, $month);
-
-            // No forced required fields - a blank reading defaults to 0 so agents can
-            // save a partial period and fill in exact numbers later.
-            $previousReading = $priorRow
-                ? (int) $priorRow->current_reading
-                : (int) ($data['previous_reading'] ?? 0);
-
-            $currentReading = (int) ($data['current_reading'] ?? 0);
-
-            if (! $meterChanged && $currentReading < $previousReading) {
-                return back()
-                    ->with('error', "มิเตอร์{$meter->type_label}: เลขมิเตอร์ปัจจุบัน ({$currentReading}) น้อยกว่าเดือนก่อน ({$previousReading}) กรุณาตรวจสอบ หรือกด \"มิเตอร์เริ่มนับใหม่\" ถ้ามิเตอร์วนกลับเป็น 0 หรือเปลี่ยนมิเตอร์ใหม่")
-                    ->withInput();
-            }
-
             $calc = MeterReading::calculateUnits([
-                'previous_reading'        => $previousReading,
-                'current_reading'         => $currentReading,
+                'previous_reading'        => $value['previous_reading'],
+                'current_reading'         => $value['current_reading'],
                 'meter_reset'             => false,
-                'meter_changed'           => $meterChanged,
-                'old_meter_final_reading' => $data['old_meter_final_reading'] ?? null,
-                'new_meter_start_reading' => $data['new_meter_start_reading'] ?? null,
+                'meter_changed'           => $value['meter_changed'],
+                'old_meter_final_reading' => $value['old_meter_final_reading'],
+                'new_meter_start_reading' => $value['new_meter_start_reading'],
                 'meter_max_value'         => null,
             ]);
 
             // เคยบันทึกงวดนี้ไว้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ครั้งล่าสุด ไม่ดึงจาก
             // hr_property_meters.price_per_unit (master) ซ้ำอีก เพื่อไม่ให้ราคาของงวดที่บันทึก
             // แล้วขยับตามเวลาที่แอดมินแก้ราคา master ทีหลัง ใช้ราคา master เฉพาะการบันทึกครั้งแรกเท่านั้น
-            $existingForPeriod = MeterReading::where('property_meter_id', $meterId)
-                ->forPeriod($year, $month)
-                ->first();
+            $existingForPeriod = $existingRows->get($meterId);
 
             $pricePerUnit = $existingForPeriod && $existingForPeriod->price_per_unit !== null
                 ? $existingForPeriod->price_per_unit
@@ -345,87 +524,121 @@ class MeterReadingController extends Controller
 
             $entries[$meterId] = [
                 'meter'                    => $meter,
-                'previous_reading'         => $previousReading,
-                'current_reading'          => $currentReading,
-                'reading_date'             => $data['reading_date'] ?? null,
+                'previous_reading'         => $value['previous_reading'],
+                'current_reading'          => $value['current_reading'],
+                'reading_date'             => $value['reading_date'],
                 'meter_reset'              => false,
-                'meter_changed'            => $meterChanged,
-                'old_meter_final_reading'  => $data['old_meter_final_reading'] ?? null,
-                'new_meter_start_reading'  => $data['new_meter_start_reading'] ?? null,
+                'meter_changed'            => $value['meter_changed'],
+                'old_meter_final_reading'  => $value['old_meter_final_reading'],
+                'new_meter_start_reading'  => $value['new_meter_start_reading'],
                 'meter_max_value'          => null,
                 'units_used'               => $calc['units_used'],
                 'price_per_unit'           => $pricePerUnit,
                 'image'                    => $request->file("readings.$meterId.image"),
+                // รูปเลขสุดท้ายก่อนเริ่มนับใหม่ (ไม่บังคับ) - ปิดสวิตช์ = ไม่รับรูป และรูปเดิมของงวดนี้ถูกลบ
+                'restart_image'            => $restartPhotoOn && $value['meter_changed'] ? $request->file("readings.$meterId.restart_image") : null,
                 'new_image_path'           => null,
+                'new_restart_image_path'   => null,
             ];
         }
 
         // Write new files to disk before opening the transaction, so a storage failure
         // surfaces before any DB write. Old replaced files are deleted only after commit.
-        foreach ($entries as &$entry) {
-            if ($entry['image']) {
-                $entry['new_image_path'] = $entry['image']->store('readings/' . $property->id, 'meter_storage');
+        $disk        = Storage::disk('meter_storage');
+        $storedPaths = [];
+        try {
+            foreach (array_keys($entries) as $meterId) {
+                foreach (['image' => 'new_image_path', 'restart_image' => 'new_restart_image_path'] as $fileKey => $pathKey) {
+                    if (! $entries[$meterId][$fileKey]) {
+                        continue;
+                    }
+                    $path = $entries[$meterId][$fileKey]->store('readings/' . $property->id, 'meter_storage');
+                    if (! $path) {
+                        throw new \RuntimeException("store() returned false for readings.{$meterId}.{$fileKey}");
+                    }
+                    $entries[$meterId][$pathKey] = $path;
+                    $storedPaths[] = $path;
+                }
             }
+        } catch (\Throwable $e) {
+            report($e);
+            $disk->delete($storedPaths);
+
+            return back()->withErrors(['form' => 'เก็บรูปมิเตอร์ไม่สำเร็จ ลองบันทึกอีกครั้ง ถ้ายังไม่ได้ให้แจ้งแอดมิน'])->withInput();
         }
-        unset($entry);
 
         $oldImagePaths = [];
         $hadExisting   = false;
 
-        DB::transaction(function () use ($entries, $property, $year, $month, $rentYear, $rentMonth, $remark, &$oldImagePaths, &$hadExisting) {
-            foreach ($entries as $entry) {
-                $meter    = $entry['meter'];
-                $existing = MeterReading::where('property_meter_id', $meter->id)
-                    ->forPeriod($year, $month)
-                    ->first();
+        try {
+            DB::transaction(function () use ($entries, $property, $year, $month, $rentYear, $rentMonth, $remark, $restartPhotoOn, &$oldImagePaths, &$hadExisting) {
+                foreach ($entries as $entry) {
+                    $meter    = $entry['meter'];
+                    $existing = MeterReading::where('property_meter_id', $meter->id)
+                        ->forPeriod($year, $month)
+                        ->first();
 
-                if ($existing) {
-                    $hadExisting = true;
-                    if ($entry['new_image_path'] && $existing->image_path) {
-                        $oldImagePaths[] = $existing->image_path;
+                    if ($existing) {
+                        $hadExisting = true;
+                        if ($entry['new_image_path'] && $existing->image_path) {
+                            $oldImagePaths[] = $existing->image_path;
+                        }
                     }
+
+                    $restartValues = [];
+                    if ($restartPhotoOn) {
+                        $restartPath = $entry['meter_changed'] ? ($entry['new_restart_image_path'] ?: ($existing->old_meter_final_image_path ?? null)) : null;
+                        if ($existing?->old_meter_final_image_path && $existing->old_meter_final_image_path !== $restartPath) {
+                            $oldImagePaths[] = $existing->old_meter_final_image_path;
+                        }
+                        $restartValues['old_meter_final_image_path'] = $restartPath;
+                    }
+
+                    MeterReading::updateOrCreate(
+                        [
+                            'property_meter_id' => $meter->id,
+                            'billing_year'      => $year,
+                            'billing_month'     => $month,
+                        ],
+                        $restartValues + [
+                            'property_id'             => $property->id,
+                            'meter_type'              => $meter->meter_type,
+                            'rent_year'               => $rentYear,
+                            'rent_month'              => $rentMonth,
+                            'previous_reading'        => $entry['previous_reading'],
+                            'current_reading'         => $entry['current_reading'],
+                            'reading_date'            => $entry['reading_date'],
+                            'meter_reset'             => $entry['meter_reset'],
+                            'meter_changed'           => $entry['meter_changed'],
+                            'old_meter_final_reading' => $entry['old_meter_final_reading'],
+                            'new_meter_start_reading' => $entry['new_meter_start_reading'],
+                            'meter_max_value'         => $entry['meter_max_value'],
+                            'units_used'              => $entry['units_used'],
+                            'price_per_unit'          => $entry['price_per_unit'],
+                            'amount'                  => $entry['units_used'] * (float) $entry['price_per_unit'],
+                            'image_path'              => $entry['new_image_path'] ?: ($existing->image_path ?? null),
+                            'remark'                  => $remark,
+                            // บันทึก = ยืนยันทันที (ไม่มีขั้นตอนกดยืนยันแยกอีกต่อไป) - ตามที่ผู้ดูแลระบบขอ
+                            // เพื่อลดขั้นตอนของผู้บริหารโครงการ ยังแก้ไขซ้ำได้ตามปกติจนกว่าจะออกใบแจ้งหนี้แล้ว
+                            // (ดู hasIssuedUtilityInvoice() guard ด้านบน)
+                            'status'                  => 'confirmed',
+                            'confirmed_at'            => now(),
+                            'confirmed_by'            => session('agent_id'),
+                            'created_by'              => $existing->created_by ?? session('agent_id'),
+                            'updated_by'              => session('agent_id'),
+                        ]
+                    );
                 }
+            });
+        } catch (\Throwable $e) {
+            // DB ล้ม = ไม่มีแถวไหนเปลี่ยน (transaction) - ลบรูปที่เพิ่งเขียน ไม่ให้ค้างเป็นไฟล์กำพร้า
+            report($e);
+            $disk->delete($storedPaths);
 
-                MeterReading::updateOrCreate(
-                    [
-                        'property_meter_id' => $meter->id,
-                        'billing_year'      => $year,
-                        'billing_month'     => $month,
-                    ],
-                    [
-                        'property_id'              => $property->id,
-                        'meter_type'               => $meter->meter_type,
-                        'rent_year'                => $rentYear,
-                        'rent_month'               => $rentMonth,
-                        'previous_reading'         => $entry['previous_reading'],
-                        'current_reading'          => $entry['current_reading'],
-                        'reading_date'             => $entry['reading_date'],
-                        'meter_reset'              => $entry['meter_reset'],
-                        'meter_changed'            => $entry['meter_changed'],
-                        'old_meter_final_reading'  => $entry['old_meter_final_reading'],
-                        'new_meter_start_reading'  => $entry['new_meter_start_reading'],
-                        'meter_max_value'          => $entry['meter_max_value'],
-                        'units_used'               => $entry['units_used'],
-                        'price_per_unit'           => $entry['price_per_unit'],
-                        'amount'                   => $entry['units_used'] * (float) $entry['price_per_unit'],
-                        'image_path'               => $entry['new_image_path'] ?: ($existing->image_path ?? null),
-                        'remark'                   => $remark,
-                        // บันทึก = ยืนยันทันที (ไม่มีขั้นตอนกดยืนยันแยกอีกต่อไป) - ตามที่ผู้ดูแลระบบขอ
-                        // เพื่อลดขั้นตอนของผู้บริหารโครงการ ยังแก้ไขซ้ำได้ตามปกติจนกว่าจะออกใบแจ้งหนี้แล้ว
-                        // (ดู hasIssuedUtilityInvoice() guard ด้านบน)
-                        'status'                   => 'confirmed',
-                        'confirmed_at'             => now(),
-                        'confirmed_by'             => session('agent_id'),
-                        'created_by'               => $existing->created_by ?? session('agent_id'),
-                        'updated_by'               => session('agent_id'),
-                    ]
-                );
-            }
-        });
-
-        foreach ($oldImagePaths as $path) {
-            Storage::disk('meter_storage')->delete($path);
+            return back()->withErrors(['form' => 'บันทึกเลขมิเตอร์ไม่สำเร็จ ลองบันทึกอีกครั้ง ถ้ายังไม่ได้ให้แจ้งแอดมิน'])->withInput();
         }
+
+        $disk->delete($oldImagePaths);
 
         logSystem(
             userType: 'agent',
@@ -435,13 +648,49 @@ class MeterReadingController extends Controller
             description: "บันทึกมิเตอร์ {$property->title} งวด {$month}/{$year}"
         );
 
+        $scope = $this->scopeFrom($request);
+        $code  = $property->property_code ?: $property->title;
+        // มิเตอร์ที่เว้นเลขปัจจุบันว่างไว้ (ข้าม ไม่บันทึก) - บอกในข้อความว่ายังเหลือตัวไหน ทรัพย์เป็น "จดบางส่วน"
+        $skippedNote = $skipped
+            ? ' (ยังไม่ได้จด ' . collect($skipped)->map(fn ($id) => $labels[$id] ?? 'มิเตอร์')->implode(', ') . ' ต้องจดก่อนออกใบแจ้งหนี้น้ำ/ไฟ)'
+            : '';
+
+        // งวดถัดไปจดไว้แล้วแต่เริ่มจากเลขอื่น -> หน่วยงวดนั้นยังคิดจากเลขเดิม พาไปงวดนั้นให้กดบันทึกซ้ำทันที
+        // (มาก่อนปุ่ม "บันทึก แล้วไปทรัพย์ถัดไป" เพราะถ้าไม่แก้ตอนนี้ ใบแจ้งหนี้งวดถัดไปจะคิดหน่วยผิด - เหมือนแอดมิน)
+        $mismatched = collect($checked)->filter(fn ($v) => $v['next_mismatch'])->keys();
+        if ($mismatched->isNotEmpty()) {
+            [$nextYear, $nextMonth] = $month === 12 ? [$year + 1, 1] : [$year, $month + 1];
+
+            return redirect()
+                ->route('meters.show', ['property' => $property->id, 'year' => $nextYear, 'month' => $nextMonth] + $scope)
+                ->with('meter_notice', [
+                    'title' => 'บันทึกงวด ' . MeterReading::periodLabel($year, $month) . ' แล้ว - งวดนี้ต้องบันทึกซ้ำ',
+                    'text'  => 'เลขเดือนก่อนของ ' . $mismatched->map(fn ($id) => $labels[$id])->implode(', ') . ' เปลี่ยนไป ตรวจเลข แล้วกด "บันทึกข้อมูลมิเตอร์"',
+                ]);
+        }
+
+        // ปุ่ม "บันทึก แล้วไปทรัพย์ถัดไป" - ไปทรัพย์ถัดไปที่ยังต้องจด/ยืนยันในตัวกรองเดียวกัน
+        if ($request->boolean('next')) {
+            $nextId = $this->nextPropertyNeedingWork($property->id, $scope, $year, $month);
+            if ($nextId) {
+                return redirect()
+                    ->route('meters.show', ['property' => $nextId, 'year' => $year, 'month' => $month] + $scope)
+                    ->with('success', "บันทึกมิเตอร์ {$code} แล้ว{$skippedNote} - ต่อด้วยทรัพย์ถัดไป");
+            }
+
+            return redirect()
+                ->route('meters.index', ['year' => $year, 'month' => $month] + $scope)
+                ->with('success', $skipped
+                    ? "บันทึกมิเตอร์ {$code} แล้ว{$skippedNote} - ทรัพย์อื่นในรายการนี้จดครบแล้ว"
+                    : "บันทึกมิเตอร์ {$code} แล้ว - จดครบทุกทรัพย์ในรายการนี้แล้ว");
+        }
+
+        $listStatus = (string) $request->input('list_status', '');
+
         return redirect()
-            ->route('meters.index', array_filter([
-                'year'  => $year,
-                'month' => $month,
-                'q'     => $property->property_code,
-            ]))
-            ->with('success', 'บันทึกและยืนยันข้อมูลมิเตอร์เรียบร้อยแล้ว');
+            ->route('meters.index', ['year' => $year, 'month' => $month] + $scope
+                + (in_array($listStatus, self::PERIOD_STATUSES, true) ? ['status' => $listStatus] : []))
+            ->with('success', "บันทึกและยืนยันข้อมูลมิเตอร์ {$code} เรียบร้อยแล้ว{$skippedNote}");
     }
 
     /**
@@ -479,15 +728,16 @@ class MeterReadingController extends Controller
             return back()->with('error', 'ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ไม่สามารถลบข้อมูลมิเตอร์ได้');
         }
 
-        $imagePaths = $readings->pluck('image_path')->filter();
+        $imagePaths = $readings->pluck('image_path');
+        if (MeterReading::supportsRestartPhoto()) {
+            $imagePaths = $imagePaths->merge($readings->pluck('old_meter_final_image_path'));
+        }
 
         $deleteQuery = MeterReading::forProperty($property->id);
         $deleteQuery = $byRentPeriod ? $deleteQuery->forRentPeriod($year, $month) : $deleteQuery->forPeriod($year, $month);
         $deleteQuery->forceDelete();
 
-        foreach ($imagePaths as $path) {
-            Storage::disk('meter_storage')->delete($path);
-        }
+        Storage::disk('meter_storage')->delete($imagePaths->filter()->values()->all());
 
         logSystem(
             userType: 'agent',
@@ -497,7 +747,9 @@ class MeterReadingController extends Controller
             description: "ลบข้อมูลมิเตอร์ {$property->title} งวด {$month}/{$year}"
         );
 
-        return back()->with('success', 'ลบข้อมูลมิเตอร์เรียบร้อยแล้ว ต้องบันทึกใหม่');
+        return redirect()
+            ->route('meters.index', ['year' => $year, 'month' => $month] + $this->scopeFrom($request))
+            ->with('success', 'ลบข้อมูลมิเตอร์เรียบร้อยแล้ว ต้องบันทึกใหม่');
     }
 
     /**
@@ -550,7 +802,7 @@ class MeterReadingController extends Controller
         );
 
         return redirect()
-            ->route('meters.show', ['property' => $property->id, 'year' => $year, 'month' => $month])
+            ->route('meters.show', ['property' => $property->id, 'year' => $year, 'month' => $month] + $this->scopeFrom($request))
             ->with('success', 'ยืนยันข้อมูลมิเตอร์เรียบร้อยแล้ว พร้อมออกใบแจ้งหนี้');
     }
 
@@ -575,16 +827,207 @@ class MeterReadingController extends Controller
             ->exists();
     }
 
-    public function viewImage(MeterReading $reading)
+    /** ?kind=restart = รูปเลขสุดท้ายก่อนเริ่มนับใหม่ (old_meter_final_image_path) - เหมือนแอดมิน */
+    public function viewImage(Request $request, MeterReading $reading)
     {
         HrProperty::where('id', $reading->property_id)
             ->where('manager_agent_code', session('agent_code'))
             ->firstOrFail();
 
-        abort_if(! $reading->image_path, 404, 'ไม่พบรูปภาพ');
-        abort_if(! Storage::disk('meter_storage')->exists($reading->image_path), 404, 'ไม่พบรูปภาพ');
+        $path = $request->query('kind') === 'restart' && MeterReading::supportsRestartPhoto()
+            ? $reading->old_meter_final_image_path
+            : $reading->image_path;
 
-        return response()->file(Storage::disk('meter_storage')->path($reading->image_path));
+        abort_if(! $path, 404, 'ไม่พบรูปภาพ');
+        abort_if(! Storage::disk('meter_storage')->exists($path), 404, 'ไม่พบรูปภาพ');
+
+        return response()->file(Storage::disk('meter_storage')->path($path));
+    }
+
+    /** ตัวกรองของหน้ารายการ (ค่าว่างตัดทิ้ง) - ใช้ทั้งรายการ ลิงก์ไปหน้าบันทึก และปุ่มทรัพย์ก่อนหน้า/ถัดไป */
+    private function scopeFrom(Request $request): array
+    {
+        return array_filter(
+            array_map(fn ($v) => is_string($v) ? trim($v) : $v, $request->only(self::SCOPE_KEYS)),
+            fn ($v) => $v !== null && $v !== '' && ! is_array($v)
+        );
+    }
+
+    /**
+     * ทรัพย์ของตัวแทนคนนี้ที่มีมิเตอร์เปิดใช้งานอยู่จริง ตามตัวกรองของหน้ารายการ เรียงตามรหัสทรัพย์ = ลำดับของตาราง
+     * และของปุ่มก่อนหน้า/ถัดไป (เงื่อนไขเดียวกับ scopedPropertyIds() ของแอดมิน)
+     *
+     * @return Collection id => เปิดระบบมิเตอร์อยู่ (bool)
+     */
+    private function scopedProperties(string $agentCode, array $scope): Collection
+    {
+        $search = (string) ($scope['search'] ?? '');
+
+        return HrProperty::where('manager_agent_code', $agentCode)
+            ->whereHas('activeMeters')
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($qq) use ($search) {
+                    $qq->where('title', 'like', "%{$search}%")
+                        ->orWhere('property_code', 'like', "%{$search}%");
+                });
+            })
+            ->when($scope['property_status_id'] ?? null, fn ($q, $v) => $q->where('property_status_id', $v))
+            ->orderBy('property_code')
+            ->pluck('is_utility_metering_enabled', 'id')
+            ->map(fn ($enabled) => (bool) $enabled);
+    }
+
+    /**
+     * สถานะงวดของแต่ละทรัพย์ - งวดนี้หมายถึงงวดค่าเช่าที่จะเรียกเก็บพร้อมกัน (rent_year/rent_month) ไม่ใช่เดือนปฏิทินที่จดจริง
+     * ตรงกับ periodStatuses() ของแอดมินทุกข้อ:
+     *   invoiced   = ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้แล้ว (ข้อมูลล็อก)
+     *   recorded   = จดครบทุกตัวและยืนยันครบ = พร้อมออกใบ
+     *   draft      = จดครบแต่ยังมีแถวที่ไม่ยืนยัน (ข้อมูลเก่าก่อนที่การบันทึกจะยืนยันทันที) - หน้าใบแจ้งหนี้น้ำ/ไฟของแอดมิน
+     *                นับเป็น "ยังจดมิเตอร์ไม่ครบ" จึงต้องแยกให้เห็น
+     *   partial    = จดแล้วบางตัว
+     *   unrecorded = ยังไม่จดเลย
+     */
+    private function periodStatuses(Collection $propertyIds, int $year, int $month): array
+    {
+        $meterCounts = HrPropertyMeter::whereIn('property_id', $propertyIds)
+            ->where('is_active', true)
+            ->get(['id', 'property_id', 'meter_type'])
+            ->groupBy('property_id');
+
+        $readingsByProperty = MeterReading::whereIn('property_id', $propertyIds)
+            ->forRentPeriod($year, $month)
+            ->get()
+            ->groupBy('property_id');
+
+        $invoicedPropertyIds = HrInvoice::where('invoice_type', 'utility')
+            ->where('billing_month', sprintf('%04d-%02d', $year, $month))
+            ->whereNotIn('status', ['cancelled', 'voided'])
+            ->whereIn('property_id', $propertyIds)
+            ->pluck('property_id')
+            ->unique()
+            ->flip();
+
+        $status = $propertyIds->mapWithKeys(function ($id) use ($meterCounts, $readingsByProperty, $invoicedPropertyIds) {
+            if (isset($invoicedPropertyIds[$id])) {
+                return [$id => 'invoiced'];
+            }
+
+            $meterCount = $meterCounts->get($id, collect())->count();
+            $readings   = $readingsByProperty->get($id, collect());
+
+            if ($meterCount > 0 && $readings->count() === $meterCount) {
+                return [$id => $readings->every(fn ($r) => $r->status === 'confirmed') ? 'recorded' : 'draft'];
+            }
+
+            return [$id => $readings->isNotEmpty() ? 'partial' : 'unrecorded'];
+        });
+
+        return compact('meterCounts', 'readingsByProperty', 'invoicedPropertyIds', 'status');
+    }
+
+    /**
+     * ทรัพย์ถัดไป (ตามลำดับรายการเดียวกับที่ตัวแทนเห็น) ที่ยังต้องจด/ยืนยันในงวดนี้ - หาต่อจากทรัพย์ปัจจุบันก่อน
+     * แล้ววนกลับจากต้นรายการ ไม่มีแล้วคืน null (ข้ามทรัพย์ที่ปิดระบบมิเตอร์ เพราะเปิดหน้าบันทึกไม่ได้)
+     */
+    private function nextPropertyNeedingWork(int $currentId, array $scope, int $year, int $month): ?int
+    {
+        $ids    = $this->scopedProperties((string) session('agent_code'), $scope)->filter()->keys()->values();
+        $status = $this->periodStatuses($ids, $year, $month)['status'];
+
+        $position = $ids->search($currentId);
+        $ordered  = $position === false
+            ? $ids
+            : $ids->slice($position + 1)->concat($ids->slice(0, $position));
+
+        return $ordered->first(fn ($id) => in_array($status[$id] ?? null, self::NEEDS_WORK_STATUSES, true));
+    }
+
+    /**
+     * การจองที่ใบแจ้งหนี้น้ำ/ไฟของงวดนี้จะเรียกเก็บ ต่อทรัพย์ - กติกาเดียวกับ happyest
+     * UtilityInvoiceBillingRowService::billingBookingsForPeriod(): การจองที่ไม่ถูกยกเลิก/ปฏิเสธ มีลูกค้า และเริ่มก่อนสิ้นงวด
+     * เลือกตามลำดับ เข้าใช้พื้นที่อยู่ + คาบเกี่ยวงวด > คาบเกี่ยวงวด > อื่นๆ (เท่ากันเอาที่เริ่มล่าสุด)
+     *
+     * @return Collection property_id => HrBooking
+     */
+    private function billingBookingsForPeriod(array $propertyIds, int $year, int $month): Collection
+    {
+        if (empty($propertyIds)) {
+            return collect();
+        }
+
+        $periodStart = Carbon::create($year, $month, 1)->startOfMonth();
+        $periodEnd   = $periodStart->copy()->endOfMonth();
+
+        $priority = function (HrBooking $booking) use ($periodStart): int {
+            $overlaps = $booking->check_out === null || $booking->check_out->gte($periodStart);
+
+            return match (true) {
+                $booking->status === 'checked_in' && $overlaps => 0,
+                $overlaps => 1,
+                default => 2,
+            };
+        };
+
+        return HrBooking::whereIn('property_id', $propertyIds)
+            ->whereNotIn('status', ['cancelled', 'rejected'])
+            ->whereNotNull('customer_id')
+            ->where('check_in', '<=', $periodEnd)
+            ->orderByDesc('check_in')
+            ->orderByDesc('id')
+            ->get(['id', 'property_id', 'booking_code', 'status', 'check_in', 'check_out'])
+            ->groupBy('property_id')
+            ->map(fn ($g) => $g->sortBy($priority)->first());
+    }
+
+    /**
+     * "บันทึกเมื่อไร โดยใคร" ของเลขมิเตอร์งวดนี้ต่อทรัพย์ - พอร์ตจาก happyest MeterReadingRecorderService
+     * updated_by เป็น id ของผู้บริหารโครงการ (แอปนี้) หรือ id ของแอดมิน (happyest) โดยไม่มีคอลัมน์บอกฝั่ง และ id ชนกันได้
+     * จึงแยกด้วย hr_audit_logs: แอดมินเขียน meter_reading.create/update (record_id = ทรัพย์, description มี "งวด {เดือน}/{ปี} ")
+     * ทุกครั้งที่บันทึก - เจอ log ของแอดมินคนนั้นภายใน 60 วินาทีหลัง updated_at = แอดมินบันทึกแทน ไม่เจอ = ผู้บริหารโครงการ
+     *
+     * @param  Collection  $readingsByProperty  MeterReading ของงวดที่แสดง groupBy('property_id')
+     * @return Collection property_id => object{at, first_at, edited, role ('admin'|'agent'), name}
+     */
+    private function latestRecorders(Collection $readingsByProperty): Collection
+    {
+        $latest = $readingsByProperty
+            ->map(fn ($readings) => $readings->filter(fn ($r) => $r->updated_at)->sortByDesc('updated_at')->first())
+            ->filter();
+
+        if ($latest->isEmpty()) {
+            return collect();
+        }
+
+        $adminLogs = DB::table('hr_audit_logs')
+            ->where('table_name', 'ag_meter_readings')
+            ->whereIn('record_id', $latest->keys()->map(fn ($id) => (string) $id)->all())
+            ->whereIn('action', ['meter_reading.create', 'meter_reading.update'])
+            ->whereBetween('created_at', [
+                $latest->min('updated_at'),
+                $latest->max('updated_at')->copy()->addSeconds(self::RECORDER_LOG_WINDOW_SECONDS),
+            ])
+            ->get(['record_id', 'user_id', 'description', 'created_at'])
+            ->groupBy('record_id');
+
+        $byAdmin = $latest->map(function ($reading, $propertyId) use ($adminLogs) {
+            $period = " งวด {$reading->billing_month}/{$reading->billing_year} ";
+            $until  = $reading->updated_at->copy()->addSeconds(self::RECORDER_LOG_WINDOW_SECONDS);
+
+            return $adminLogs->get((string) $propertyId, collect())->contains(fn ($log) => (int) $log->user_id === (int) $reading->updated_by
+                && Carbon::parse($log->created_at)->between($reading->updated_at, $until)
+                && str_contains((string) $log->description, $period));
+        });
+
+        $adminIds   = $latest->filter(fn ($r, $pid) => $byAdmin[$pid])->pluck('updated_by')->filter()->unique();
+        $adminNames = $adminIds->isEmpty() ? collect() : HrAdmin::withTrashed()->whereIn('id', $adminIds)->pluck('name', 'id');
+
+        return $latest->map(fn ($reading, $propertyId) => (object) [
+            'at'       => $reading->updated_at,
+            'first_at' => $reading->created_at,
+            'edited'   => $reading->created_at && $reading->updated_at->gt($reading->created_at),
+            'role'     => $byAdmin[$propertyId] ? 'admin' : 'agent',
+            'name'     => $byAdmin[$propertyId] ? $adminNames->get($reading->updated_by) : null,
+        ]);
     }
 
     /**
@@ -607,6 +1050,41 @@ class MeterReadingController extends Controller
             ->where('billing_year', $prevYear)
             ->where('billing_month', $prevMonth)
             ->first();
+    }
+
+    /** แถวล่าสุดที่เก่ากว่าเดือน-1 - ใช้แค่เป็นค่าแนะนำของช่องเลขเดือนก่อนตอนเดือนก่อนไม่ได้จด (เหมือนแอดมิน) */
+    private function findLatestEarlierReading(int $propertyMeterId, int $year, int $month): ?MeterReading
+    {
+        return MeterReading::where('property_meter_id', $propertyMeterId)
+            ->where(fn ($q) => $q->where('billing_year', '<', $year)
+                ->orWhere(fn ($q) => $q->where('billing_year', $year)->where('billing_month', '<', $month)))
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->first();
+    }
+
+    /** แถวของงวดถัดไป (เดือน+1) - previous_reading ของแถวนั้นต้องเท่ากับเลขปัจจุบันของงวดนี้ */
+    private function findNextReading(int $propertyMeterId, int $year, int $month): ?MeterReading
+    {
+        [$nextYear, $nextMonth] = $month === 12 ? [$year + 1, 1] : [$year, $month + 1];
+
+        return MeterReading::where('property_meter_id', $propertyMeterId)
+            ->forPeriod($nextYear, $nextMonth)
+            ->first();
+    }
+
+    /** ชื่อมิเตอร์แบบเดียวกับหัวแถวในหน้าบันทึก ("ไฟฟ้า" / "ไฟฟ้า ตัวที่ 2") - ใช้ในข้อความแจ้งเตือน */
+    private function meterLabels($meters): array
+    {
+        $labels = [];
+        foreach ($meters->groupBy('meter_type') as $typeMeters) {
+            $multi = $typeMeters->count() > 1;
+            foreach ($typeMeters->values() as $i => $meter) {
+                $labels[$meter->id] = $meter->type_label . ($multi ? ' ตัวที่ ' . ($i + 1) : '');
+            }
+        }
+
+        return $labels;
     }
 
     /**

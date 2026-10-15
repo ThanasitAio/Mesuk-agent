@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * เลขที่จดของมิเตอร์หลัก (hr_master_meter_readings ของ happyest - DB เดียวกัน) 1 แถว = 1 มิเตอร์หลัก x 1 เดือนที่จด
@@ -38,6 +39,17 @@ class HrMasterMeterReading extends Model
             ->map(fn ($p) => ['id' => (int) $p->id, 'code' => $p->property_code, 'title' => $p->title])
             ->values()
             ->all();
+    }
+
+    /**
+     * มีคอลัมน์รูปเลขสุดท้ายก่อนเริ่มนับใหม่ (old_meter_final_image_path) แล้วหรือยัง - happyest เพิ่มด้วย SQL แยก
+     * ยังไม่มี = ซ่อนช่องรูปนี้และไม่เขียนคอลัมน์นี้ (เหมือน happyest MasterMeterReading::supportsRestartPhoto())
+     */
+    public static function supportsRestartPhoto(): bool
+    {
+        static $has = null;
+
+        return $has ??= Schema::hasColumn('hr_master_meter_readings', 'old_meter_final_image_path');
     }
 
     public function masterMeter()

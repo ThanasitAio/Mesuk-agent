@@ -8,12 +8,14 @@ use App\Models\HrPropertyGroup;
 use App\Models\MeterReading;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 /**
  * บันทึกมิเตอร์หลัก (ผู้บริหารโครงการ) - ล้อ happyest AdminMasterMeterReadingController ทุกขั้นตอน
  * (สูตรหน่วย, ดึงเลขเดือนก่อนจากเดือน-1 เท่านั้น, เก็บ snapshot ตอนจดครั้งแรก, เขียนรูปก่อน transaction,
  * ลบงวดแบบ hard delete) เขียนลงตารางเดียวกับแอดมิน (hr_master_meter_readings)
- * ต่างจากแอดมินโดยตั้งใจ: ไม่มีโหมด "มิเตอร์รีเซ็ต" - ใช้ "มิเตอร์เริ่มนับใหม่" (meter_changed) อย่างเดียว
+ * กติกากันกรอกผิด (ครบหลักพอดี, ห้ามน้อยกว่าเดือนก่อน ฯลฯ) ใช้ MeterReading::checkInput() ตัวเดียวกับมิเตอร์ย่อย
+ * ทั้งแอดมินและตัวแทนไม่มีโหมด "มิเตอร์รีเซ็ต" แล้ว - ใช้ "มิเตอร์เริ่มนับใหม่" (meter_changed) อย่างเดียว
  *
  * ต่างจากหน้าแอดมินแค่ขอบเขต: ตัวแทนเห็น บันทึก และลบได้เฉพาะมิเตอร์หลักที่ตัวเองเป็น "ผู้จด"
  * ตาม HrMasterMeter::resolveRecorder() (แอดมินกำหนด) ไม่ใช่ทั้งกลุ่ม
@@ -102,16 +104,42 @@ class MasterMeterReadingController extends Controller
 
         $previousReadings = [];
         $previousReadingDates = [];
+        $previousUnits = [];
+        $suggestedPrevious = [];
+        $nextReadings = [];
         foreach ($meters as $meter) {
             $priorReading = $this->findPriorReading($meter->id, $year, $month);
             $previousReadings[$meter->id] = $priorReading?->current_reading;
             $previousReadingDates[$meter->id] = $priorReading?->reading_date?->format('Y-m-d');
+            $previousUnits[$meter->id] = $priorReading?->units_used;
+
+            // เดือนก่อนไม่ได้จด: เสนอเลขล่าสุดของงวดที่เก่ากว่าเป็นค่าเริ่มต้น (สีเหลือง แก้ได้) - เหมือนแอดมินและมิเตอร์ย่อย
+            if (! $priorReading && ! $meter->reading) {
+                $earlier = $this->findLatestEarlierReading($meter->id, $year, $month);
+                if ($earlier) {
+                    $suggestedPrevious[$meter->id] = [
+                        'value'  => (int) $earlier->current_reading,
+                        'period' => MeterReading::periodLabel((int) $earlier->billing_year, (int) $earlier->billing_month),
+                    ];
+                }
+            }
+
+            // มิเตอร์หลักไม่มีใบแจ้งหนี้ - งวดถัดไปไม่เคยล็อก (เหมือนแอดมิน)
+            $next = $this->findNextReading($meter->id, $year, $month);
+            if ($next) {
+                $nextReadings[$meter->id] = [
+                    'previous' => (int) $next->previous_reading,
+                    'period'   => MeterReading::periodLabel((int) $next->billing_year, (int) $next->billing_month),
+                    'locked'   => false,
+                ];
+            }
         }
 
         $allRecorded     = $currentReadings->count() === $meters->count();
         $propertyCount   = $group->properties()->count();
         $groupMeterCount = HrMasterMeter::active()->where('property_group_id', $group->property_group_id)->count();
         $remark          = $currentReadings->first()?->remark;
+        $restartPhoto    = HrMasterMeterReading::supportsRestartPhoto();
 
         // แถวของงวดนี้ที่คนอื่น (ผู้จดคนอื่น/แอดมิน) เป็นคนจด - ลบงวดจากหน้านี้ไม่แตะ แจ้งในกล่องยืนยันลบ
         $othersRecordedCount = HrMasterMeterReading::forGroup($group->property_group_id)
@@ -129,7 +157,8 @@ class MasterMeterReadingController extends Controller
 
         return view('master-meters.show', compact(
             'group', 'meters', 'currentReadings', 'previousReadings', 'previousReadingDates', 'year', 'month',
-            'allRecorded', 'propertyCount', 'groupMeterCount', 'remark', 'othersRecordedCount'
+            'previousUnits', 'suggestedPrevious', 'nextReadings',
+            'allRecorded', 'propertyCount', 'groupMeterCount', 'remark', 'othersRecordedCount', 'restartPhoto'
         ));
     }
 
@@ -139,158 +168,199 @@ class MasterMeterReadingController extends Controller
 
         $agentCode = (string) session('agent_code');
 
-        $validated = $request->validate([
-            'billing_year'                       => 'required|integer|min:2020|max:' . (now()->year + 1),
-            'billing_month'                      => 'required|integer|between:1,12',
-            'readings'                           => 'required|array|min:1',
-            'readings.*.current_reading'         => 'nullable|integer|min:0',
-            'readings.*.reading_date'            => 'nullable|date|before_or_equal:today',
-            'readings.*.previous_reading'        => 'nullable|integer|min:0',
-            'readings.*.meter_changed'           => 'sometimes|boolean',
-            'readings.*.old_meter_final_reading' => 'nullable|integer|min:0',
-            'readings.*.new_meter_start_reading' => 'nullable|integer|min:0',
-            'readings.*.image'                   => 'nullable|file|mimes:jpg,jpeg,png|max:10240',
-            'remark'                             => 'nullable|string|max:1000',
-        ], [
-            'readings.required'                       => 'กรุณากรอกข้อมูลมิเตอร์อย่างน้อย 1 รายการ',
-            'readings.*.reading_date.before_or_equal' => 'วันที่อ่านมิเตอร์ต้องไม่เกินวันนี้',
-            'readings.*.image.mimes'                  => 'ไฟล์รูปต้องเป็น JPG หรือ PNG เท่านั้น',
-            'readings.*.image.max'                    => 'ขนาดรูปต้องไม่เกิน 10MB',
-        ]);
-
-        $year  = (int) $validated['billing_year'];
-        $month = (int) $validated['billing_month'];
-
         // IDOR guard: key ของ readings[] ต้องเป็นมิเตอร์หลักที่เปิดใช้งานของกลุ่มนี้ "และ" ตัวแทนคนนี้เป็นผู้จดเท่านั้น
         // - ตรวจผู้จดใหม่ตอนบันทึกเสมอ เผื่อแอดมินเปลี่ยนผู้จด/ผู้บริหารทรัพย์ระหว่างที่หน้าเปิดค้างไว้
         $meters = HrMasterMeter::forRecorder($agentCode, $group->property_group_id)['record']->keyBy('id');
         abort_if($meters->isEmpty(), 403, 'คุณไม่ได้เป็นผู้จดมิเตอร์หลักของกลุ่มนี้');
 
-        $submittedIds = array_map('intval', array_keys($validated['readings']));
-        if (! empty(array_diff($submittedIds, $meters->keys()->all()))) {
-            return back()->with('error', 'พบข้อมูลมิเตอร์ที่ไม่ถูกต้อง หรือคุณไม่ได้เป็นผู้จดมิเตอร์บางตัวแล้ว กรุณาโหลดหน้าใหม่')->withInput();
+        $validator = Validator::make($request->all(), [
+            'billing_year'                       => 'required|integer|min:2020|max:' . (now()->year + 1),
+            'billing_month'                      => 'required|integer|between:1,12',
+            'readings'                           => 'required|array|min:1',
+            // เลขมิเตอร์ตรวจเป็นข้อความใน MeterReading::checkInput() (ครบหลักพอดี 0 นำหน้าได้) - กฎ integer ไม่รับ "02345"
+            'readings.*.current_reading'         => 'nullable|string|max:10',
+            'readings.*.reading_date'            => 'nullable|date|before_or_equal:today',
+            'readings.*.previous_reading'        => 'nullable|string|max:10',
+            'readings.*.meter_changed'           => 'sometimes|boolean',
+            'readings.*.old_meter_final_reading' => 'nullable|string|max:10',
+            'readings.*.new_meter_start_reading' => 'nullable|string|max:10',
+            'readings.*.image'                   => 'nullable|file|mimes:jpg,jpeg,png|max:10240',
+            'readings.*.restart_image'           => 'nullable|file|mimes:jpg,jpeg,png|max:10240',
+            'remark'                             => 'nullable|string|max:1000',
+        ], MeterReading::validationMessages(), MeterReading::validationAttributes($meters->map->name->all()));
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
         }
 
-        $remark = $validated['remark'] ?? null;
+        $validated = $validator->validated();
+
+        $year  = (int) $validated['billing_year'];
+        $month = (int) $validated['billing_month'];
+
+        $submittedIds = array_map('intval', array_keys($validated['readings']));
+        if (! empty(array_diff($submittedIds, $meters->keys()->all()))) {
+            return back()->withErrors(['form' => 'พบข้อมูลมิเตอร์ที่ไม่ถูกต้อง หรือคุณไม่ได้เป็นผู้จดมิเตอร์บางตัวแล้ว กรุณาโหลดหน้าใหม่'])->withInput();
+        }
+
+        $remark         = $validated['remark'] ?? null;
+        $restartPhotoOn = HrMasterMeterReading::supportsRestartPhoto();
 
         $existingRows = HrMasterMeterReading::whereIn('master_meter_id', $submittedIds)
             ->forPeriod($year, $month)
             ->get()
             ->keyBy('master_meter_id');
 
+        $checkMeta = [];
+        foreach ($submittedIds as $meterId) {
+            $checkMeta[$meterId] = [
+                'type'     => $meters[$meterId]->meter_type,
+                // ชื่อเดียวกับที่หน้าบันทึกแสดง (งวดที่จดแล้วแสดงชื่อตอนบันทึก)
+                'label'    => $existingRows->get($meterId)?->master_meter_name ?: $meters[$meterId]->name,
+                'prior'    => $this->findPriorReading($meterId, $year, $month),
+                'existing' => $existingRows->get($meterId),
+                'next'     => $this->findNextReading($meterId, $year, $month),
+            ];
+        }
+
+        // ข้อผิดพลาดส่งเป็น $errors ต่อช่อง หน้าบันทึกแสดงเป็น popup กลางจอรายการเดียว (meters/partials/reading-scripts)
+        ['values' => $checked, 'errors' => $inputErrors, 'skipped' => $skipped] = MeterReading::checkInput($validated['readings'], $checkMeta);
+        if ($inputErrors) {
+            return back()->withErrors($inputErrors)->withInput();
+        }
+
+        // ไม่ได้กรอกเลขปัจจุบันเลยสักตัว = ไม่บันทึกอะไร (ไม่บังคับกรอก - ผู้ใช้ขอ 2026-10-15 เหมือนมิเตอร์ย่อย)
+        if (! $checked) {
+            return redirect()
+                ->route('master-meters.index', ['year' => $year, 'month' => $month])
+                ->with('success', "ไม่ได้กรอกเลขมิเตอร์หลักของกลุ่ม {$group->property_group_name} จึงยังไม่ได้บันทึก (จดทีหลังได้)");
+        }
+
         $entries = [];
-        foreach ($validated['readings'] as $meterId => $data) {
-            $meterId = (int) $meterId;
-            $meter   = $meters->get($meterId);
-            // ชื่อเดียวกับที่หน้าบันทึกแสดง (งวดที่จดแล้วแสดงชื่อตอนบันทึก)
-            $label = $existingRows->get($meterId)?->master_meter_name ?: $meter->name;
+        foreach ($checked as $meterId => $value) {
+            $meter = $meters->get($meterId);
 
             // "มิเตอร์เริ่มนับใหม่" (meter_changed) ใช้แทนทั้งรีเซ็ตและเปลี่ยนมิเตอร์ - ไม่มีโหมดรีเซ็ตแยกแล้ว
             // จึงบันทึก meter_reset = false เสมอ (แถวเก่าที่เคยรีเซ็ตไว้ บันทึกซ้ำแล้วจะถูกคำนวณใหม่ตามนี้)
-            $meterChanged = (bool) ($data['meter_changed'] ?? false);
-
-            if ($meterChanged && (blank($data['old_meter_final_reading'] ?? null) || blank($data['new_meter_start_reading'] ?? null))) {
-                return back()->with('error', "{$label}: กรุณาระบุเลขสุดท้ายและเลขเริ่มใหม่ของ \"มิเตอร์เริ่มนับใหม่\" ให้ครบ")->withInput();
-            }
-
-            $priorRow = $this->findPriorReading($meterId, $year, $month);
-
-            $previousReading = $priorRow
-                ? (int) $priorRow->current_reading
-                : (int) ($data['previous_reading'] ?? 0);
-
-            $currentReading = (int) ($data['current_reading'] ?? 0);
-
-            if (! $meterChanged && $currentReading < $previousReading) {
-                return back()
-                    ->with('error', "{$label}: เลขมิเตอร์ปัจจุบัน ({$currentReading}) น้อยกว่าเดือนก่อน ({$previousReading}) กรุณาตรวจสอบ หรือกด \"มิเตอร์เริ่มนับใหม่\" ถ้ามิเตอร์วนกลับเป็น 0 หรือเปลี่ยนมิเตอร์ใหม่")
-                    ->withInput();
-            }
-
             $calc = MeterReading::calculateUnits([
-                'previous_reading'        => $previousReading,
-                'current_reading'         => $currentReading,
+                'previous_reading'        => $value['previous_reading'],
+                'current_reading'         => $value['current_reading'],
                 'meter_reset'             => false,
-                'meter_changed'           => $meterChanged,
-                'old_meter_final_reading' => $data['old_meter_final_reading'] ?? null,
-                'new_meter_start_reading' => $data['new_meter_start_reading'] ?? null,
+                'meter_changed'           => $value['meter_changed'],
+                'old_meter_final_reading' => $value['old_meter_final_reading'],
+                'new_meter_start_reading' => $value['new_meter_start_reading'],
                 'meter_max_value'         => null,
             ]);
 
             $entries[$meterId] = [
                 'meter'                   => $meter,
-                'previous_reading'        => $previousReading,
-                'current_reading'         => $currentReading,
-                'reading_date'            => $data['reading_date'] ?? null,
+                'previous_reading'        => $value['previous_reading'],
+                'current_reading'         => $value['current_reading'],
+                'reading_date'            => $value['reading_date'],
                 'meter_reset'             => false,
-                'meter_changed'           => $meterChanged,
-                'old_meter_final_reading' => $data['old_meter_final_reading'] ?? null,
-                'new_meter_start_reading' => $data['new_meter_start_reading'] ?? null,
+                'meter_changed'           => $value['meter_changed'],
+                'old_meter_final_reading' => $value['old_meter_final_reading'],
+                'new_meter_start_reading' => $value['new_meter_start_reading'],
                 'meter_max_value'         => null,
                 'units_used'              => $calc['units_used'],
                 'image'                   => $request->file("readings.$meterId.image"),
+                // รูปเลขสุดท้ายก่อนเริ่มนับใหม่ (ไม่บังคับ) - ปิดสวิตช์ = ไม่รับรูป และรูปเดิมของงวดนี้ถูกลบ
+                'restart_image'           => $restartPhotoOn && $value['meter_changed'] ? $request->file("readings.$meterId.restart_image") : null,
                 'new_image_path'          => null,
+                'new_restart_image_path'  => null,
             ];
         }
 
         // เขียนไฟล์ใหม่ก่อนเปิด transaction ให้ error จากการเขียนไฟล์โผล่ก่อนเขียน DB - ไฟล์เก่าที่ถูกแทนที่
         // ลบหลัง commit สำเร็จเท่านั้น (เหมือนแอดมิน) - path เดียวกับแอดมิน แอดมินจึงเปิดรูปที่ตัวแทนอัปโหลดได้
-        $photoDisk = HrMasterMeter::photoDisk();
-        foreach ($entries as &$entry) {
-            if ($entry['image']) {
-                $entry['new_image_path'] = $photoDisk->putFile('master-meters/' . $group->property_group_id, $entry['image']);
+        $photoDisk   = HrMasterMeter::photoDisk();
+        $storedPaths = [];
+        try {
+            foreach (array_keys($entries) as $meterId) {
+                foreach (['image' => 'new_image_path', 'restart_image' => 'new_restart_image_path'] as $fileKey => $pathKey) {
+                    if (! $entries[$meterId][$fileKey]) {
+                        continue;
+                    }
+                    $path = $photoDisk->putFile('master-meters/' . $group->property_group_id, $entries[$meterId][$fileKey]);
+                    if (! $path) {
+                        throw new \RuntimeException("putFile() returned false for readings.{$meterId}.{$fileKey}");
+                    }
+                    $entries[$meterId][$pathKey] = $path;
+                    $storedPaths[] = $path;
+                }
             }
+        } catch (\Throwable $e) {
+            report($e);
+            $photoDisk->delete($storedPaths);
+
+            return back()->withErrors(['form' => 'เก็บรูปมิเตอร์หลักไม่สำเร็จ ลองบันทึกอีกครั้ง ถ้ายังไม่ได้ให้แจ้งแอดมิน'])->withInput();
         }
-        unset($entry);
 
         $oldImagePaths = [];
         $hadExisting   = false;
 
-        DB::transaction(function () use ($entries, $group, $year, $month, $remark, &$oldImagePaths, &$hadExisting) {
-            foreach ($entries as $entry) {
-                $meter    = $entry['meter'];
-                $existing = HrMasterMeterReading::where('master_meter_id', $meter->id)
-                    ->forPeriod($year, $month)
-                    ->first();
+        try {
+            DB::transaction(function () use ($entries, $group, $year, $month, $remark, $restartPhotoOn, &$oldImagePaths, &$hadExisting) {
+                foreach ($entries as $entry) {
+                    $meter    = $entry['meter'];
+                    $existing = HrMasterMeterReading::where('master_meter_id', $meter->id)
+                        ->forPeriod($year, $month)
+                        ->first();
 
-                if ($existing) {
-                    $hadExisting = true;
-                    if ($entry['new_image_path'] && $existing->image_path) {
-                        $oldImagePaths[] = $existing->image_path;
+                    if ($existing) {
+                        $hadExisting = true;
+                        if ($entry['new_image_path'] && $existing->image_path) {
+                            $oldImagePaths[] = $existing->image_path;
+                        }
                     }
-                }
 
-                HrMasterMeterReading::updateOrCreate(
-                    [
-                        'master_meter_id' => $meter->id,
-                        'billing_year'    => $year,
-                        'billing_month'   => $month,
-                    ],
-                    [
-                        'property_group_id'       => $group->property_group_id,
-                        'meter_type'              => $meter->meter_type,
-                        // ข้อมูลมิเตอร์หลักตอนบันทึก - เก็บตอนจดครั้งแรก แก้เลขภายหลังไม่ดึงข้อมูลหลักใหม่มาทับ
-                        'master_meter_name'       => $existing->master_meter_name ?? $meter->name,
-                        'linked_properties'       => $existing->linked_properties ?? HrMasterMeterReading::snapshotProperties($meter),
-                        'previous_reading'        => $entry['previous_reading'],
-                        'current_reading'         => $entry['current_reading'],
-                        'reading_date'            => $entry['reading_date'],
-                        'meter_reset'             => $entry['meter_reset'],
-                        'meter_changed'           => $entry['meter_changed'],
-                        'old_meter_final_reading' => $entry['old_meter_final_reading'],
-                        'new_meter_start_reading' => $entry['new_meter_start_reading'],
-                        'meter_max_value'         => $entry['meter_max_value'],
-                        'units_used'              => $entry['units_used'],
-                        'image_path'              => $entry['new_image_path'] ?: ($existing->image_path ?? null),
-                        'remark'                  => $remark,
-                        // created_by/updated_by = hr_admins.id (หน้าแอดมิน join ไปตาราง admin) - ห้ามใส่ agent_id
-                        // ไม่งั้นจะโชว์เป็นชื่อแอดมินที่ id ตรงกันโดยบังเอิญ ตัวแทนคนไหนบันทึกดูได้จาก ag_logs
-                        'created_by'              => $existing->created_by ?? null,
-                        'updated_by'              => null,
-                    ]
-                );
-            }
-        });
+                    $restartValues = [];
+                    if ($restartPhotoOn) {
+                        $restartPath = $entry['meter_changed'] ? ($entry['new_restart_image_path'] ?: ($existing->old_meter_final_image_path ?? null)) : null;
+                        if ($existing?->old_meter_final_image_path && $existing->old_meter_final_image_path !== $restartPath) {
+                            $oldImagePaths[] = $existing->old_meter_final_image_path;
+                        }
+                        $restartValues['old_meter_final_image_path'] = $restartPath;
+                    }
+
+                    HrMasterMeterReading::updateOrCreate(
+                        [
+                            'master_meter_id' => $meter->id,
+                            'billing_year'    => $year,
+                            'billing_month'   => $month,
+                        ],
+                        $restartValues + [
+                            'property_group_id'       => $group->property_group_id,
+                            'meter_type'              => $meter->meter_type,
+                            // ข้อมูลมิเตอร์หลักตอนบันทึก - เก็บตอนจดครั้งแรก แก้เลขภายหลังไม่ดึงข้อมูลหลักใหม่มาทับ
+                            'master_meter_name'       => $existing->master_meter_name ?? $meter->name,
+                            'linked_properties'       => $existing->linked_properties ?? HrMasterMeterReading::snapshotProperties($meter),
+                            'previous_reading'        => $entry['previous_reading'],
+                            'current_reading'         => $entry['current_reading'],
+                            'reading_date'            => $entry['reading_date'],
+                            'meter_reset'             => $entry['meter_reset'],
+                            'meter_changed'           => $entry['meter_changed'],
+                            'old_meter_final_reading' => $entry['old_meter_final_reading'],
+                            'new_meter_start_reading' => $entry['new_meter_start_reading'],
+                            'meter_max_value'         => $entry['meter_max_value'],
+                            'units_used'              => $entry['units_used'],
+                            'image_path'              => $entry['new_image_path'] ?: ($existing->image_path ?? null),
+                            'remark'                  => $remark,
+                            // created_by/updated_by = hr_admins.id (หน้าแอดมิน join ไปตาราง admin) - ห้ามใส่ agent_id
+                            // ไม่งั้นจะโชว์เป็นชื่อแอดมินที่ id ตรงกันโดยบังเอิญ ตัวแทนคนไหนบันทึกดูได้จาก ag_logs
+                            'created_by'              => $existing->created_by ?? null,
+                            'updated_by'              => null,
+                        ]
+                    );
+                }
+            });
+        } catch (\Throwable $e) {
+            // DB ล้ม = ไม่มีแถวไหนเปลี่ยน (transaction) - ลบรูปที่เพิ่งเขียน ไม่ให้ค้างเป็นไฟล์กำพร้า
+            report($e);
+            $photoDisk->delete($storedPaths);
+
+            return back()->withErrors(['form' => 'บันทึกเลขมิเตอร์หลักไม่สำเร็จ ลองบันทึกอีกครั้ง ถ้ายังไม่ได้ให้แจ้งแอดมิน'])->withInput();
+        }
 
         $photoDisk->delete($oldImagePaths);
 
@@ -308,9 +378,24 @@ class MasterMeterReadingController extends Controller
             )
         );
 
+        // งวดถัดไปจดไว้แล้วแต่เริ่มจากเลขอื่น -> พาไปงวดนั้นให้กดบันทึกซ้ำ (เหมือนแอดมินและมิเตอร์ย่อย)
+        $mismatched = collect($checked)->filter(fn ($v) => $v['next_mismatch'])->keys();
+        if ($mismatched->isNotEmpty()) {
+            [$nextYear, $nextMonth] = $month === 12 ? [$year + 1, 1] : [$year, $month + 1];
+
+            return redirect()
+                ->route('master-meters.show', ['group' => $group->property_group_id, 'year' => $nextYear, 'month' => $nextMonth])
+                ->with('meter_notice', [
+                    'title' => 'บันทึกงวด ' . MeterReading::periodLabel($year, $month) . ' แล้ว - งวดนี้ต้องบันทึกซ้ำ',
+                    'text'  => 'เลขเดือนก่อนของ ' . $mismatched->map(fn ($id) => $checkMeta[$id]['label'])->implode(', ') . ' เปลี่ยนไป ตรวจเลข แล้วกด "บันทึกข้อมูลมิเตอร์หลัก"',
+                ]);
+        }
+
         return redirect()
             ->route('master-meters.index', ['year' => $year, 'month' => $month])
-            ->with('success', 'บันทึกข้อมูลมิเตอร์หลักเรียบร้อยแล้ว');
+            ->with('success', 'บันทึกข้อมูลมิเตอร์หลักเรียบร้อยแล้ว' . ($skipped
+                ? ' (ยังไม่ได้จด ' . collect($skipped)->map(fn ($id) => $checkMeta[$id]['label'] ?? 'มิเตอร์หลัก')->implode(', ') . ')'
+                : ''));
     }
 
     /**
@@ -338,7 +423,11 @@ class MasterMeterReadingController extends Controller
             return back()->with('error', 'ไม่พบข้อมูลมิเตอร์หลักของงวดนี้');
         }
 
-        $imagePaths = $readings->pluck('image_path')->filter()->all();
+        $imagePaths = $readings->pluck('image_path');
+        if (HrMasterMeterReading::supportsRestartPhoto()) {
+            $imagePaths = $imagePaths->merge($readings->pluck('old_meter_final_image_path'));
+        }
+        $imagePaths = $imagePaths->filter()->values()->all();
 
         HrMasterMeterReading::whereIn('id', $readings->pluck('id'))->delete();
 
@@ -363,7 +452,8 @@ class MasterMeterReadingController extends Controller
             ->with('success', 'ลบข้อมูลมิเตอร์หลักเรียบร้อยแล้ว ต้องบันทึกใหม่');
     }
 
-    public function viewImage(HrMasterMeterReading $reading)
+    /** ?kind=restart = รูปเลขสุดท้ายก่อนเริ่มนับใหม่ (old_meter_final_image_path) - เหมือนแอดมิน */
+    public function viewImage(Request $request, HrMasterMeterReading $reading)
     {
         $this->authorize();
 
@@ -372,11 +462,15 @@ class MasterMeterReadingController extends Controller
             ->contains('id', $reading->master_meter_id);
         abort_unless($isMine, 403, 'คุณไม่มีสิทธิ์ดูรูปภาพนี้');
 
-        $disk = HrMasterMeter::photoDisk();
-        abort_if(! $reading->image_path, 404, 'ไม่พบรูปภาพ');
-        abort_if(! $disk->exists($reading->image_path), 404, 'ไม่พบรูปภาพ');
+        $path = $request->query('kind') === 'restart' && HrMasterMeterReading::supportsRestartPhoto()
+            ? $reading->old_meter_final_image_path
+            : $reading->image_path;
 
-        return response()->file($disk->path($reading->image_path));
+        $disk = HrMasterMeter::photoDisk();
+        abort_if(! $path, 404, 'ไม่พบรูปภาพ');
+        abort_if(! $disk->exists($path), 404, 'ไม่พบรูปภาพ');
+
+        return response()->file($disk->path($path));
     }
 
     /**
@@ -393,6 +487,27 @@ class MasterMeterReadingController extends Controller
 
         return HrMasterMeterReading::where('master_meter_id', $masterMeterId)
             ->forPeriod($prevYear, $prevMonth)
+            ->first();
+    }
+
+    /** แถวล่าสุดที่เก่ากว่าเดือน-1 - ใช้แค่เป็นค่าแนะนำของช่องเลขเดือนก่อนตอนเดือนก่อนไม่ได้จด (เหมือนแอดมิน) */
+    private function findLatestEarlierReading(int $masterMeterId, int $year, int $month): ?HrMasterMeterReading
+    {
+        return HrMasterMeterReading::where('master_meter_id', $masterMeterId)
+            ->where(fn ($q) => $q->where('billing_year', '<', $year)
+                ->orWhere(fn ($q) => $q->where('billing_year', $year)->where('billing_month', '<', $month)))
+            ->orderByDesc('billing_year')
+            ->orderByDesc('billing_month')
+            ->first();
+    }
+
+    /** แถวของงวดถัดไป (เดือน+1) - previous_reading ของแถวนั้นต้องเท่ากับเลขปัจจุบันของงวดนี้ */
+    private function findNextReading(int $masterMeterId, int $year, int $month): ?HrMasterMeterReading
+    {
+        [$nextYear, $nextMonth] = $month === 12 ? [$year + 1, 1] : [$year, $month + 1];
+
+        return HrMasterMeterReading::where('master_meter_id', $masterMeterId)
+            ->forPeriod($nextYear, $nextMonth)
             ->first();
     }
 }

@@ -2,6 +2,7 @@
 
 @section('title', 'บันทึกมิเตอร์หลัก')
 @section('breadcrumb', 'กลุ่ม ' . $group->property_group_name)
+@section('errors_in_popup', '1')
 
 @section('content')
 
@@ -101,7 +102,8 @@
     </div>
 </div>
 
-<form method="POST" action="{{ route('master-meters.store', $group->property_group_id) }}" enctype="multipart/form-data">
+{{-- ข้อผิดพลาดจากการบันทึกแสดงเป็น popup กลางจอรายการเดียว + กรอบแดงที่ช่อง (meters/partials/reading-scripts) --}}
+<form method="POST" action="{{ route('master-meters.store', $group->property_group_id) }}" enctype="multipart/form-data" id="meterReadingForm" novalidate>
     @csrf
     <input type="hidden" name="billing_year" value="{{ $year }}">
     <input type="hidden" name="billing_month" value="{{ $month }}">
@@ -168,24 +170,10 @@
                             $renamed      = $reading && $meter->live_name !== $meter->name;
                             $snapshotIds  = $meter->properties->pluck('id')->sort()->values()->all();
                             $linksChanged = $reading && $snapshotIds !== $meter->live_property_ids;
-
-                            $previousInit = $previous !== null
-                                ? $previous
-                                : old('readings.' . $meter->id . '.previous_reading', $reading->previous_reading ?? 0);
-                            $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
-                            $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
-                            $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
                         @endphp
                         <div class="meter-row-in relative rounded-lg border {{ $style['ring'] }} bg-gray-50/70 p-2.5 pl-3.5 sm:p-3 sm:pl-4 overflow-hidden"
                              style="animation-delay: {{ $i * 70 }}ms"
-                             x-data="masterMeterRow({
-                                 existingImageUrl: @js($reading?->image_path ? route('master-meters.image', $reading->id) : null),
-                                 changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
-                                 previousReading: {{ (int) $previousInit }},
-                                 currentReading: {{ (int) $currentInit }},
-                                 oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
-                                 newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
-                             })">
+                             x-data="meterReadingRow()">
                             <span class="meter-accent-bar absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b {{ $style['icon'] }}" style="animation-delay: {{ $i * 70 }}ms"></span>
 
                             <div class="flex items-center justify-between mb-1.5 flex-wrap gap-1">
@@ -197,7 +185,7 @@
                                     <span class="truncate">{{ $meter->name }}</span>
                                 </span>
                                 {{-- มิเตอร์หลักไม่มีราคา - สรุปสดแสดงแค่จำนวนหน่วย (เหมือนหน้าแอดมิน) --}}
-                                <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
+                                <span x-show="hasCurrent" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
                             </div>
 
                             @if($reading)
@@ -244,11 +232,9 @@
                                 'reading'              => $reading,
                                 'previous'             => $previous,
                                 'namePrefix'           => $namePrefix,
-                                'previousInit'         => $previousInit,
-                                'currentInit'          => $currentInit,
-                                'oldFinalInit'         => $oldFinalInit,
-                                'newStartInit'         => $newStartInit,
                                 'previousReadingDates' => $previousReadingDates,
+                                'meterLabel'           => $meter->name,
+                                'imageRoute'           => 'master-meters.image',
                                 // มิเตอร์หลักไม่มีล็อกใบแจ้งหนี้ และหน้านี้แสดงเฉพาะตัวที่ตัวแทนจดได้ - แก้ไขได้เสมอ
                                 'alreadyInvoiced'      => false,
                             ])
@@ -269,7 +255,7 @@
 
     {{-- ปุ่มบันทึก - เดสก์ท็อปใช้ปุ่มปกติท้ายฟอร์ม --}}
     <div class="mt-4 hidden lg:flex justify-end">
-        <x-btn type="submit" variant="primary">บันทึกข้อมูลมิเตอร์หลัก</x-btn>
+        <x-btn type="submit" variant="primary"><span data-save-label>บันทึกข้อมูลมิเตอร์หลัก</span></x-btn>
     </div>
 
     {{-- ปุ่มบันทึกลอย (มือถือ) - อยู่เหนือแถบเมนูล่างเสมอ กดได้ทันทีโดยไม่ต้องเลื่อนหน้าจอ --}}
@@ -280,11 +266,13 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
-            บันทึก
+            <span data-save-label>บันทึก</span>
         </button>
     </div>
     <div class="lg:hidden" style="height: 84px;" aria-hidden="true"></div>
 </form>
+
+@include('meters.partials.reading-scripts')
 
 @if($currentReadings->count() > 0)
 {{-- ── Delete Master Meter Readings Confirm Modal ── --}}
@@ -318,74 +306,6 @@
 
 @push('scripts')
 <script>
-    const METER_IMAGE_MAX_BYTES = 10 * 1024 * 1024; // ต้องตรงกับ max:10240 ใน MasterMeterReadingController::store()
-
-    // scope ของมิเตอร์หลัก 1 ตัว - ชื่อ state ต้องตรงกับที่ meters/partials/reading-fields ใช้
-    function masterMeterRow(cfg) {
-        return {
-            previewUrl: cfg.existingImageUrl,
-            lightboxOpen: false,
-            sizeError: '',
-
-            changed: cfg.changed,
-            previousReading: cfg.previousReading,
-            currentReading: cfg.currentReading,
-            oldFinal: cfg.oldFinal,
-            newStart: cfg.newStart,
-
-            // มิเรอร์สูตรเดียวกับ App\Models\MeterReading::calculateUnits() (ไม่มีกรณีรีเซ็ตแล้ว)
-            get liveUnits() {
-                const current  = Number(this.currentReading) || 0;
-                const previous = (this.previousReading === '' || this.previousReading === null)
-                    ? null : (Number(this.previousReading) || 0);
-
-                let units;
-                if (this.changed) {
-                    const oldFinal = Number(this.oldFinal) || 0;
-                    const newStart = Number(this.newStart) || 0;
-                    units = (oldFinal - (previous ?? 0)) + (current - newStart);
-                } else if (previous === null) {
-                    units = current;
-                } else {
-                    units = current - previous;
-                }
-
-                return Math.max(units, 0);
-            },
-            get liveSummary() {
-                return this.liveUnits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' หน่วย';
-            },
-
-            onFileChange(e) {
-                const file = e.target.files[0];
-                if (! file) return;
-
-                if (file.size > METER_IMAGE_MAX_BYTES) {
-                    this.sizeError = 'ไฟล์รูปใหญ่เกินไป (สูงสุด 10MB) กรุณาเลือกรูปใหม่';
-                    e.target.value = '';
-                    return;
-                }
-
-                this.sizeError = '';
-                if (this.previewUrl && this.previewUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(this.previewUrl);
-                }
-                this.previewUrl = URL.createObjectURL(file);
-            },
-
-            clearImage() {
-                this.sizeError = '';
-                if (this.previewUrl && this.previewUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(this.previewUrl);
-                }
-                this.previewUrl = null;
-                if (this.$refs.fileInput) {
-                    this.$refs.fileInput.value = '';
-                }
-            },
-        };
-    }
-
     // วันที่เริ่มงวด = วันที่จดของเดือนก่อน + 1 วัน - เติมหมายเหตุอัตโนมัติเหมือนหน้าแอดมิน
     // (ไม่ทับหมายเหตุที่มีอยู่แล้ว)
     function addOneDay(dateStr) {
@@ -415,13 +335,6 @@
         updateRemarkFromDates();
     });
     document.addEventListener('DOMContentLoaded', updateRemarkFromDates);
-
-    // เลือกข้อความในช่องตัวเลขทั้งหมดทันทีที่โฟกัส - พิมพ์ทับเลข 0 เดิมได้เลยโดยไม่ต้องลบก่อน
-    document.addEventListener('focus', function (e) {
-        if (e.target.matches('input[type="number"]:not([disabled])')) {
-            e.target.select();
-        }
-    }, true);
 </script>
 @endpush
 

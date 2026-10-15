@@ -308,7 +308,8 @@
                 </div>
             @endif
 
-            @if($errors->any())
+            {{-- หน้าที่ตั้ง @section('errors_in_popup') (บันทึกมิเตอร์) แสดง $errors เป็น popup กลางจอเอง - ไม่ต้องมีกล่องซ้ำ --}}
+            @if($errors->any() && ! View::hasSection('errors_in_popup'))
                 <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm">
                     <div class="flex items-start gap-2 mb-1.5">
                         <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

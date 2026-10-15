@@ -2,6 +2,7 @@
 
 @section('title', 'บันทึกมิเตอร์')
 @section('breadcrumb', $property->title)
+@section('errors_in_popup', '1')
 
 @section('content')
 
@@ -42,6 +43,11 @@
         }
         return $str;
     };
+
+    // ตัวกรองของหน้ารายการที่กดเข้ามา - พกไปทุกลิงก์ในหน้านี้ ให้ก่อนหน้า/ถัดไป/กลับรายการ อยู่ในชุดเดียวกัน (เหมือนแอดมิน)
+    $listQuery = $scope + ($listStatus !== '' ? ['status' => $listStatus] : []);
+    $periodQuery = ['year' => $year, 'month' => $month] + $scope;
+    $showNextButton = $scopeIds->count() > 1;
 @endphp
 
 @if($allConfirmed && ! $alreadyInvoiced)
@@ -71,7 +77,7 @@
     <div class="pointer-events-none absolute -top-10 -right-10 w-32 h-32 rounded-full bg-sky-50 opacity-70"></div>
 
     <div class="relative flex items-center justify-between gap-2 mb-2">
-        <a href="{{ route('meters.index', ['year' => $year, 'month' => $month]) }}"
+        <a href="{{ route('meters.index', ['year' => $year, 'month' => $month] + $listQuery) }}"
            class="inline-flex items-center gap-1 -ml-1 px-1.5 py-1 rounded-lg text-xs font-semibold text-gray-500 hover:text-brand-600 hover:bg-gray-50 transition-colors flex-shrink-0">
             <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             รายการทรัพย์สิน
@@ -119,22 +125,88 @@
     </div>
 
     <div class="relative flex items-center justify-center gap-1.5">
-        <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $prevYear, 'month' => $prevMonth]) }}"
+        <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $prevYear, 'month' => $prevMonth] + $listQuery) }}"
+           title="งวดก่อน" aria-label="งวดก่อน"
            class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </a>
         <p class="text-sm font-bold text-gray-800 leading-tight px-1 whitespace-nowrap">งวด {{ $periodLabel }}</p>
-        <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $nextYear, 'month' => $nextMonth]) }}"
+        <a href="{{ route('meters.show', ['property' => $property->id, 'year' => $nextYear, 'month' => $nextMonth] + $listQuery) }}"
+           title="งวดถัดไป" aria-label="งวดถัดไป"
            class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         </a>
     </div>
+
+    <div class="relative mt-2 pt-2 border-t border-gray-100 min-w-0">
+        <p class="text-sm font-bold text-gray-800 leading-tight truncate">{{ $property->title }}</p>
+        <p class="text-[11px] text-gray-400 leading-tight mt-0.5 font-mono">{{ $property->property_code ?: 'ไม่มีรหัส' }}</p>
+    </div>
 </div>
 
-<form method="POST" action="{{ route('meters.store', $property->id) }}" enctype="multipart/form-data">
+{{-- ทรัพย์ก่อนหน้า/ถัดไป ตามตัวกรองของหน้ารายการ (เหมือนแอดมิน) --}}
+@if($position !== false && $scopeIds->count() > 1)
+    <nav class="flex items-center justify-between gap-2 mb-2.5 sm:mb-3 text-xs" aria-label="ทรัพย์ก่อนหน้า/ถัดไป">
+        @if($prevId)
+            <a href="{{ route('meters.show', ['property' => $prevId, 'year' => $year, 'month' => $month] + $listQuery) }}" title="ทรัพย์ก่อนหน้า"
+               class="inline-flex items-center gap-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white font-semibold text-gray-600 hover:border-brand-500 hover:text-brand-700 transition-colors">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                <span class="truncate max-w-[9rem] font-mono">{{ $navCodes[$prevId] ?? 'ก่อนหน้า' }}</span>
+            </a>
+        @else
+            <span class="invisible px-2.5 py-1.5" aria-hidden="true">-</span>
+        @endif
+        <span class="font-semibold text-gray-500 whitespace-nowrap">ทรัพย์ที่ {{ number_format($position + 1) }} / {{ number_format($scopeIds->count()) }}</span>
+        @if($nextId)
+            <a href="{{ route('meters.show', ['property' => $nextId, 'year' => $year, 'month' => $month] + $listQuery) }}" title="ทรัพย์ถัดไป"
+               class="inline-flex items-center gap-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white font-semibold text-gray-600 hover:border-brand-500 hover:text-brand-700 transition-colors">
+                <span class="truncate max-w-[9rem] font-mono">{{ $navCodes[$nextId] ?? 'ถัดไป' }}</span>
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+        @else
+            <span class="invisible px-2.5 py-1.5" aria-hidden="true">-</span>
+        @endif
+    </nav>
+@endif
+
+{{-- ── สถานะงวดนี้ (ข้อความเดียวกับหน้าแอดมิน) - อยู่ก่อนฟอร์มให้เห็นทันที ── --}}
+@if($alreadyInvoiced)
+    <div class="mb-2.5 sm:mb-3 rounded-2xl border border-indigo-200 bg-indigo-50 shadow-sm px-4 py-3.5 sm:px-5 sm:py-4">
+        <div class="flex items-start gap-3">
+            <div class="flex-shrink-0 w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+            </div>
+            <div class="min-w-0">
+                <p class="text-sm font-bold text-indigo-900 leading-tight">ออกใบแจ้งหนี้แล้ว - ข้อมูลถูกล็อก</p>
+                <p class="text-xs text-indigo-700/80 leading-relaxed mt-1">
+                    ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ไม่สามารถแก้ไข ลบ หรือยืนยันซ้ำได้
+                    ถ้าต้องแก้เลขมิเตอร์ ให้แจ้งแอดมินลบใบแจ้งหนี้น้ำ/ไฟของงวดนี้ก่อน
+                </p>
+            </div>
+        </div>
+    </div>
+@elseif($allRecorded && ! $allConfirmed)
+    <div class="mb-2.5 sm:mb-3 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
+        <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <p class="text-xs text-amber-800 leading-relaxed">
+            <span class="font-semibold">บันทึกข้อมูลมิเตอร์ครบทุกตัวแล้ว</span> - กด "ยืนยันข้อมูล" ด้านล่างเพื่อให้พร้อมออกใบแจ้งหนี้
+        </p>
+    </div>
+@endif
+
+{{-- ข้อผิดพลาดจากการบันทึกแสดงเป็น popup กลางจอรายการเดียว + กรอบแดงที่ช่อง (meters/partials/reading-scripts) --}}
+<form method="POST" action="{{ route('meters.store', $property->id) }}" enctype="multipart/form-data" id="meterReadingForm" novalidate>
     @csrf
     <input type="hidden" name="billing_year" value="{{ $year }}">
     <input type="hidden" name="billing_month" value="{{ $month }}">
+    @foreach($scope as $scopeKey => $scopeValue)
+        <input type="hidden" name="{{ $scopeKey }}" value="{{ $scopeValue }}">
+    @endforeach
+    @if($listStatus !== '')
+        <input type="hidden" name="list_status" value="{{ $listStatus }}">
+    @endif
 
     {{-- ── Summary strip: common fee + invoice display settings + rent period (รวมเป็นการ์ดเดียวเพื่อลดพื้นที่บนมือถือ) ── --}}
     <div class="meter-row-in bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-2 sm:px-3.5 sm:py-2.5 mb-2.5 sm:mb-3">
@@ -199,28 +271,15 @@
                                 $reading    = $currentReadings[$meter->id] ?? null;
                                 $previous   = $previousReadings[$meter->id] ?? null;
                                 $namePrefix = 'readings[' . $meter->id . ']';
-
-                                $previousInit = $previous !== null
-                                    ? $previous
-                                    : old('readings.' . $meter->id . '.previous_reading', $reading->previous_reading ?? 0);
-                                $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
-                                $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
-                                $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
+                                $meterLabel = $meterLabels[$meter->id] ?? $meter->type_label;
                                 // เคยบันทึกมิเตอร์งวดนี้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ (snapshot ใน ag_meter_readings)
                                 // ไม่ใช้ราคาจาก master (hr_property_meters) ซ้ำ เพื่อไม่ให้ราคาขยับถ้าแอดมินแก้ราคา master ทีหลัง
                                 $effectiveUnitPrice = $reading?->price_per_unit ?? $meter->price_per_unit;
+                                $pricePerUnit       = $effectiveUnitPrice;
                             @endphp
                             <div class="meter-row-in relative rounded-lg border {{ $style['ring'] }} bg-gray-50/70 p-2.5 pl-3.5 sm:p-3 sm:pl-4 overflow-hidden"
                                  style="animation-delay: {{ $i * 70 }}ms"
-                                 x-data="meterImageRow({
-                                     existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
-                                     changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
-                                     pricePerUnit: {{ (float) $effectiveUnitPrice }},
-                                     previousReading: {{ (int) $previousInit }},
-                                     currentReading: {{ (int) $currentInit }},
-                                     oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
-                                     newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
-                                 })">
+                                 x-data="meterReadingRow()">
                                 <span class="meter-accent-bar absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b {{ $style['icon'] }}" style="animation-delay: {{ $i * 70 }}ms"></span>
                                 <div class="flex items-center justify-between mb-2 sm:mb-2.5 flex-wrap gap-1">
                                     <span class="text-xs font-medium text-gray-500 flex items-center gap-1.5">
@@ -229,7 +288,7 @@
                                         {{ $style['label'] }} ตัวที่ {{ $i + 1 }} &middot;
                                         ฿{{ $fmtUnitPrice($effectiveUnitPrice) }}/หน่วย
                                     </span>
-                                    <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
+                                    <span x-show="hasCurrent" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
                                 </div>
 
                                 @include('meters.partials.reading-fields')
@@ -243,28 +302,15 @@
                     $reading    = $currentReadings[$meter->id] ?? null;
                     $previous   = $previousReadings[$meter->id] ?? null;
                     $namePrefix = 'readings[' . $meter->id . ']';
-
-                    $previousInit = $previous !== null
-                        ? $previous
-                        : old('readings.' . $meter->id . '.previous_reading', $reading->previous_reading ?? 0);
-                    $currentInit  = old('readings.' . $meter->id . '.current_reading', $reading->current_reading ?? 0);
-                    $oldFinalInit = old('readings.' . $meter->id . '.old_meter_final_reading', $reading->old_meter_final_reading ?? null);
-                    $newStartInit = old('readings.' . $meter->id . '.new_meter_start_reading', $reading->new_meter_start_reading ?? null);
+                    $meterLabel = $meterLabels[$meter->id] ?? $meter->type_label;
                     // เคยบันทึกมิเตอร์งวดนี้แล้ว -> ยึดราคาต่อหน่วยที่บันทึกไว้ (snapshot ใน ag_meter_readings)
                     // ไม่ใช้ราคาจาก master (hr_property_meters) ซ้ำ เพื่อไม่ให้ราคาขยับถ้าแอดมินแก้ราคา master ทีหลัง
                     $effectiveUnitPrice = $reading?->price_per_unit ?? $meter->price_per_unit;
+                    $pricePerUnit       = $effectiveUnitPrice;
                 @endphp
                 <div class="meter-card-in bg-white rounded-xl shadow-sm border {{ $style['ring'] }} p-2.5 sm:p-3.5 transition-shadow duration-300 hover:shadow-md"
                      style="animation-delay: {{ $loop->index * 60 }}ms"
-                     x-data="meterImageRow({
-                         existingImageUrl: @js($reading?->image_path ? route('meters.image', $reading->id) : null),
-                         changed: {{ ($reading->meter_changed ?? false) ? 'true' : 'false' }},
-                         pricePerUnit: {{ (float) $effectiveUnitPrice }},
-                         previousReading: {{ (int) $previousInit }},
-                         currentReading: {{ (int) $currentInit }},
-                         oldFinal: @js($oldFinalInit === null || $oldFinalInit === '' ? null : (int) $oldFinalInit),
-                         newStart: @js($newStartInit === null || $newStartInit === '' ? null : (int) $newStartInit),
-                     })">
+                     x-data="meterReadingRow()">
                     <div class="flex items-center justify-between mb-2.5 sm:mb-3 flex-wrap gap-2">
                         <div class="flex items-center gap-2">
                             <div class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0 rounded-lg bg-gradient-to-br {{ $style['icon'] }} flex items-center justify-center">
@@ -277,7 +323,7 @@
                                 ฿{{ $fmtUnitPrice($effectiveUnitPrice) }}/หน่วย
                             </span>
                         </div>
-                        <span x-show="currentReading > 0" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
+                        <span x-show="hasCurrent" x-cloak class="text-xs font-semibold text-gray-600" x-text="'≈ ' + liveSummary"></span>
                     </div>
 
                     @include('meters.partials.reading-fields')
@@ -302,18 +348,29 @@
         ที่ไม่ทับกันแน่นอน และใช้ CSRF token เดียวกับฟอร์มหลักได้เลย
     --}}
     @unless($alreadyInvoiced)
+    @php
+        $confirmAction = route('meters.confirm', ['property' => $property->id] + $periodQuery);
+    @endphp
     {{-- ปุ่มบันทึก/ยืนยัน - เดสก์ท็อปใช้ปุ่มปกติท้ายฟอร์ม --}}
     <div class="mt-4 hidden lg:flex justify-end gap-2">
         @if($allRecorded && !$allConfirmed)
         <button type="submit"
-                formaction="{{ route('meters.confirm', ['property' => $property->id, 'year' => $year, 'month' => $month]) }}"
+                formaction="{{ $confirmAction }}"
                 formmethod="POST"
                 class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             ยืนยันข้อมูล
         </button>
         @endif
-        <x-btn type="submit" variant="primary">บันทึกข้อมูลมิเตอร์</x-btn>
+        <x-btn type="submit" variant="primary" data-main-submit><span data-save-label>บันทึกข้อมูลมิเตอร์</span></x-btn>
+        @if($showNextButton)
+            {{-- จดทีละหลายทรัพย์: บันทึกแล้วเปิดทรัพย์ถัดไปที่ยังต้องจด/ยืนยันในรายการเดียวกันทันที (เหมือนแอดมิน) --}}
+            <button type="submit" name="next" value="1" title="บันทึกทรัพย์นี้ แล้วเปิดทรัพย์ถัดไปที่ยังไม่ได้จด"
+                    class="inline-flex items-center gap-1.5 bg-white border border-brand-600 text-brand-700 hover:bg-brand-50 text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+                บันทึก แล้วไปทรัพย์ถัดไป
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            </button>
+        @endif
     </div>
 
     {{-- ปุ่มบันทึก/ยืนยันลอย (มือถือ) - อยู่เหนือแถบเมนูล่างเสมอ กดได้ทันทีโดยไม่ต้องเลื่อนหน้าจอ --}}
@@ -321,57 +378,40 @@
          style="bottom: calc(64px + env(safe-area-inset-bottom, 0px));">
         @if($allRecorded && !$allConfirmed)
         <button type="submit"
-                formaction="{{ route('meters.confirm', ['property' => $property->id, 'year' => $year, 'month' => $month]) }}"
+                formaction="{{ $confirmAction }}"
                 formmethod="POST"
                 class="flex-1 flex items-center justify-center gap-2 bg-emerald-600 active:bg-emerald-700 text-white font-semibold text-sm py-3 rounded-xl transition-colors tap-effect shadow-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             ยืนยันข้อมูล
         </button>
         @endif
-        <button type="submit"
+        <button type="submit" data-main-submit
                 class="flex-1 flex items-center justify-center gap-2 bg-brand-600 active:bg-brand-700 text-white font-semibold text-sm py-3 rounded-xl transition-colors tap-effect shadow-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
-            บันทึก
+            <span data-save-label>บันทึก</span>
         </button>
+        @if($showNextButton)
+            <button type="submit" name="next" value="1" title="บันทึกทรัพย์นี้ แล้วเปิดทรัพย์ถัดไปที่ยังไม่ได้จด"
+                    class="flex-1 flex items-center justify-center gap-1.5 bg-white border border-brand-600 text-brand-700 active:bg-brand-50 font-semibold text-sm py-3 rounded-xl transition-colors tap-effect">
+                บันทึก+ถัดไป
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            </button>
+        @endif
     </div>
     <div class="lg:hidden" style="height: 84px;" aria-hidden="true"></div>
     @endunless
 </form>
 
-{{-- ── Confirm / status banner (informational only - action buttons are above, inside the form) ── --}}
-@if($alreadyInvoiced)
-    <div class="mt-2.5 sm:mt-3 rounded-2xl border border-indigo-200 bg-indigo-50 shadow-sm px-4 py-3.5 sm:px-5 sm:py-4">
-        <div class="flex items-start gap-3">
-            <div class="flex-shrink-0 w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                </svg>
-            </div>
-            <div class="min-w-0">
-                <p class="text-sm font-bold text-indigo-900 leading-tight">ออกใบแจ้งหนี้แล้ว &middot; ข้อมูลถูกล็อก</p>
-                <p class="text-xs text-indigo-700/80 leading-relaxed mt-1">
-                    ออกใบแจ้งหนี้น้ำ/ไฟของงวดนี้ไปแล้ว ข้อมูลมิเตอร์งวดนี้ถูกล็อกไว้ ไม่สามารถแก้ไข ลบ หรือยืนยันซ้ำได้
-                </p>
-            </div>
-        </div>
-    </div>
-@elseif($allRecorded)
-    <div class="mt-2.5 sm:mt-3 flex items-start gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-3">
-        <svg class="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-        <p class="text-xs text-emerald-700 leading-relaxed">
-            <span class="font-semibold">บันทึกข้อมูลมิเตอร์ครบทุกตัวแล้ว</span> — กด "ยืนยันข้อมูล" ด้านล่างเพื่อให้พร้อมออกใบแจ้งหนี้ที่หน้าแอดมิน
-        </p>
-    </div>
-@endif
+@include('meters.partials.reading-scripts')
 
 @if($currentReadings->count() > 0 && !$alreadyInvoiced)
 {{-- ── Delete Meter Readings Confirm Modal ── --}}
 <x-confirm-modal
     id="delete-meter-confirm"
     title="ยืนยันลบข้อมูลมิเตอร์"
-    :action="route('meters.destroy', ['property' => $property->id, 'year' => $year, 'month' => $month])"
+    :action="route('meters.destroy', ['property' => $property->id, 'scope' => 'calendar'] + $periodQuery)"
     method="DELETE"
     icon-variant="danger"
     confirm-label="ลบข้อมูล"
@@ -401,80 +441,6 @@
 
 @push('scripts')
 <script>
-    const METER_IMAGE_MAX_BYTES = 10 * 1024 * 1024; // ต้องตรงกับ max:10240 ใน MeterReadingController::store()
-
-    function meterImageRow(cfg) {
-        return {
-            previewUrl: cfg.existingImageUrl,
-            lightboxOpen: false,
-            sizeError: '',
-
-            changed: cfg.changed,
-            pricePerUnit: cfg.pricePerUnit,
-            previousReading: cfg.previousReading,
-            currentReading: cfg.currentReading,
-            oldFinal: cfg.oldFinal,
-            newStart: cfg.newStart,
-
-            // พรีวิวจำนวนหน่วย/ยอดเงินแบบเรียลไทม์ - สูตรเดียวกับ MeterReading::calculateUnits()
-            // (ไม่มีกรณีรีเซ็ตแล้ว - "มิเตอร์เริ่มนับใหม่" ใช้สูตร changed แทน)
-            get liveUnits() {
-                const current  = Number(this.currentReading) || 0;
-                const previous = (this.previousReading === '' || this.previousReading === null)
-                    ? null : (Number(this.previousReading) || 0);
-
-                let units;
-                if (this.changed) {
-                    const oldFinal = Number(this.oldFinal) || 0;
-                    const newStart = Number(this.newStart) || 0;
-                    units = (oldFinal - (previous ?? 0)) + (current - newStart);
-                } else if (previous === null) {
-                    units = current;
-                } else {
-                    units = current - previous;
-                }
-
-                return Math.max(units, 0);
-            },
-            get liveAmount() {
-                return this.liveUnits * this.pricePerUnit;
-            },
-            get liveSummary() {
-                const fmt = (n) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                return fmt(this.liveUnits) + ' หน่วย · ฿' + fmt(this.liveAmount);
-            },
-
-            onFileChange(e) {
-                const file = e.target.files[0];
-                if (! file) return;
-
-                if (file.size > METER_IMAGE_MAX_BYTES) {
-                    this.sizeError = 'ไฟล์รูปใหญ่เกินไป (สูงสุด 10MB) กรุณาเลือกรูปใหม่';
-                    e.target.value = '';
-                    return;
-                }
-
-                this.sizeError = '';
-                if (this.previewUrl && this.previewUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(this.previewUrl);
-                }
-                this.previewUrl = URL.createObjectURL(file);
-            },
-
-            clearImage() {
-                this.sizeError = '';
-                if (this.previewUrl && this.previewUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(this.previewUrl);
-                }
-                this.previewUrl = null;
-                if (this.$refs.fileInput) {
-                    this.$refs.fileInput.value = '';
-                }
-            },
-        };
-    }
-</script>
-<script>
     // วันที่เริ่มงวด = วันที่จดของเดือนก่อน + 1 วัน (งวดถัดไปเริ่มวันถัดจากที่จดครั้งก่อน)
     // ถ้าไม่มีข้อมูลเดือนก่อน (จดครั้งแรก) ใช้วันที่จดของงวดนี้เองแทน เหมือนพฤติกรรมเดิม
     function addOneDay(dateStr) {
@@ -487,6 +453,7 @@
     }
 
     // เมื่อเลือก/แก้ไขวันที่อ่านมิเตอร์ตัวใดก็ตาม ให้เติมช่วงวันที่ลงหมายเหตุอัตโนมัติ
+    // ไม่ทับหมายเหตุที่มีอยู่แล้ว (เหมือนหน้าแอดมิน)
     function updateRemarkFromDates() {
         const inputs = Array.from(document.querySelectorAll('input[name$="[reading_date]"]'))
             .filter(function (el) { return el.value; });
@@ -494,7 +461,7 @@
         if (inputs.length === 0) return;
 
         const remarkEl = document.getElementById('remark');
-        if (! remarkEl) return;
+        if (! remarkEl || remarkEl.value) return;
 
         const starts = inputs
             .map(function (el) { return el.dataset.prevDate ? addOneDay(el.dataset.prevDate) : el.value; })
@@ -517,20 +484,7 @@
     });
 
     // ถ้ามีวันที่อ่านมิเตอร์ถูกกรอกไว้แล้วตั้งแต่โหลดหน้า (เช่นค่าที่บันทึกไว้เดิม) ให้เติมหมายเหตุให้ตรงกัน
-    // แต่ไม่ทับหมายเหตุเดิมที่ผู้ใช้เคยกรอกไว้ก่อนหน้า
-    document.addEventListener('DOMContentLoaded', function () {
-        const remarkEl = document.getElementById('remark');
-        if (remarkEl && ! remarkEl.value) {
-            updateRemarkFromDates();
-        }
-    });
-
-    // เลือกข้อความในช่องตัวเลขทั้งหมดทันทีที่โฟกัส - พิมพ์ทับเลข 0 เดิมได้เลยโดยไม่ต้องลบก่อน
-    document.addEventListener('focus', function (e) {
-        if (e.target.matches('input[type="number"]:not([disabled])')) {
-            e.target.select();
-        }
-    }, true);
+    document.addEventListener('DOMContentLoaded', updateRemarkFromDates);
 </script>
 @endpush
 
