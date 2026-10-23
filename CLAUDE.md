@@ -45,7 +45,7 @@ Read and follow every section before writing or suggesting any code.
 
 ## 0.1 Work log, pending tasks, browser test, upload - shared with happyest (user, 2026-10-23)
 
-This app is **ระบบผู้บริหารโครงการ** (`https://www.mesuk.co.th/agent`, used by project managers). The user is the programmer and reports every day's work to the boss from happyest's `/admin/system` (บันทึกงานประจำวัน + งานที่รอทำ). Work done here goes into the **same** list, tagged `[MEMBER]`. Full rules: happyest `.claude/rules/worklog.md`, `todo.md`, `deploy-package.md` (read them when unsure). Every command below runs from this folder through happyest's wrapper, which finds PHP by itself:
+This app is **ระบบผู้บริหารโครงการ** (`https://www.mesuk.co.th/agent`, used by project managers only). ตัวแทน/นายหน้า (agents/brokers) use happyest, not this app: a request about ตัวแทน pages is happyest work (`[FRONT]`), not `[MEMBER]`. The user is the programmer and reports every day's work to the boss from happyest's `/admin/system` (บันทึกงานประจำวัน + งานที่รอทำ). Work done here goes into the **same** list, tagged `[MEMBER]`. Full rules: happyest `.claude/rules/worklog.md`, `todo.md`, `deploy-package.md` (read them when unsure). Every command below runs from this folder through happyest's wrapper, which finds PHP by itself:
 
 ```bash
 node ../happyest/scripts/worklog.cjs <draft.json>            # record a finished task (= php artisan worklog:add)

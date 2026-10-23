@@ -1,6 +1,6 @@
 # AGENTS.md - for every AI tool in this repo (Codex, Cursor, Copilot, Kiro, Antigravity ...)
 
-This repo is **ระบบผู้บริหารโครงการ** (`https://www.mesuk.co.th/agent`). Read `CLAUDE.md` first: its rules apply to every AI, not only Claude.
+This repo is **ระบบผู้บริหารโครงการ** (`https://www.mesuk.co.th/agent`), used by project managers only; ตัวแทน/นายหน้า use happyest. Read `CLAUDE.md` first: its rules apply to every AI, not only Claude.
 
 The part that is easy to miss is section **0.1 Work log, pending tasks, browser test, upload**. In short:
 
