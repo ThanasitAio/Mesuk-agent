@@ -37,9 +37,29 @@ Read and follow every section before writing or suggesting any code.
 ### Strict rules:
 
 - **Read happyest models/controllers** to verify column names and enum values before using them
-- **NEVER modify** any file in `C:\laragon\www\happyest` - read only
+- **NEVER modify** any file in `C:\laragon\www\happyest` - read only (the one exception: the work-log / task commands in 0.1, which write only happyest's work-log store, never its code)
 - **Only modify** files in this agent project (`C:\laragon\www\agent`)
 - If happyest schema contradicts what you assumed, trust happyest
+
+---
+
+## 0.1 Work log, pending tasks, browser test, upload - shared with happyest (user, 2026-10-23)
+
+This app is **ระบบผู้บริหารโครงการ** (`https://www.mesuk.co.th/agent`, used by project managers). The user is the programmer and reports every day's work to the boss from happyest's `/admin/system` (บันทึกงานประจำวัน + งานที่รอทำ). Work done here goes into the **same** list, tagged `[MEMBER]`. Full rules: happyest `.claude/rules/worklog.md`, `todo.md`, `deploy-package.md` (read them when unsure). Every command below runs from this folder through happyest's wrapper, which finds PHP by itself:
+
+```bash
+node ../happyest/scripts/worklog.cjs <draft.json>            # record a finished task (= php artisan worklog:add)
+node ../happyest/scripts/worklog.cjs todo list|show N|set N doing|add <draft.json>|reply N...
+node ../happyest/scripts/worklog.cjs pending                  # changed files no entry covers (this repo's show as ../agent/...)
+node ../happyest/scripts/worklog.cjs deploy [--dry]           # upload package: this repo's files go in its files-agent folder
+MSYS_NO_PATHCONV=1 node ../happyest/tests/browser/check.cjs --app=agent --as=manager --clean /dashboard /meters
+```
+
+1. **Test every change in a real browser yourself** (the user does not test by hand). The last command above opens this app at 375 + 1280 px logged in as a project manager (`--as=manager` or `manager:<agent_code>`, a one-time SSO link, no password; `AGENT_APP_URL` in happyest's `.env`), screenshots each page and reports JS errors, 4xx/5xx, login bounces, too-wide pages and new errors in this app's `storage/logs`. For click-through flows: `openBrowser({ app: 'agent', as: 'manager' })` from `../happyest/tests/browser/lib.cjs`. Read the screenshots, fix what you find, then say what you opened, at which widths, and what you saw.
+2. **Record every finished task that changed files**: write a draft JSON with the Write tool (UTF-8, in your scratchpad; never Thai on the command line) and run the first command. Fields: `title`, `area` `MEMBER` (default from this folder), `brief` = `["[MEMBER] <เมนู/หน้า> <สิ่งที่เพิ่ม/เปลี่ยน>"]` (the user's weekly-report style), `summary` + `details` in plain Thai for the boss (no file names), `type` feature|improve|fix|other, `status` done|wip, `files` (paths in this repo, e.g. `app/Http/Controllers/MeterReadingController.php` - stored as `../agent/...`), `pages` `[{"label", "url": "/meters", "site": "agent"}]`, `images` (the screenshots above, `--clean`, with a `caption`), `deploy` (files/migrations/cache), `tested`, `agent` (your tool's name if you are not Claude Code), and `"todo": [N]` when it finished a pending task. Same task again today = same `id`. Claude Code hooks in `.claude/settings.json` (happyest's `worklog.cjs`) note every file you edit here and stop you once at the end of a turn while one is in no entry.
+3. **Text the user pastes from LINE is the instruction itself** - record it, do it, hand back the reply, never ask "จะให้ทำอะไร": `todo list`, then one `todo add` draft with an item per real request (`title`, `request` = the sender's words verbatim, `requested_by`, `requested_at`, `priority` urgent for ด่วน, `area` MEMBER for this app), tell the user the #numbers, do them (`todo set N doing` → work → worklog draft with `"todo": [N]`), questions only the requester can answer = `{"no": N, "status": "waiting", "note": "..."}`, and finish with the `todo reply <numbers>` output in one code block for LINE. "ทำงาน #N" = `todo show N` first and open every image it lists. The SessionStart hook lists the open tasks; `[MEMBER]` ones are this app's, the others are happyest's.
+4. **Upload:** the user uploads by hand with FileZilla. `deploy` builds one folder for both projects: drag `files` onto `happyest/` and `files-agent` onto `agent/` on the server, then open `/agent/deploy` on production to clear the cache (and run migrations when the package has `database/migrations/` files). After the upload, `node ../happyest/scripts/worklog.cjs deploy-verify` checks it and closes the tasks.
+5. Errors in this app's production `laravel.log` arrive in the same task list as "ระบบผู้บริหารโครงการผิดพลาด: ..." (area MEMBER, code locations `../agent/...` = this repo).
 
 ---
 
