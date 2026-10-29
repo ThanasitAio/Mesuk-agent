@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Helpers\HappyestAdminPdf;
 use App\Models\HrInvoice;
+use App\Models\HrLineInvoiceSend;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * ใบแจ้งหนี้ผู้เช่า ("ใบแจ้งหนี้ผู้เช่า") ฝั่งผู้บริหารโครงการ - ดูและดาวน์โหลดใบแจ้งหนี้ที่ออกให้
@@ -162,7 +164,36 @@ class TenantInvoiceController extends Controller
 
         $all->each(fn (HrInvoice $invoice) => $invoice->setAttribute('pay_summary', $invoice->paymentSummary()));
 
+        $lineSent = $this->lineSentByInvoice($all->pluck('id'));
+        $all->each(fn (HrInvoice $invoice) => $invoice->setAttribute('line_sent', $lineSent[$invoice->id] ?? null));
+
         return $all;
+    }
+
+    /**
+     * ใบที่ happyest ส่งเข้ากลุ่มไลน์ของผู้เช่าแล้ว (งาน #53) - ผู้บริหารโครงการเห็นว่าไม่ต้องดาวน์โหลดไปส่งเอง
+     * ตารางเป็นของ happyest: ยังไม่ได้กด รัน Migrations ที่นั่น (ไม่มีตาราง) = ไม่แสดงอะไร ไม่ error
+     *
+     * @return array<int, array{sent_at: \Carbon\Carbon, groups: array<int, string>, opened: int}>
+     */
+    private function lineSentByInvoice($invoiceIds): array
+    {
+        if ($invoiceIds->isEmpty() || ! Schema::hasTable('hr_line_invoice_sends')) {
+            return [];
+        }
+
+        return HrLineInvoiceSend::with('group:id,name')
+            ->whereIn('invoice_id', $invoiceIds)
+            ->where('status', 'sent')
+            ->orderBy('sent_at')
+            ->get(['id', 'invoice_id', 'line_group_id', 'sent_at', 'open_count'])
+            ->groupBy('invoice_id')
+            ->map(fn ($rows) => [
+                'sent_at' => $rows->first()->sent_at,
+                'groups' => $rows->map(fn ($row) => $row->group?->name ?: 'กลุ่มไลน์ของผู้เช่า')->unique()->values()->all(),
+                'opened' => (int) $rows->sum('open_count'),
+            ])
+            ->all();
     }
 
     private function filterByPayStatus($invoices, string $payFilter)

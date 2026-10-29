@@ -452,16 +452,26 @@
         return y + '-' + m + '-' + day;
     }
 
-    // เมื่อเลือก/แก้ไขวันที่อ่านมิเตอร์ตัวใดก็ตาม ให้เติมช่วงวันที่ลงหมายเหตุอัตโนมัติ
-    // ไม่ทับหมายเหตุที่มีอยู่แล้ว (เหมือนหน้าแอดมิน)
-    function updateRemarkFromDates() {
+    // วลีวันที่จดในหมายเหตุ: "จดวันที่ 16 ก.ย. 2569 ถึง 15 ต.ค. 2569" (+ แบบเก่า "วันที่จด 17 กรกฎาคม 2569 ถึง ...")
+    // เปลี่ยนวันที่จด = แทนเฉพาะวลีนี้ ข้อความที่ผู้ใช้พิมพ์ต่อไว้คงเดิม / หมายเหตุที่ยังไม่มีวลีนี้ = ใส่เป็นบรรทัดแรก
+    // (เหมือนหน้าแอดมิน)
+    const REMARK_DATE_RE = /(?:จดวันที่|วันที่จด)[ \t]*\d{1,2}[ \t]+[^\s\d]+[ \t]+\d{4}(?:[ \t]*ถึง[ \t]*\d{1,2}[ \t]+[^\s\d]+[ \t]+\d{4})?/;
+    function remarkWithDates(remark, phrase) {
+        if (! remark.trim()) return phrase;
+        if (REMARK_DATE_RE.test(remark)) return remark.replace(REMARK_DATE_RE, phrase);
+        return phrase + '\n' + remark;
+    }
+
+    // เมื่อเลือก/แก้ไขวันที่อ่านมิเตอร์ตัวใดก็ตาม ให้เติม/เปลี่ยนช่วงวันที่ในหมายเหตุอัตโนมัติ
+    // onLoad = ตอนเปิดหน้า: เติมเฉพาะหมายเหตุที่ว่าง ไม่แตะหมายเหตุที่บันทึกไว้แล้ว
+    function updateRemarkFromDates(onLoad) {
         const inputs = Array.from(document.querySelectorAll('input[name$="[reading_date]"]'))
             .filter(function (el) { return el.value; });
 
         if (inputs.length === 0) return;
 
         const remarkEl = document.getElementById('remark');
-        if (! remarkEl || remarkEl.value) return;
+        if (! remarkEl || (onLoad && remarkEl.value)) return;
 
         const starts = inputs
             .map(function (el) { return el.dataset.prevDate ? addOneDay(el.dataset.prevDate) : el.value; })
@@ -473,18 +483,19 @@
         const first = starts[0];
         const last  = ends[ends.length - 1];
 
-        remarkEl.value = first === last
+        const phrase = first === last
             ? 'จดวันที่ ' + formatThaiDate(first)
             : 'จดวันที่ ' + formatThaiDate(first) + ' ถึง ' + formatThaiDate(last);
+        remarkEl.value = remarkWithDates(remarkEl.value, phrase);
     }
 
     document.addEventListener('change', function (e) {
         if (! e.target.matches('input[name$="[reading_date]"]')) return;
-        updateRemarkFromDates();
+        updateRemarkFromDates(false);
     });
 
-    // ถ้ามีวันที่อ่านมิเตอร์ถูกกรอกไว้แล้วตั้งแต่โหลดหน้า (เช่นค่าที่บันทึกไว้เดิม) ให้เติมหมายเหตุให้ตรงกัน
-    document.addEventListener('DOMContentLoaded', updateRemarkFromDates);
+    // ถ้ามีวันที่อ่านมิเตอร์ถูกกรอกไว้แล้วตั้งแต่โหลดหน้า (เช่นค่าที่บันทึกไว้เดิม) และหมายเหตุยังว่าง ให้เติมให้ตรงกัน
+    document.addEventListener('DOMContentLoaded', function () { updateRemarkFromDates(true); });
 </script>
 @endpush
 

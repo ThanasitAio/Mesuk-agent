@@ -282,7 +282,9 @@ When writing code, never hardcode values that differ between environments. Alway
 
 ### 3.4 Migration Safety
 
-Migrations on production must be run **manually** via SSH or a database admin panel (phpMyAdmin). Before writing a migration:
+Database changes are migration files only - never write a `.sql` file (user, 2026-10-26: "ฉันสะดวก migrations กด migrations เอง"). The user uploads the migration and runs it from production's `/deploy` page ("Migration", `DeployController::runMigrations()`). Before writing a migration:
+
+- **Idempotent:** `Schema::hasTable` / `hasColumn` checks before creating, guarded data changes - the same DB is shared with Happy Realestate, whose migrations may have made the structure already.
 
 - **Additive only:** Add columns or tables. Never drop columns or tables in migrations used on an active production system without explicit user approval.
 - **Nullable new columns:** Any new column added to an existing table must be `nullable()` or have a `default()` value, so existing rows are not broken.
