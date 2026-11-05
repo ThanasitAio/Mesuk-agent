@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * ใบแจ้งหนี้ที่ happyest ส่งเข้ากลุ่มไลน์ของผู้เช่า (hr_line_invoice_sends, งาน #53) - อ่านอย่างเดียว
+ * ใบแจ้งหนี้ที่ happyest ส่งถึงไลน์ของผู้เช่า (hr_line_invoice_sends, งาน #53/#90) - อ่านอย่างเดียว
  * 1 แถว = ใบ 1 ใบ ต่อกลุ่ม 1 กลุ่ม · status sent = ไลน์รับการ์ดแล้ว · ตารางเป็นของ happyest (happyest .claude/rules/line-invoice.md)
  */
 class HrLineInvoiceSend extends Model

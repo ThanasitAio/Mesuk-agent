@@ -694,6 +694,19 @@
         </span>
     </div>
 
+    {{-- งาน #81: ใบแจ้งหนี้ที่ข้อมูลเปลี่ยน ระบบหลักอัปเดตให้ก่อนแสดงยอด (PropertyBillingController::show() → HappyestInvoiceBridge) --}}
+    @if(! empty($invoiceCheck['refreshed']))
+        <div class="px-4 sm:px-5 pt-3"><div class="flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-xs leading-relaxed" role="status" style="color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe">
+            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span>ระบบอัปเดตใบแจ้งหนี้ตามข้อมูลล่าสุดแล้ว: {{ \App\Helpers\HappyestInvoiceBridge::refreshedText($invoiceCheck['refreshed']) }} · ยอดและใบด้านล่างเป็นฉบับล่าสุด @if(collect($invoiceCheck['refreshed'])->contains(fn ($r) => $r['resend'] ?? false)) ถ้าลูกค้าได้ใบเดิมไปแล้ว ส่งใบล่าสุดให้อีกครั้ง@endif</span>
+        </div></div>
+    @elseif(! ($invoiceCheck['ok'] ?? true))
+        <div class="px-4 sm:px-5 pt-3"><div class="flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-xs leading-relaxed" role="status" style="color:#92400e; background:#fffbeb; border:1px solid #fde68a">
+            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            <span>ตรวจใบแจ้งหนี้กับระบบหลักไม่สำเร็จ ยอดด้านล่างอาจยังไม่ใช่ใบล่าสุด ระบบจะตรวจอีกครั้งตอนแนบสลิป</span>
+        </div></div>
+    @endif
+
     @if($isWaitingContract && $displayRecords->isEmpty())
         <div class="py-16 text-center px-6">
             <div class="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -938,6 +951,11 @@
                                         </svg>
                                         {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                                     </button>
+                                @elseif(! empty($meta['invoice_block']))
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl whitespace-nowrap" style="color:#b91c1c; background:#fef2f2; border:1px solid #fecaca">
+                                        ใบต้องออกใหม่
+                                    </span>
+                                    <p class="text-[10px] text-gray-500 leading-snug" style="max-width:10rem" title="{{ $meta['invoice_block']['reason'] }}">แจ้งทีมงานออกใบ {{ $meta['invoice_block']['code'] }} ใหม่ก่อนแนบสลิป</p>
                                 @elseif($invoiceNotOpen)
                                     <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl whitespace-nowrap" style="color:#b45309; background:#fffbeb; border:1px solid #fde68a">
                                         ยังไม่เปิดใบแจ้งหนี้
@@ -1191,6 +1209,13 @@
                                 </svg>
                                 {{ $record->payment_status === 'pending_verification' ? 'แนบสลิปเพิ่ม' : 'แนบสลิป' }}
                             </button>
+                        </div>
+                    @elseif(! empty($meta['invoice_block']))
+                        <div class="flex flex-col items-end gap-1 flex-shrink-0 text-right" style="max-width:11rem">
+                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-2 rounded-xl whitespace-nowrap" style="color:#b91c1c; background:#fef2f2; border:1px solid #fecaca">
+                                ใบต้องออกใหม่
+                            </span>
+                            <p class="text-[10px] text-gray-500 leading-snug" title="{{ $meta['invoice_block']['reason'] }}">แจ้งทีมงานออกใบ {{ $meta['invoice_block']['code'] }} ใหม่ก่อนแนบสลิป</p>
                         </div>
                     @elseif($invoiceNotOpen)
                         <div class="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1939,13 +1964,17 @@ function applyBillingTabFilter() {
                 this.rentalTypes.forEach(t => formData.append('rental_types[]', t));
                 this.files.forEach(f => formData.append('payment_slips[]', f));
 
+                // redirect: 'manual' = ไม่ให้ fetch ตาม redirect ไปเปิดหน้าเอง (คำขอนั้นอ่านข้อความผลลัพธ์ flash ทิ้ง แล้วการโหลดหน้าซ้ำ
+                // ไม่เหลือข้อความ: ข้อความสำเร็จ/เหตุผลที่แนบไม่ได้ เช่น ใบแจ้งหนี้ต้องออกใหม่ งาน #81 หายทุกครั้ง) - ปลายทางคือหน้านี้เสมอ
+                // (สำเร็จ = หน้ารอบบิลของทรัพย์นี้, ไม่ผ่าน = back()) จึงโหลดหน้านี้ใหม่ (คง ?booking= ของสัญญาที่ดูอยู่)
                 fetch(`${billingUploadBase}/${currentRecordId}/slip`, {
                     method: 'POST',
                     body: formData,
+                    redirect: 'manual',
                 })
                 .then(res => {
-                    if (res.redirected) {
-                        window.location.href = res.url;
+                    if (res.type === 'opaqueredirect') {
+                        window.location.reload();
                         return;
                     }
                     return res.text().then(html => {

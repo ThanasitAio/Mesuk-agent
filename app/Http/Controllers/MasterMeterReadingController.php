@@ -8,6 +8,7 @@ use App\Models\HrPropertyGroup;
 use App\Models\MeterReading;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -321,6 +322,13 @@ class MasterMeterReadingController extends Controller
                             $oldImagePaths[] = $existing->old_meter_final_image_path;
                         }
                         $restartValues['old_meter_final_image_path'] = $restartPath;
+                    }
+                    // งวดใหม่เก็บชนิดมิเตอร์ + จำนวนรีจิกของข้อมูลหลักไว้ในตัว (หน้าแอดมินตรวจเลขงวดนั้นตามค่านี้ งาน #38, #97)
+                    // งวดที่จดแล้วคงค่าเดิม - แต่ละคอลัมน์มีเมื่อรัน migration ของ happyest แล้ว
+                    foreach (['meter_dial', 'meter_digits'] as $snapColumn) {
+                        if (! $existing && Schema::hasColumn('hr_master_meter_readings', $snapColumn) && $meter->{$snapColumn} !== null) {
+                            $restartValues[$snapColumn] = $meter->{$snapColumn};
+                        }
                     }
 
                     HrMasterMeterReading::updateOrCreate(

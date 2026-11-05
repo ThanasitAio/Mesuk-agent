@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\HappyestInvoiceBridge;
 use App\Models\HrCompany;
 use App\Models\HrInvoice;
 use App\Models\HrPaymentRecord;
@@ -61,10 +62,28 @@ class PropertyBillingController extends Controller
         // HrPaymentRecord::resolveInvoiceMatch()) - booking ที่ setRelation ไว้มี invoices eager-loaded มาแล้ว
         $booking->paymentRecords->each(fn ($r) => $r->setRelation('booking', $booking));
 
+        // งาน #81: ใบแจ้งหนี้ของรายการที่แนบสลิปได้ต้องตรงข้อมูลล่าสุดก่อนผู้บริหารโครงการเห็นยอด - happyest อัปเดตให้เอง
+        // (HappyestInvoiceBridge) แล้วโหลดใบ/ยอดใหม่ · ใบต้องออกใหม่ = ปิดปุ่มแนบสลิปของรายการนั้นพร้อมเหตุผล
+        $invoiceCheck = HappyestInvoiceBridge::prepareSlip(
+            $booking->id,
+            $booking->paymentRecords->filter(fn ($r) => $r->canUploadSlip($booking))->pluck('id')->all(),
+            'view'
+        );
+        if ($invoiceCheck['refreshed']) {
+            $booking->load(['paymentRecords', 'invoices']);
+            $booking->paymentRecords->each(fn ($r) => $r->setRelation('booking', $booking));
+        }
+
         $otherActiveBookings = $activeBookings->reject(fn ($b) => $b->id === $booking->id)->values();
 
         $company = HrCompany::getActive();
         $billing = $this->buildBillingContext($booking, $property, $company);
+        foreach ($invoiceCheck['blocked'] as $recordId => $block) {
+            if (isset($billing['recordMeta'][$recordId])) {
+                $billing['recordMeta'][$recordId]['can_upload'] = false;
+                $billing['recordMeta'][$recordId]['invoice_block'] = $block;
+            }
+        }
 
         $invoices = HrInvoice::where('booking_id', $booking->id)
             ->where('status', 'approved')
@@ -80,7 +99,7 @@ class PropertyBillingController extends Controller
         );
 
         return view('properties.show', array_merge(
-            compact('property', 'booking', 'company', 'invoices', 'otherActiveBookings'),
+            compact('property', 'booking', 'company', 'invoices', 'otherActiveBookings', 'invoiceCheck'),
             $billing
         ));
     }
@@ -157,6 +176,21 @@ class PropertyBillingController extends Controller
             'transfer_date.date'      => 'วันที่โอนไม่ถูกต้อง',
             'transfer_date.before_or_equal' => 'วันที่โอนต้องไม่เกินวันนี้',
         ]);
+
+        // งาน #81: ใบแจ้งหนี้ต้องตรงข้อมูลล่าสุดก่อนรับสลิป (happyest อัปเดตให้เอง) - ตรวจไม่ได้ = ยังไม่รับ (สลิปที่แนบล็อกใบไว้ตลอด)
+        $invoiceCheck = HappyestInvoiceBridge::prepareSlip($booking->id, [$record->id], 'upload');
+        if (! $invoiceCheck['ok']) {
+            return back()->with('error', 'ตรวจใบแจ้งหนี้กับระบบหลักไม่สำเร็จ ('.$invoiceCheck['error'].') ยังแนบสลิปไม่ได้ ลองอีกครั้ง หรือแจ้งทีมงาน');
+        }
+        if ($block = $invoiceCheck['blocked'][$record->id] ?? null) {
+            return back()->with('error', "ใบแจ้งหนี้ {$block['code']} ต้องออกใหม่ แจ้งทีมงานให้ออกใบใหม่ก่อน แล้วจึงแนบสลิป · เหตุผล: {$block['reason']}");
+        }
+        // เปลี่ยนยอด/บัญชีรับเงิน/วันครบกำหนด = ให้ดูใบใหม่ก่อน · เปลี่ยนแค่หัวใบ/ข้อมูลประกอบ = อัปเดตแล้วรับสลิปต่อ
+        $mustRecheck = array_filter($invoiceCheck['refreshed'], fn ($r) => $r['pay'] ?? true);
+        if ($mustRecheck) {
+            return back()->with('error', 'ใบแจ้งหนี้เพิ่งอัปเดตตามข้อมูลล่าสุด: '.HappyestInvoiceBridge::refreshedText($mustRecheck)
+                .' ตรวจยอดและบัญชีที่ลูกค้าต้องโอนอีกครั้ง แล้วแนบสลิปใหม่');
+        }
 
         $bookingId = $record->booking_id;
         $paidAt = \Carbon\Carbon::parse($request->input('transfer_date'))->setTimeFrom(now());

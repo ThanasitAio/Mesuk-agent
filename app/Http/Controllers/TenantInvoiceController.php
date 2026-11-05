@@ -171,7 +171,7 @@ class TenantInvoiceController extends Controller
     }
 
     /**
-     * ใบที่ happyest ส่งเข้ากลุ่มไลน์ของผู้เช่าแล้ว (งาน #53) - ผู้บริหารโครงการเห็นว่าไม่ต้องดาวน์โหลดไปส่งเอง
+     * ใบที่ happyest ส่งถึงไลน์ของผู้เช่าแล้ว (งาน #53, แชทส่วนตัวตั้งแต่งาน #90) - ผู้บริหารโครงการเห็นว่าไม่ต้องดาวน์โหลดไปส่งเอง
      * ตารางเป็นของ happyest: ยังไม่ได้กด รัน Migrations ที่นั่น (ไม่มีตาราง) = ไม่แสดงอะไร ไม่ error
      *
      * @return array<int, array{sent_at: \Carbon\Carbon, groups: array<int, string>, opened: int}>
@@ -190,7 +190,7 @@ class TenantInvoiceController extends Controller
             ->groupBy('invoice_id')
             ->map(fn ($rows) => [
                 'sent_at' => $rows->first()->sent_at,
-                'groups' => $rows->map(fn ($row) => $row->group?->name ?: 'กลุ่มไลน์ของผู้เช่า')->unique()->values()->all(),
+                'groups' => $rows->map(fn ($row) => $row->group?->name ?: 'ไลน์ของผู้เช่า')->unique()->values()->all(),
                 'opened' => (int) $rows->sum('open_count'),
             ])
             ->all();

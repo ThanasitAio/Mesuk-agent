@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * กลุ่มไลน์ของผู้เช่าที่บอทของบริษัทอยู่ (hr_line_groups ของ happyest, งาน #53) - อ่านอย่างเดียว ไว้แสดงชื่อกลุ่ม
+ * ไลน์ของผู้เช่าที่รับเอกสารจากบัญชีบริษัท (hr_line_groups ของ happyest: แชทส่วนตัวตั้งแต่งาน #90, กลุ่มเดิมของงาน #53) - อ่านอย่างเดียว ไว้แสดงชื่อ
  */
 class HrLineGroup extends Model
 {

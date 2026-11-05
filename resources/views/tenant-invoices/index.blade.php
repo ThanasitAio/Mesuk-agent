@@ -178,9 +178,9 @@
                     ผู้รับเงิน: {{ $payeeLabel }}
                 </span>
                 @if($invoice->line_sent)
-                    {{-- happyest ส่งการ์ดใบนี้เข้ากลุ่มไลน์ของผู้เช่าแล้ว (งาน #53) - ไม่ต้องดาวน์โหลดไปส่งเอง --}}
+                    {{-- happyest ส่งการ์ดใบนี้ถึงไลน์ของผู้เช่าแล้ว (งาน #53/#90) - ไม่ต้องดาวน์โหลดไปส่งเอง --}}
                     <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700"
-                          title="ส่งเข้า {{ implode(', ', $invoice->line_sent['groups']) }} เมื่อ {{ $invoice->line_sent['sent_at']?->format('d/m/Y H:i') }} น.{{ $invoice->line_sent['opened'] ? ' · ผู้เช่าเปิดดูแล้ว '.$invoice->line_sent['opened'].' ครั้ง' : '' }}">
+                          title="ส่งถึงไลน์ของ {{ implode(', ', $invoice->line_sent['groups']) }} เมื่อ {{ $invoice->line_sent['sent_at']?->format('d/m/Y H:i') }} น.{{ $invoice->line_sent['opened'] ? ' · ผู้เช่าเปิดดูแล้ว '.$invoice->line_sent['opened'].' ครั้ง' : '' }}">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                         ส่งเข้าไลน์แล้ว
                     </span>
