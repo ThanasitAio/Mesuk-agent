@@ -90,6 +90,12 @@ class PropertyBillingController extends Controller
             ->orderBy('approved_at', 'desc')
             ->get();
 
+        // เกณฑ์เดียวกับหน้ารายการ (/properties): ทรัพย์ว่าง/การจองยังเป็น deposit_confirmed ไม่นับว่า "ค้างแนบสลิป"
+        $slipEligible = $this->slipEligible($property, $booking);
+        $slipDueUntil = now()->endOfMonth();
+        // บิลที่เพิ่งแนบสลิป (flash จาก uploadSlip) - หน้าเปิดแท็บ "แนบแล้ว" และไฮไลต์บิลนั้นให้เห็นว่าข้อมูลอยู่ครบ
+        $attachedRecordId = session('attached_record');
+
         logSystem(
             userType: 'agent',
             userId: session('agent_id'),
@@ -99,7 +105,7 @@ class PropertyBillingController extends Controller
         );
 
         return view('properties.show', array_merge(
-            compact('property', 'booking', 'company', 'invoices', 'otherActiveBookings', 'invoiceCheck'),
+            compact('property', 'booking', 'company', 'invoices', 'otherActiveBookings', 'invoiceCheck', 'slipEligible', 'slipDueUntil', 'attachedRecordId'),
             $billing
         ));
     }
@@ -255,11 +261,41 @@ class PropertyBillingController extends Controller
 
         $successMessage = $linkedUtilityRecord
                 ? 'อัพโหลดสลิปรวม (ค่าเช่า + ค่าน้ำ/ไฟ) เรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน'
-                : 'อัพโหลดสลิปเรียบร้อยแล้ว รอการตรวจสอบจากทีมงาน';
+                : "แนบสลิป {$record->getBillLabel()} เรียบร้อยแล้ว รอทีมงานตรวจสอบ";
+
+        // บอกบิลที่ยังค้างแนบของสัญญาเดียวกัน (ค่าเช่ากับค่าน้ำ/ไฟเป็นคนละบิล ต้องแนบทีละบิล) กันเข้าใจผิดว่าแนบครบแล้ว
+        $remaining = $this->remainingSlipLabels($booking, $property, $record->id);
+        if (! empty($remaining)) {
+            $successMessage .= ' · ยังไม่ได้แนบ: ' . implode(', ', $remaining) . ' (ต้องแนบแยกบิล)';
+        } else {
+            $successMessage .= ' · ไม่มีบิลที่ค้างแนบสลิปแล้ว';
+        }
 
         return redirect()
-            ->route('properties.show', $property->id)
-            ->with('success', $successMessage);
+            ->route('properties.show', ['property' => $property->id, 'booking' => $booking->id])
+            ->with('success', $successMessage)
+            ->with('attached_record', $record->id);
+    }
+
+    private function slipEligible(HrProperty $property, $booking): bool
+    {
+        return optional($property->propertyStatus)->slug !== 'available'
+            && $booking->status !== 'deposit_confirmed';
+    }
+
+    /** ชื่อบิลที่ถึงกำหนดแล้วแต่ยังไม่ได้แนบ (หรือถูกปฏิเสธต้องแนบใหม่) ของสัญญานี้ ไม่รวมบิลที่เพิ่งแนบ */
+    private function remainingSlipLabels($booking, HrProperty $property, int $exceptRecordId): array
+    {
+        $booking->load(['paymentRecords', 'invoices']);
+        $eligible = $this->slipEligible($property, $booking);
+        $dueUntil = now()->endOfMonth();
+
+        return $booking->paymentRecords
+            ->reject(fn ($r) => $r->id === $exceptRecordId)
+            ->filter(fn ($r) => in_array($r->slipUiState($booking, $eligible, $dueUntil), ['needed', 'rejected'], true))
+            ->map(fn ($r) => $r->getBillLabel())
+            ->values()
+            ->all();
     }
 
     public function cancelSlip(HrPaymentRecord $record)

@@ -36,8 +36,31 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     // เป็น "รอแนบสลิป" เฉพาะรายการที่ครบกำหนดชำระแล้ว หรืออยู่ในรอบเดือนปัจจุบัน
     // (due_date <= สิ้นเดือนนี้) เพื่อให้ผู้บริหารเห็นรายการค่าเช่าเดือนปัจจุบันที่ถึงรอบ
     // ตั้งแต่ต้นเดือน ไม่ใช่รอจนถึงวันครบกำหนดจริงถึงจะขึ้นเตือน - ไม่รวมรายการเดือนถัดไป
-    $duePendingRecords = fn($recs) => $recs->whereIn('payment_status', ['pending', 'failed'])
-        ->filter(fn($r) => ! $r->due_date || $r->due_date->lte($currentMonthEnd));
+    // รายการสถานะสลิปรายบิล (ค่าเช่า/ค่าน้ำไฟ/มัดจำ แต่ละเดือน) ของ 1 สัญญา - สถานะคำนวณจาก
+    // HrPaymentRecord::slipUiState() ตัวเดียวกับหน้ารอบบิล ให้ข้อความตรงกันทั้งสองหน้า
+    // เรียง: ปฏิเสธ → ยังไม่แนบ → บางส่วน → รอตรวจ → รอใบแจ้งหนี้ แล้วตามวันครบกำหนด
+    $billItemsFor = function ($recs, $booking, bool $eligible) use ($currentMonthEnd) {
+        $order = ['rejected' => 0, 'needed' => 1, 'partial' => 2, 'verify' => 3, 'noinvoice' => 4];
+
+        return $recs
+            ->map(function ($r) use ($booking, $eligible, $currentMonthEnd, $order) {
+                $state = $r->slipUiState($booking, $eligible, $currentMonthEnd);
+                if (! isset($order[$state])) {
+                    return null;
+                }
+
+                return (object) [
+                    'state' => $state,
+                    'label' => $r->getBillLabel(),
+                    'type'  => $r->payment_type,
+                    'due'   => $r->due_date,
+                    'at'    => $r->lastSlipUploadedAt(),
+                ];
+            })
+            ->filter()
+            ->sortBy(fn ($i) => [$order[$i->state], $i->due?->timestamp ?? 0])
+            ->values();
+    };
 
     // แสดงรอแนบสลิปได้ก็ต่อเมื่ออสังหาสถานะไม่ว่าง (property_status_id ไม่ใช่ available)
     $isPropertyVacant = fn($p) => optional($p->propertyStatus)->slug === 'available';
@@ -95,13 +118,13 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     };
 
     // ─── เตรียมข้อมูลแสดงผลล่วงหน้า (คำนวณครั้งเดียว ใช้ได้ทั้งการ์ดมือถือ/ตารางเดสก์ท็อป) ───
-    $contractRows = $withContract->flatMap(function ($property) use ($happyestPublic, $duePendingRecords, $isPropertyVacant, $areaStatusOf, $resolveImageUrl) {
+    $contractRows = $withContract->flatMap(function ($property) use ($happyestPublic, $billItemsFor, $isPropertyVacant, $areaStatusOf, $resolveImageUrl) {
         // ปกติมี active booking แค่รายการเดียว แต่ช่วงต่อสัญญา (สัญญาเดิมยังไม่ปิด + สัญญาใหม่เปิดแล้ว)
         // อาจซ้อนกัน 2 รายการ - สร้างแยกเป็นคนละแถวเพื่อไม่ให้รายการใดถูกซ่อนไป
         $bookings      = $property->activeBookings->sortBy('id')->values();
         $isOverlapping = $bookings->count() > 1;
 
-        return $bookings->map(function ($booking) use ($property, $happyestPublic, $duePendingRecords, $isPropertyVacant, $areaStatusOf, $resolveImageUrl, $isOverlapping) {
+        return $bookings->map(function ($booking) use ($property, $happyestPublic, $billItemsFor, $isPropertyVacant, $areaStatusOf, $resolveImageUrl, $isOverlapping) {
         $tenant        = $booking?->customer;
         $bookingStatus = $booking?->status ?? 'pending';
 
@@ -127,40 +150,39 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         $rentalMonths  = $booking?->rental_months ?? 0;
 
         // Payment records
-        $records          = $booking?->paymentRecords ?? collect();
-        $duePendingRecs   = $duePendingRecords($records);
-        $hasPendingFailed = $duePendingRecs->isNotEmpty();
-        $pendingSlipHasRent = $duePendingRecs
-            ->whereIn('payment_type', ['monthly_rent', 'late_fee'])
-            ->isNotEmpty();
-        $pendingSlipHasUtility = $duePendingRecs
-            ->where('payment_type', 'utility')
-            ->isNotEmpty();
-        $hasPendingVerify = $records->where('payment_status', 'pending_verification')->isNotEmpty();
-        $isVacant         = $isPropertyVacant($property);
+        $records      = $booking?->paymentRecords ?? collect();
+        $isVacant     = $isPropertyVacant($property);
+        $slipEligible = ! $isVacant && $bookingStatus !== 'deposit_confirmed';
 
-        $slipNeeded        = ! $isVacant && $bookingStatus !== 'deposit_confirmed' && $hasPendingFailed;
-        $slipPendingVerify = $hasPendingVerify && ! $hasPendingFailed;
+        // สถานะสลิปรายบิล - แสดงทุกบิลที่ค้างหรือรอตรวจ (ไม่ใช่แค่สถานะที่แย่ที่สุดของทรัพย์) กันเข้าใจผิดว่า
+        // "แนบแล้วแต่ข้อมูลหาย" เมื่อทรัพย์มีทั้งบิลที่แนบแล้วและบิลที่ยังค้างอยู่พร้อมกัน
+        $billItems   = $billItemsFor($records, $booking, $slipEligible);
+        $actionItems = $billItems->whereIn('state', ['needed', 'rejected']);
+
+        $slipNeeded        = $slipEligible && $actionItems->isNotEmpty();
+        $slipPendingVerify = $billItems->where('state', 'verify')->isNotEmpty();
         $lastSlipAt        = $records->whereNotNull('paid_at')->sortByDesc('paid_at')->first()?->paid_at;
+        $pendingSlipHasRent    = $actionItems->whereIn('type', ['monthly_rent', 'late_fee'])->isNotEmpty();
+        $pendingSlipHasUtility = $actionItems->where('type', 'utility')->isNotEmpty();
 
-        // First pending record ที่ครบกำหนดแล้ว + due date
-        $firstPendingRec = $duePendingRecs->first();
-        $pendingDueDate  = $firstPendingRec?->due_date;
-        $dueDatePast = $pendingDueDate && $pendingDueDate->lt(now()->startOfDay());
-        $dueDateSoon = $pendingDueDate && ! $dueDatePast && $pendingDueDate->diffInDays(now()->startOfDay()) <= 3;
-        $dueDateClass = $dueDatePast ? 'text-red-500 font-semibold' : ($dueDateSoon ? 'text-amber-500 font-semibold' : 'text-gray-400');
-
-        // Slip label (เดือนที่ แทน รอบที่)
-        $pendingSlipLabel = null;
-        if ($slipNeeded && $firstPendingRec) {
-            $pendingSlipLabel = match ($firstPendingRec->payment_type) {
-                'monthly_rent'   => 'เดือนที่ ' . $firstPendingRec->month_number,
-                'deposit'        => 'มัดจำงวด ' . ($firstPendingRec->deposit_phase ?? 1),
-                'processing_fee' => 'ค่าดำเนินการ',
-                'late_fee'       => 'ค่าปรับเดือน ' . $firstPendingRec->month_number,
-                'utility'        => 'ค่าน้ำ/ไฟ' . ($firstPendingRec->month_number ? ' เดือนที่ ' . $firstPendingRec->month_number : ''),
-                default          => null,
+        // สถานะการแนบสลิปแยกตามเดือนที่ครบกำหนด (due_date) สำหรับตัวกรอง "เดือนการแนบสลิป" -
+        // needed = ยังไม่แนบ (นิยามเดียวกับ $slipNeeded) · verify = แนบแล้วรอตรวจ · paid = ชำระแล้ว
+        // ค่าน้ำ/ไฟมี due_date พร้อมค่าเช่าของเดือนนั้น จึงอยู่เดือนเดียวกับค่าเช่าที่เรียกเก็บด้วยกัน
+        $neededMonths = $slipEligible
+            ? $actionItems->filter(fn ($i) => $i->due)->map(fn ($i) => $i->due->format('Y-m'))->unique()
+            : collect();
+        $slipMonths = [];
+        foreach ($records->filter(fn ($r) => $r->due_date)->groupBy(fn ($r) => $r->due_date->format('Y-m')) as $ym => $monthRecs) {
+            $monthStatuses = $monthRecs->pluck('payment_status');
+            $monthState = match (true) {
+                $neededMonths->contains($ym)                         => 'needed',
+                $monthStatuses->contains('pending_verification')     => 'verify',
+                $monthStatuses->contains('paid')                     => 'paid',
+                default                                              => null,
             };
+            if ($monthState) {
+                $slipMonths[(string) $ym] = $monthState;
+            }
         }
 
         $searchText = strtolower(
@@ -193,11 +215,9 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
             'pendingSlipHasRent' => $pendingSlipHasRent,
             'pendingSlipHasUtility' => $pendingSlipHasUtility,
             'slipPendingVerify' => $slipPendingVerify,
+            'slipMonths'        => $slipMonths,
             'lastSlipAt'        => $lastSlipAt,
-            'pendingDueDate'    => $pendingDueDate,
-            'dueDatePast'       => $dueDatePast,
-            'dueDateClass'      => $dueDateClass,
-            'pendingSlipLabel'  => $pendingSlipLabel,
+            'billItems'         => $billItems,
             'searchText'        => $searchText,
             'statusColor'       => $area->color,
             'statusLabel'       => $area->label,
@@ -247,6 +267,24 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     $totalBooked       = $propertyAreaRows->where('slug', 'booked')->count();
     $totalFutureProject = $propertyAreaRows->where('slug', 'future_project')->count();
 
+    // ─── ตัวเลือกตัวกรอง "เดือนการแนบสลิป" - เดือนที่มีรายการชำระของทรัพย์ที่ดูแล เรียงใหม่ → เก่า ───
+    $thaiMonths = [
+        1 => 'มกราคม', 2 => 'กุมภาพันธ์', 3 => 'มีนาคม', 4 => 'เมษายน',
+        5 => 'พฤษภาคม', 6 => 'มิถุนายน', 7 => 'กรกฎาคม', 8 => 'สิงหาคม',
+        9 => 'กันยายน', 10 => 'ตุลาคม', 11 => 'พฤศจิกายน', 12 => 'ธันวาคม',
+    ];
+    $slipMonthOptions = $contractRows
+        ->flatMap(fn ($row) => array_keys($row->slipMonths))
+        ->unique()
+        ->sortDesc()
+        ->values()
+        ->mapWithKeys(function ($ym) use ($thaiMonths) {
+            [$y, $m] = array_map('intval', explode('-', $ym));
+
+            return [$ym => ($thaiMonths[$m] ?? $m) . ' ' . ($y + 543)];
+        })
+        ->all();
+
     // ─── รายการทั้งหมดแบบย่อ ใช้เช็คว่ามีแถวที่ตรงกับแท็บ/คำค้นหาที่เลือกอยู่หรือไม่ ───
     $allRowsForMatch = $contractRows
         ->map(fn ($row) => [
@@ -254,12 +292,14 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
             'text'          => $row->searchText,
             'slipNeeded'    => $row->slipNeeded,
             'slipVerifying' => $row->slipPendingVerify,
+            'months'        => $row->slipMonths,
         ])
         ->concat($vacantRows->map(fn ($row) => [
             'type'          => $row->filterType,
             'text'          => $row->searchText,
             'slipNeeded'    => false,
             'slipVerifying' => false,
+            'months'        => [],
         ]))
         ->values();
 @endphp
@@ -267,16 +307,48 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
 <div x-data="{
     search: '',
     filter: 'all',
+    slipMonth: '',
+    monthLabels: @js($slipMonthOptions),
     rows: @js($allRowsForMatch),
-    matchRow(type, text, slipNeeded, slipVerifying) {
-        if (this.filter === 'slip_needed') return slipNeeded;
-        if (this.filter === 'slip_verify') return slipVerifying;
-        if (this.filter !== 'all' && this.filter !== type) return false;
+    // เลือกเดือนแล้ว: แท็บรอสลิป/แนบแล้ว และตัวเลขนับ ดูเฉพาะรายการที่ครบกำหนดในเดือนนั้น (ทรัพย์ที่ไม่มีรายการเดือนนั้นถูกซ่อน)
+    monthStateOf(months) {
+        return (this.slipMonth && months && months[this.slipMonth]) || null;
+    },
+    matchRow(type, text, slipNeeded, slipVerifying, months) {
+        if (this.slipMonth) {
+            const st = this.monthStateOf(months);
+            if (!st) return false;
+            if (this.filter === 'slip_needed' && st !== 'needed') return false;
+            if (this.filter === 'slip_verify' && st !== 'verify') return false;
+        } else {
+            if (this.filter === 'slip_needed') return slipNeeded;
+            if (this.filter === 'slip_verify') return slipVerifying;
+        }
+        if (this.filter !== 'all' && this.filter !== 'slip_needed' && this.filter !== 'slip_verify' && this.filter !== type) return false;
         if (!this.search.trim()) return true;
         return text.toLowerCase().includes(this.search.toLowerCase().trim());
     },
     get hasMatches() {
-        return this.rows.some(r => this.matchRow(r.type, r.text, r.slipNeeded, r.slipVerifying));
+        return this.rows.some(r => this.matchRow(r.type, r.text, r.slipNeeded, r.slipVerifying, r.months));
+    },
+    get slipNeededCount() {
+        return this.rows.filter(r => this.slipMonth ? this.monthStateOf(r.months) === 'needed' : r.slipNeeded).length;
+    },
+    get slipVerifyCount() {
+        return this.rows.filter(r => this.slipMonth ? this.monthStateOf(r.months) === 'verify' : r.slipVerifying).length;
+    },
+    get slipMonthLabel() {
+        return this.monthLabels[this.slipMonth] || '';
+    },
+    monthStatusText(months) {
+        return { needed: 'ยังไม่แนบสลิป', verify: 'แนบแล้ว รอตรวจสอบ', paid: 'ชำระแล้ว' }[this.monthStateOf(months)] || '';
+    },
+    monthStatusClass(months) {
+        return {
+            needed: 'text-amber-700 bg-amber-50 border-amber-200',
+            verify: 'text-blue-700 bg-blue-50 border-blue-200',
+            paid:   'text-green-700 bg-green-50 border-green-200',
+        }[this.monthStateOf(months)] || '';
     }
 }">
 
@@ -355,8 +427,10 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
 </div>
 
 {{-- ===== Slip Alert Banners ===== --}}
-@if($totalSlipNeeded > 0)
+{{-- แบนเนอร์/แท็บรอสลิป-แนบแล้ว ตัวเลขและการแสดงตามตัวกรองเดือน (x-show) - ไม่เลือกเดือน = ตัวเลขเดิม --}}
+@if($totalSlipNeeded > 0 || $totalSlipVerify > 0 || ! empty($slipMonthOptions))
 <button type="button"
+        x-show="slipNeededCount > 0" @if($totalSlipNeeded === 0) x-cloak @endif
         x-on:click="filter = (filter === 'slip_needed' ? 'all' : 'slip_needed')"
         class="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5 mb-3 text-left transition-transform active:scale-[0.99]">
     <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -365,9 +439,9 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         </svg>
     </div>
     <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold text-amber-700">ยังไม่แนบสลิป <span class="font-bold">{{ $totalSlipNeeded }} อสังหา</span></p>
+        <p class="text-sm font-semibold text-amber-700">ยังไม่แนบสลิป<span x-text="slipMonth ? ' เดือน' + slipMonthLabel : ''"></span> <span class="font-bold"><span x-text="slipNeededCount">{{ $totalSlipNeeded }}</span> อสังหา</span></p>
         @if($totalSlipNeededRent > 0 || $totalSlipNeededUtility > 0)
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-amber-600">
+        <div x-show="!slipMonth" class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-amber-600">
             @if($totalSlipNeededRent > 0)
                 <span>ค่าเช่า {{ $totalSlipNeededRent }} อสังหา</span>
             @endif
@@ -384,9 +458,8 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
     </svg>
 </button>
-@endif
-@if($totalSlipVerify > 0)
 <button type="button"
+        x-show="slipVerifyCount > 0" @if($totalSlipVerify === 0) x-cloak @endif
         x-on:click="filter = (filter === 'slip_verify' ? 'all' : 'slip_verify')"
         class="w-full flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3.5 mb-3 text-left transition-transform active:scale-[0.99]">
     <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -395,7 +468,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
         </svg>
     </div>
     <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold text-blue-700">แนบสลิปแล้ว รอตรวจสอบ <span class="font-bold">{{ $totalSlipVerify }} อสังหา</span></p>
+        <p class="text-sm font-semibold text-blue-700">แนบสลิปแล้ว รอตรวจสอบ<span x-text="slipMonth ? ' เดือน' + slipMonthLabel : ''"></span> <span class="font-bold"><span x-text="slipVerifyCount">{{ $totalSlipVerify }}</span> อสังหา</span></p>
         <p class="text-xs text-blue-400 mt-0.5" x-text="filter === 'slip_verify' ? 'กำลังกรองอยู่ - แตะอีกครั้งเพื่อดูทั้งหมด' : 'แตะเพื่อกรองดูอสังหาที่รอแอดมินตรวจสอบสลิป'"></p>
     </div>
     <svg class="w-4 h-4 flex-shrink-0 transition-transform"
@@ -405,14 +478,15 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     </svg>
 </button>
 @endif
-@if($totalSlipNeeded > 0 || $totalSlipVerify > 0)
-<div class="mb-5"></div>
+@if($totalSlipNeeded > 0 || $totalSlipVerify > 0 || ! empty($slipMonthOptions))
+<div class="mb-5" x-show="slipNeededCount > 0 || slipVerifyCount > 0"></div>
 @endif
 
 {{-- ===== Search + Filter ===== --}}
 @if($totalAll > 0)
 <div class="flex flex-col gap-2.5 mb-4">
-    <div class="relative border border-gray-300 rounded-xl bg-white transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500">
+    <div class="flex flex-col sm:flex-row gap-2.5">
+    <div class="relative flex-1 min-w-0 border border-gray-300 rounded-xl bg-white transition-all focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-500">
         <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
@@ -427,6 +501,18 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
         </button>
+    </div>
+    @if(! empty($slipMonthOptions))
+    {{-- ตัวกรองเดือนการแนบสลิป (ตามเดือนที่ครบกำหนดชำระ) - ใช้ร่วมกับแท็บรอสลิป/แนบแล้ว เช่น เลือก ตุลาคม + รอสลิป = ทรัพย์ที่ยังไม่แนบสลิปของเดือนตุลาคม --}}
+    <div class="sm:w-60 flex-shrink-0">
+        <x-form.select name="slip_month" :searchable="false" x-model="slipMonth" aria-label="เดือนการแนบสลิป">
+            <option value="">เดือนการแนบสลิป: ทุกเดือน</option>
+            @foreach($slipMonthOptions as $ym => $monthLabel)
+            <option value="{{ $ym }}">{{ $monthLabel }}</option>
+            @endforeach
+        </x-form.select>
+    </div>
+    @endif
     </div>
     <div class="flex gap-1.5 bg-gray-100 rounded-xl p-1.5 overflow-x-auto">
         <button @click="filter = 'all'"
@@ -446,20 +532,20 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
                 :class="filter === 'future_project' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap">โครงการในอนาคต</button>
         @endif
-        @if($totalSlipNeeded > 0)
+        @if($totalSlipNeeded > 0 || $totalSlipVerify > 0 || ! empty($slipMonthOptions))
         <button @click="filter = 'slip_needed'"
+                x-show="slipNeededCount > 0 || filter === 'slip_needed'" @if($totalSlipNeeded === 0) x-cloak @endif
                 :class="filter === 'slip_needed' ? 'bg-white text-amber-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1">
             รอสลิป
-            <span class="text-[10px] font-bold bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none flex-shrink-0">{{ $totalSlipNeeded }}</span>
+            <span x-text="slipNeededCount" class="text-[10px] font-bold bg-amber-500 text-white rounded-full min-w-4 h-4 px-1 flex items-center justify-center leading-none flex-shrink-0">{{ $totalSlipNeeded }}</span>
         </button>
-        @endif
-        @if($totalSlipVerify > 0)
         <button @click="filter = 'slip_verify'"
+                x-show="slipVerifyCount > 0 || filter === 'slip_verify'" @if($totalSlipVerify === 0) x-cloak @endif
                 :class="filter === 'slip_verify' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'"
                 class="flex-shrink-0 px-3 sm:px-3.5 py-2 sm:py-2.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap flex items-center gap-1">
             แนบแล้ว
-            <span class="text-[10px] font-bold bg-blue-500 text-white rounded-full w-4 h-4 flex items-center justify-center leading-none flex-shrink-0">{{ $totalSlipVerify }}</span>
+            <span x-text="slipVerifyCount" class="text-[10px] font-bold bg-blue-500 text-white rounded-full min-w-4 h-4 px-1 flex items-center justify-center leading-none flex-shrink-0">{{ $totalSlipVerify }}</span>
         </button>
         @endif
     </div>
@@ -472,7 +558,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
 
     @foreach($contractRows as $row)
     <a href="{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}"
-       x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
+       x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify), @js($row->slipMonths))"
        class="property-row block bg-white rounded-2xl shadow-sm border border-gray-100 p-4 active:bg-gray-50 active:scale-[0.99] transition-all">
 
         <div class="flex items-start gap-3">
@@ -538,29 +624,13 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
                 @endif
             </div>
 
-            @if($row->slipNeeded)
-            <div class="flex items-center gap-1 text-[10px] font-semibold text-amber-600 flex-wrap">
-                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                </svg>
-                รอแนบสลิป@if($row->pendingSlipLabel) <span class="font-normal text-amber-500">· {{ $row->pendingSlipLabel }}</span>@endif
-                @if($row->pendingDueDate) <span class="{{ $row->dueDateClass }}">· ครบ {{ $row->pendingDueDate->locale('th')->translatedFormat('j M') }}</span>@endif
+            <div x-show="monthStatusText(@js($row->slipMonths))" x-cloak>
+                <span class="inline-flex items-center text-[10px] font-semibold border px-2 py-0.5 rounded-full"
+                      :class="monthStatusClass(@js($row->slipMonths))"
+                      x-text="slipMonthLabel + ': ' + monthStatusText(@js($row->slipMonths))"></span>
             </div>
-            @elseif($row->slipPendingVerify)
-            <div class="flex items-center gap-1 text-[10px] font-semibold text-blue-500">
-                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                รอตรวจสอบ@if($row->lastSlipAt) <span class="font-normal text-blue-400">· {{ $row->lastSlipAt->locale('th')->translatedFormat('j M') }}</span>@endif
-            </div>
-            @elseif($row->lastSlipAt)
-            <div class="flex items-center gap-1 text-[10px] text-gray-400">
-                <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                </svg>
-                แนบล่าสุด {{ $row->lastSlipAt->locale('th')->translatedFormat('j M Y') }}
-            </div>
-            @endif
+
+            <x-bill-status-list :items="$row->billItems" :last-slip-at="$row->lastSlipAt" class="pt-0.5" />
 
             @php $displayDate = $row->actualMoveIn ?? $row->contractStart ?? $row->checkIn; @endphp
             @if($displayDate || $row->contractEnd || $row->rentalMonths)
@@ -632,7 +702,7 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
     </x-slot:head>
 
     @foreach($contractRows as $row)
-    <tr x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify))"
+    <tr x-show="matchRow('{{ $row->filterType }}', @js($row->searchText), @js($row->slipNeeded), @js($row->slipPendingVerify), @js($row->slipMonths))"
         class="property-row hover:bg-gray-50 cursor-pointer group"
         onclick="window.location='{{ route('properties.show', $row->property->id) }}?booking={{ $row->bookingId }}'"
         role="button"
@@ -686,36 +756,12 @@ tbody tr.property-row .row-num::before { content: counter(rownum); }
             </div>
 
             <div class="mt-2 space-y-1">
-                @if($row->slipNeeded)
-                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600">
-                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                        </svg>
-                        รอแนบสลิป@if($row->pendingSlipLabel) <span class="font-normal text-amber-500 ml-0.5">· {{ $row->pendingSlipLabel }}</span>@endif
-                    </div>
-                    @if($row->pendingDueDate)
-                    <div class="flex items-center gap-1 text-[10px] {{ $row->dueDateClass }}">
-                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                        {{ $row->dueDatePast ? 'เกินกำหนด' : 'ครบกำหนด' }} {{ $row->pendingDueDate->locale('th')->translatedFormat('j M Y') }}
-                    </div>
-                    @endif
-                @elseif($row->slipPendingVerify)
-                    <div class="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-500">
-                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                        รอตรวจสอบ@if($row->lastSlipAt) <span class="font-normal text-blue-400 ml-0.5">· {{ $row->lastSlipAt->locale('th')->translatedFormat('j M') }}</span>@endif
-                    </div>
-                @elseif($row->lastSlipAt)
-                    <div class="inline-flex items-center gap-1 text-[10px] text-gray-400">
-                        <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                        </svg>
-                        แนบล่าสุด {{ $row->lastSlipAt->locale('th')->translatedFormat('j M Y') }}
-                    </div>
-                @endif
+                <div x-show="monthStatusText(@js($row->slipMonths))" x-cloak>
+                    <span class="inline-flex items-center text-[10px] font-semibold border px-2 py-0.5 rounded-full whitespace-nowrap"
+                          :class="monthStatusClass(@js($row->slipMonths))"
+                          x-text="slipMonthLabel + ': ' + monthStatusText(@js($row->slipMonths))"></span>
+                </div>
+                <x-bill-status-list :items="$row->billItems" :last-slip-at="$row->lastSlipAt" />
             </div>
         </td>
 

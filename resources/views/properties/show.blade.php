@@ -168,6 +168,38 @@
             'split'    => $companyInv && $investorInv,
         ];
     }
+
+    // ─── สถานะสลิปรายบิล + แท็บที่บิลนั้นอยู่ (ตัวเดียวกับหน้ารายการ /properties ผ่าน slipUiState) ───
+    //   action = ต้องแนบสลิป (ถึงกำหนดแล้ว ยังไม่แนบ/ถูกปฏิเสธ) · verify = แนบแล้ว รอทีมงานตรวจ/ชำระบางส่วน
+    //   paid = ชำระแล้ว · later = ยังไม่ถึงรอบ หรือผู้บริหารยังแนบไม่ได้ (รอเปิดใบแจ้งหนี้/ใบต้องออกใหม่/รอสัญญา)
+    $slipStateMap = [];
+    $slipTabMap   = [];
+    foreach ($displayRecords as $rec) {
+        $st = $rec->slipUiState($booking, $slipEligible, $slipDueUntil);
+        if (in_array($st, ['needed', 'rejected'], true) && ! ($recordMeta[$rec->id]['can_upload'] ?? false)) {
+            $st = 'blocked'; // ใบแจ้งหนี้ต้องออกใหม่ - แนบไม่ได้จนกว่าทีมงานจะออกใบ
+        }
+        $slipStateMap[$rec->id] = $st;
+        $slipTabMap[$rec->id] = match ($st) {
+            'needed', 'rejected' => 'action',
+            'verify', 'partial'  => 'verify',
+            'paid'               => 'paid',
+            default              => 'later',
+        };
+    }
+    $tabCounts = collect($slipTabMap)->countBy()->all();
+    $tabCount  = fn ($t) => (int) ($tabCounts[$t] ?? 0);
+    $initialTab = $attachedRecordId && isset($slipTabMap[$attachedRecordId])
+        ? $slipTabMap[$attachedRecordId]
+        : match (true) {
+            $tabCount('action') > 0 => 'action',
+            $tabCount('verify') > 0 => 'verify',
+            $tabCount('later') > 0  => 'later',
+            default                 => 'paid',
+        };
+    // บิลแยกตามชื่อ - ใช้อธิบายในหน้าว่า "ยังค้างอะไร / แนบอะไรไปแล้ว"
+    $actionLabels = $displayRecords->filter(fn ($r) => ($slipTabMap[$r->id] ?? null) === 'action')->map(fn ($r) => $r->getBillLabel())->values();
+    $verifyLabels = $displayRecords->filter(fn ($r) => ($slipTabMap[$r->id] ?? null) === 'verify')->map(fn ($r) => $r->getBillLabel())->values();
 @endphp
 
 <style>
@@ -730,21 +762,61 @@
         </div>
     @else
 
-    {{-- ─── Tab Bar (segmented control) ─── --}}
+    {{-- ─── สรุปสถานะสลิป (ใช้เป็นตัวกรองด้วย) - ตัวเลขนับจากบิลจริง ตรงกับหน้ารายการ ─── --}}
+    @php
+        $tiles = [
+            'action' => ['label' => 'ต้องแนบสลิป',   'hint' => 'ถึงกำหนดแล้ว ยังไม่แนบ',  'num' => 'text-amber-600',   'dot' => 'bg-amber-500'],
+            'verify' => ['label' => 'แนบแล้ว',        'hint' => 'รอทีมงานตรวจสอบ',         'num' => 'text-blue-600',    'dot' => 'bg-blue-500'],
+            'paid'   => ['label' => 'ชำระแล้ว',       'hint' => 'ตรวจสอบเสร็จแล้ว',         'num' => 'text-emerald-600', 'dot' => 'bg-emerald-500'],
+            'later'  => ['label' => 'ยังไม่ถึงรอบ',   'hint' => 'หรือยังแนบไม่ได้',        'num' => 'text-gray-500',    'dot' => 'bg-gray-300'],
+        ];
+    @endphp
     <div class="px-4 sm:px-5 pt-3.5 pb-3 border-b border-gray-100 bg-gray-50/40">
-        <div class="flex gap-1 bg-gray-100 rounded-xl p-1">
-            <button onclick="switchBillingTab('pending')" id="tab-btn-pending"
-                    class="billing-tab-btn flex-1 text-center text-xs font-bold py-2.5 px-2 rounded-lg transition-all whitespace-nowrap bg-white text-brand-700 shadow-sm">
-                รอชำระ/รอตรวจสอบ
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            @foreach($tiles as $tileKey => $tile)
+            <button type="button" onclick="switchBillingTab('{{ $tileKey }}')" id="tab-btn-{{ $tileKey }}"
+                    class="billing-tab-btn text-left rounded-xl border border-gray-200 bg-white px-3 py-2.5 transition-all active:scale-[0.98]">
+                <span class="flex items-center gap-1.5 text-xs font-semibold text-gray-600">
+                    <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 {{ $tile['dot'] }}"></span>{{ $tile['label'] }}
+                </span>
+                <span class="flex items-baseline gap-1 mt-1">
+                    <span class="text-xl font-bold tabular-nums leading-none {{ $tabCount($tileKey) > 0 ? $tile['num'] : 'text-gray-300' }}">{{ $tabCount($tileKey) }}</span>
+                    <span class="text-[10px] text-gray-400">รายการ</span>
+                </span>
+                <span class="block text-[10px] text-gray-400 mt-1 leading-tight">{{ $tile['hint'] }}</span>
             </button>
-            <button onclick="switchBillingTab('paid')" id="tab-btn-paid"
-                    class="billing-tab-btn flex-1 text-center text-xs font-semibold py-2.5 px-2 rounded-lg transition-all whitespace-nowrap text-gray-500 hover:text-gray-700">
-                ชำระแล้ว
+            @endforeach
+        </div>
+        <div class="flex items-center justify-between gap-2 mt-2.5">
+            <p class="text-[11px] text-gray-400 leading-snug">ค่าเช่าและค่าน้ำ/ไฟเป็นคนละบิล ต้องแนบสลิปแยกกันทีละบิล</p>
+            <button type="button" onclick="switchBillingTab('all')" id="tab-btn-all"
+                    class="billing-tab-btn flex-shrink-0 text-[11px] font-semibold text-gray-500 hover:text-gray-800 underline underline-offset-2 decoration-gray-300">
+                ดูทั้งหมด {{ $displayRecords->count() }} รายการ
             </button>
-            <button onclick="switchBillingTab('all')" id="tab-btn-all"
-                    class="billing-tab-btn flex-1 text-center text-xs font-semibold py-2.5 px-2 rounded-lg transition-all whitespace-nowrap text-gray-500 hover:text-gray-700">
-                ทั้งหมด
-            </button>
+        </div>
+    </div>
+
+    {{-- คำอธิบายเฉพาะแท็บ: บอกให้ชัดว่าบิลที่หายจากแท็บนี้ไปอยู่ที่ไหน ไม่ได้ถูกลบ --}}
+    <div id="billing-tab-note-action" style="display:none;" class="px-4 sm:px-5 pt-3">
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-800">
+            @if($actionLabels->isNotEmpty())
+                บิลที่ยังต้องแนบสลิป: <span class="font-semibold">{{ $actionLabels->implode(', ') }}</span>
+            @else
+                ไม่มีบิลที่ค้างแนบสลิป
+            @endif
+            @if($verifyLabels->isNotEmpty())
+                <span class="block mt-1 text-amber-700">บิลที่แนบแล้วอยู่ในแท็บ "แนบแล้ว" ({{ $verifyLabels->implode(', ') }}) -
+                    <button type="button" onclick="switchBillingTab('verify')" class="font-semibold underline underline-offset-2">ดูบิลที่แนบแล้ว</button></span>
+            @endif
+        </div>
+    </div>
+    <div id="billing-tab-note-verify" style="display:none;" class="px-4 sm:px-5 pt-3">
+        <div class="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs leading-relaxed text-blue-800">
+            สลิปที่แนบแล้วรอทีมงานตรวจสอบ (ปกติ 1-3 ชั่วโมง) เมื่อตรวจผ่านบิลจะย้ายไปแท็บ "ชำระแล้ว" · ถ้าแนบผิดกด "ยกเลิก" ที่บิลนั้นแล้วแนบใหม่ได้
+            @if($actionLabels->isNotEmpty())
+                <span class="block mt-1 text-amber-700 font-semibold">ยังมีบิลที่ต้องแนบอีก: {{ $actionLabels->implode(', ') }} -
+                    <button type="button" onclick="switchBillingTab('action')" class="underline underline-offset-2">ไปแนบสลิป</button></span>
+            @endif
         </div>
     </div>
 
@@ -768,6 +840,7 @@
                         $colorMap = [
                             'yellow' => ['badge' => 'text-yellow-700 bg-yellow-50 border-yellow-200', 'bar' => '#f59e0b', 'rowBg' => ''],
                             'blue'   => ['badge' => 'text-blue-700 bg-blue-50 border-blue-200',       'bar' => '#60a5fa', 'rowBg' => 'background:rgba(219,234,254,0.25)'],
+                            'orange' => ['badge' => 'text-orange-700 bg-orange-50 border-orange-200', 'bar' => '#fb923c', 'rowBg' => 'background:rgba(255,237,213,0.35)'],
                             'green'  => ['badge' => 'text-emerald-700 bg-emerald-50 border-emerald-200', 'bar' => '#4ade80', 'rowBg' => ''],
                             'red'    => ['badge' => 'text-red-700 bg-red-50 border-red-200',           'bar' => '#f87171', 'rowBg' => 'background:rgba(254,226,226,0.35)'],
                             'gray'   => ['badge' => 'text-gray-600 bg-gray-50 border-gray-200',        'bar' => '#cbd5e1', 'rowBg' => ''],
@@ -831,6 +904,8 @@
                     <tr class="transition-colors hover:brightness-95"
                         style="{{ $rowBg }}; border-bottom:1px solid rgba(241,245,249,0.8)"
                         data-billing-status="{{ $record->payment_status }}"
+                        data-slip-tab="{{ $slipTabMap[$record->id] ?? 'later' }}"
+                        data-record-id="{{ $record->id }}"
                         @if($meta['is_combo_utility'] ?? false) data-combo-utility-row="1" x-data x-init="$el.style.display='none'" @endif
                     >
                         {{-- Color indicator strip --}}
@@ -869,7 +944,10 @@
                                 </div>
                             @endif
                             @if($record->payment_status === 'failed' && $record->rejection_reason)
-                                <p class="text-[10px] text-red-600 mt-0.5">เหตุผล: {{ Str::limit($record->rejection_reason, 40) }}</p>
+                                <p class="text-[11px] text-red-600 mt-1 leading-snug">ทีมงานปฏิเสธสลิป: {{ Str::limit($record->rejection_reason, 60) }} · กรุณาแนบสลิปใหม่</p>
+                            @endif
+                            @if($record->payment_status === 'partially_paid')
+                                <p class="text-[11px] text-orange-600 mt-1 leading-snug">ทีมงานยืนยันยอดแล้ว {{ $fmtAmt($record->amount_paid) }} บาท · ยังชำระไม่ครบ</p>
                             @endif
                         </td>
 
@@ -1055,6 +1133,7 @@
                 $colorMap = [
                     'yellow' => ['badge' => 'text-yellow-700 bg-yellow-50 border-yellow-200', 'bar' => 'bg-yellow-400'],
                     'blue'   => ['badge' => 'text-blue-700 bg-blue-50 border-blue-200',       'bar' => 'bg-blue-400'],
+                    'orange' => ['badge' => 'text-orange-700 bg-orange-50 border-orange-200', 'bar' => 'bg-orange-400'],
                     'green'  => ['badge' => 'text-emerald-700 bg-emerald-50 border-emerald-200', 'bar' => 'bg-emerald-500'],
                     'red'    => ['badge' => 'text-red-700 bg-red-50 border-red-200',           'bar' => 'bg-red-500'],
                     'gray'   => ['badge' => 'text-gray-600 bg-gray-50 border-gray-200',        'bar' => 'bg-gray-300'],
@@ -1116,6 +1195,8 @@
             @endphp
             <div class="relative rounded-2xl border shadow-sm py-4 pl-5 pr-4 transition-shadow hover:shadow-md {{ $hasInvoice ? 'border-brand-100 bg-brand-50/30' : ($isOverdue ? 'border-red-100 bg-red-50/40' : 'border-gray-100 bg-white') }}"
                  data-billing-status="{{ $record->payment_status }}"
+                 data-slip-tab="{{ $slipTabMap[$record->id] ?? 'later' }}"
+                 data-record-id="{{ $record->id }}"
                  @if($meta['is_combo_utility'] ?? false) data-combo-utility-row="1" style="display:none;" @endif
             >
                 {{-- Left accent bar --}}
@@ -1157,7 +1238,7 @@
                 </div>
 
                 {{-- Bottom row: amount + action --}}
-                <div class="flex items-end justify-between pl-1">
+                <div class="flex flex-wrap items-end justify-between gap-x-3 gap-y-3 pl-1">
                     <div>
                         @if($amountHidden)
                             <p class="text-sm font-semibold" style="color:#b45309;">ยังไม่เปิดใบแจ้งหนี้</p>
@@ -1194,7 +1275,10 @@
                             </p>
                         @endif
                         @if($record->payment_status === 'failed' && $record->rejection_reason)
-                            <p class="text-[10px] text-red-600 mt-1">{{ Str::limit($record->rejection_reason, 50) }}</p>
+                            <p class="text-xs text-red-600 mt-1 leading-snug">ทีมงานปฏิเสธสลิป: {{ Str::limit($record->rejection_reason, 80) }} · กรุณาแนบสลิปใหม่</p>
+                        @endif
+                        @if($record->payment_status === 'partially_paid')
+                            <p class="text-xs text-orange-600 mt-1 leading-snug">ทีมงานยืนยันยอดแล้ว {{ $fmtAmt($record->amount_paid) }} บาท · ยังชำระไม่ครบ</p>
                         @endif
                     </div>
 
@@ -1225,7 +1309,7 @@
                         </div>
                     @endif
                     @if($record->payment_status === 'pending_verification')
-                        <div class="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <div class="basis-full w-full flex flex-wrap items-center gap-x-3 gap-y-2 pt-3 border-t border-blue-100">
                             <div class="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 px-3 py-2 rounded-xl">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -1679,7 +1763,7 @@ function openCancelSlipSingleConfirm(url) {
 }
 
 window.billingRecordMeta = @json($recordMeta);
-let currentBillingTab = 'pending';
+let currentBillingTab = @json($initialTab);
 let billingExpanded = false;
 const BILLING_VISIBLE_LIMIT = 5;
 
@@ -1692,15 +1776,20 @@ function openInvoiceTabs(urls) {
 function switchBillingTab(tab) {
     currentBillingTab = tab;
     billingExpanded = false;
+    const activeClasses = ['ring-2', 'ring-brand-500', 'border-brand-500', 'shadow-sm'];
     document.querySelectorAll('.billing-tab-btn').forEach(btn => {
-        btn.classList.remove('bg-white', 'text-brand-700', 'font-bold', 'shadow-sm');
-        btn.classList.add('text-gray-500', 'font-semibold');
+        btn.classList.remove(...activeClasses, 'text-gray-900');
+        btn.setAttribute('aria-pressed', 'false');
     });
     const activeBtn = document.getElementById('tab-btn-' + tab);
     if (activeBtn) {
-        activeBtn.classList.remove('text-gray-500', 'font-semibold');
-        activeBtn.classList.add('bg-white', 'text-brand-700', 'font-bold', 'shadow-sm');
+        activeBtn.classList.add(...(tab === 'all' ? ['text-gray-900'] : activeClasses));
+        activeBtn.setAttribute('aria-pressed', 'true');
     }
+    ['action', 'verify'].forEach(key => {
+        const note = document.getElementById('billing-tab-note-' + key);
+        if (note) note.style.display = key === tab ? '' : 'none';
+    });
     applyBillingTabFilter();
 }
 
@@ -1710,16 +1799,10 @@ function toggleBillingExpand() {
 }
 
 function filterBillingGroup(containerSelector) {
-    const pendingStatuses = ['pending', 'failed', 'pending_verification'];
     const matchedRows = [];
 
-    document.querySelectorAll(containerSelector + ' [data-billing-status]').forEach(row => {
-        const status = row.dataset.billingStatus;
-
-        let tabVisible;
-        if (currentBillingTab === 'all') tabVisible = true;
-        else if (currentBillingTab === 'pending') tabVisible = pendingStatuses.includes(status);
-        else tabVisible = status === 'paid';
+    document.querySelectorAll(containerSelector + ' [data-slip-tab]').forEach(row => {
+        const tabVisible = currentBillingTab === 'all' || row.dataset.slipTab === currentBillingTab;
 
         if (tabVisible) matchedRows.push(row);
         else row.style.display = 'none';
@@ -1993,7 +2076,19 @@ function applyBillingTabFilter() {
 
     // เริ่มต้น tab เมื่อโหลดหน้าเว็บ
     document.addEventListener('DOMContentLoaded', function() {
-        switchBillingTab('pending');
+        switchBillingTab(currentBillingTab);
+
+        // บิลที่เพิ่งแนบสลิป: เลื่อนมาที่บิลนั้นและไฮไลต์ชั่วคราว ให้เห็นชัดว่าข้อมูลถูกบันทึกแล้วอยู่ตรงไหน
+        const attachedId = @json($attachedRecordId);
+        if (attachedId) {
+            const visible = [...document.querySelectorAll('[data-record-id="' + attachedId + '"]')]
+                .find(el => el.offsetParent !== null);
+            if (visible) {
+                visible.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                visible.classList.add('ring-2', 'ring-blue-400');
+                setTimeout(() => visible.classList.remove('ring-2', 'ring-blue-400'), 4000);
+            }
+        }
     });
 </script>
 @endpush

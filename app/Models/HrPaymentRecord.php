@@ -95,6 +95,7 @@ class HrPaymentRecord extends Model
         return match ($this->payment_status) {
             'pending'              => 'รอชำระ',
             'pending_verification' => 'รอตรวจสอบ',
+            'partially_paid'       => 'ชำระบางส่วน',
             'paid'                 => 'ชำระแล้ว',
             'failed'               => 'ถูกปฏิเสธ',
             'refunded'             => 'คืนเงิน',
@@ -107,11 +108,103 @@ class HrPaymentRecord extends Model
         return match ($this->payment_status) {
             'pending'              => 'yellow',
             'pending_verification' => 'blue',
+            'partially_paid'       => 'orange',
             'paid'                 => 'green',
             'failed'               => 'red',
             'refunded'             => 'gray',
             default                => 'gray',
         };
+    }
+
+    /**
+     * ชื่อบิลสั้น ๆ ที่ระบุเดือนชัดเจน เช่น "ค่าเช่า พ.ย. 69" / "ค่าน้ำ/ไฟ พ.ย. 69" - ใช้แสดงในรายการสถานะสลิป
+     * ให้ผู้บริหารโครงการรู้ทันทีว่าบิลไหนแนบแล้ว บิลไหนยังค้าง (เดือนอ้างอิงจาก due_date เหมือนตัวกรองเดือน)
+     */
+    public function getBillLabel(): string
+    {
+        $months = [1 => 'ม.ค.', 2 => 'ก.พ.', 3 => 'มี.ค.', 4 => 'เม.ย.', 5 => 'พ.ค.', 6 => 'มิ.ย.',
+            7 => 'ก.ค.', 8 => 'ส.ค.', 9 => 'ก.ย.', 10 => 'ต.ค.', 11 => 'พ.ย.', 12 => 'ธ.ค.'];
+        $period = $this->due_date
+            ? ' ' . $months[(int) $this->due_date->format('n')] . ' ' . substr((string) ((int) $this->due_date->format('Y') + 543), -2)
+            : '';
+
+        return match ($this->payment_type) {
+            'monthly_rent'   => 'ค่าเช่า' . $period,
+            'utility'        => 'ค่าน้ำ/ไฟ' . $period,
+            'late_fee'       => 'ค่าปรับล่าช้า' . $period,
+            'deposit'        => 'เงินมัดจำงวดที่ ' . ((int) $this->deposit_phase ?: 1),
+            'processing_fee' => 'ค่าดำเนินการ',
+            default          => $this->getTypeLabel(),
+        };
+    }
+
+    /**
+     * สถานะสลิปสำหรับแสดงผลให้ผู้บริหารโครงการ - ใช้ร่วมกันทั้งหน้ารายการ (/properties) และหน้ารอบบิล
+     * (/properties/{id}) เพื่อให้ตัวเลขและคำอธิบายตรงกันทุกจุด:
+     *   needed    = ถึงกำหนดแล้ว ยังไม่แนบ และแนบได้ตอนนี้
+     *   rejected  = ทีมงานปฏิเสธสลิปเดิม ต้องแนบใหม่ (ไฟล์เดิมยังเก็บไว้ดูได้)
+     *   noinvoice = ถึงกำหนดแล้วแต่ยังไม่เปิดใบแจ้งหนี้ ผู้บริหารยังแนบไม่ได้
+     *   locked    = ถึงกำหนดแล้วแต่แนบไม่ได้ด้วยขั้นตอนอื่น (เช่น รอสัญญา/ชำระมัดจำก่อน)
+     *   verify    = แนบแล้ว รอทีมงานตรวจสอบ
+     *   partial   = ทีมงานอนุมัติบางส่วนแล้ว ยังชำระไม่ครบ (partially_paid ของ happyest)
+     *   paid      = ตรวจสอบเสร็จ ชำระแล้ว
+     *   future    = ยังไม่ถึงรอบ (ครบกำหนดหลังสิ้นเดือนนี้)
+     *   null      = ไม่ต้องแสดง (เช่น คืนเงินแล้ว หรือไม่อยู่ในเงื่อนไขแนบสลิป)
+     *
+     * $eligible = false เมื่อทรัพย์ว่าง / การจองยังเป็น deposit_confirmed (ไม่นับว่าค้างแนบ เหมือนเดิม)
+     */
+    public function slipUiState(HrBooking $booking, bool $eligible = true, ?\Carbon\Carbon $dueUntil = null): ?string
+    {
+        $dueUntil ??= now()->endOfMonth();
+
+        switch ($this->payment_status) {
+            case 'paid':
+                return 'paid';
+            case 'pending_verification':
+                return 'verify';
+            case 'partially_paid':
+                return 'partial';
+            case 'pending':
+            case 'failed':
+                if (! $eligible) {
+                    return null;
+                }
+                if ($this->due_date && $this->due_date->gt($dueUntil)) {
+                    return 'future';
+                }
+                if ($this->canUploadSlip($booking)) {
+                    $hadSlip = filled($this->rejection_reason) || $this->payment_slip_path || ! empty($this->payment_slips);
+
+                    return ($this->payment_status === 'failed' && $hadSlip) ? 'rejected' : 'needed';
+                }
+
+                return (in_array($this->payment_type, ['monthly_rent', 'utility'], true) && ! $this->hasIssuedInvoice($booking))
+                    ? 'noinvoice'
+                    : 'locked';
+        }
+
+        return null;
+    }
+
+    /**
+     * เวลาที่แนบสลิปรอบล่าสุดจริง (uploaded_at ของ batch) - ไม่ใช่วันที่โอน ใช้บอกผู้บริหารว่า "แนบเมื่อไหร่"
+     * ข้อมูลเก่าที่ไม่มี batch ใช้ paid_at แทน
+     */
+    public function lastSlipUploadedAt(): ?\Carbon\Carbon
+    {
+        $batches = $this->payment_slip_batches ?? [];
+        $last = end($batches);
+        if (is_array($last) && ! empty($last['uploaded_at'])) {
+            return \Carbon\Carbon::parse($last['uploaded_at']);
+        }
+
+        return $this->paid_at;
+    }
+
+    /** ยอดคงเหลือของรายการที่ชำระบางส่วน = ยอดตามใบแจ้งหนี้ - ยอดที่ทีมงานยืนยันแล้ว */
+    public function remainingAfterPartial(float $effectiveAmount): float
+    {
+        return max(0.0, round($effectiveAmount - (float) $this->amount_paid, 2));
     }
 
     public function isPhase2Deposit(): bool
