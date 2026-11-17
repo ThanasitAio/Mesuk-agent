@@ -100,6 +100,8 @@ class AuthController extends Controller
             'agent_avatar'     => $agent->avatar,
             'agent_is_manager' => $isManager,
         ]);
+        // regenerate() เก็บข้อมูล session เดิมไว้ - ล้างสิทธิ์แอดมินจาก SSO ครั้งก่อนในเบราว์เซอร์เดียวกัน
+        session()->forget('agent_sso_admin_id');
 
         RateLimiter::clear($throttleKey);
 
@@ -167,13 +169,15 @@ class AuthController extends Controller
             'agent_code'       => $agent->agent_code,
             'agent_avatar'     => $agent->avatar,
             'agent_is_manager' => $isManager,
+            // แอดมิน happyest ที่กดเข้ามา - หน้าค่าคอมมิชชั่นแสดงลิงก์ไปหน้าจัดการที่หลังบ้าน (CommissionLedger::viaAdmin())
+            'agent_sso_admin_id' => (int) $row->admin_id,
         ]);
 
         logSystem('agent', $agent->id, 'Auth', 'SSO_LOGIN',
             'Admin SSO login as agent: [' . $agent->agent_code . '] via admin_id ' . $row->admin_id);
 
         $redirectPath = (string) ($row->redirect_path ?? '');
-        if (!str_starts_with($redirectPath, '/properties/')) {
+        if (!str_starts_with($redirectPath, '/properties/') && !str_starts_with($redirectPath, '/commissions')) {
             $redirectPath = route('dashboard', [], false);
         }
 

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AdsController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\LogController;
@@ -83,6 +84,9 @@ Route::middleware('auth.agent')->group(function () {
 
     // Ads - ลิงก์แอด สำหรับตัวแทนทุกคน
     Route::get('/ads', [AdsController::class, 'index'])->name('ads.index');
+
+    // ค่าคอมมิชชั่น (งาน #163) - ทุกคนดูของตัวเอง (ดูอย่างเดียว); ฝ่ายบัญชีจัดการที่หลังบ้าน happyest /admin/agent-commissions
+    Route::get('/commissions', [CommissionController::class, 'index'])->name('commissions.index');
 
     // Deploy / System (เฉพาะ agent_code 0000390)
     Route::get('/deploy', [DeployController::class, 'show'])->name('deploy.show');

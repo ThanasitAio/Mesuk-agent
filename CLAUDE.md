@@ -217,11 +217,17 @@ All views must extend `layouts.app`: `@extends('layouts.app')`
 - Always use Eloquent ORM. Do not write raw SQL queries unless absolutely required for performance
 - Foreign key columns follow convention: `{model}_id` (e.g., `user_id`, `agent_id`)
 
-**Current agent-owned tables (as of 2026-06-22):**
+**Current agent-owned tables (as of 2026-11-17):**
 
 | Table | Model | Purpose |
 |---|---|---|
 | `ag_logs` | `AgentLog` | Audit log for all agent actions |
+| `ag_meter_readings` | `MeterReading` | Water/electric meter readings |
+| `ag_commission_items` | `AgCommissionItem` | ค่าคอมมิชชั่น one line each (task #163): `management` = rate% of one month's rent (one per rent `hr_payment_records` row), `finder` = rent x 1/2 months per booking, `manual` = added by accounting. Derived from happyest data by `App\Helpers\CommissionLedger::sync()` on every page view; `payout_id` set = frozen |
+| `ag_commission_payouts` | `AgCommissionPayout` | ใบค่าคอม per person per month: `issued` (เปิดใบ, items frozen) → `paid`; `cancelled` kept as history. Written only by happyest admin |
+| `ag_commission_rates` | `AgCommissionRate` | Management-fee % per person (`property_id` 0) or per property; none = `CommissionLedger::DEFAULT_RATE` |
+
+**ค่าคอมมิชชั่น (`/commissions`, task #163):** view only - everyone sees only their own. Accounting edits amounts, adds lines/ยอดยกมา, sets rates, opens the ใบ (PDF) and records the transfer in happyest admin `/admin/agent-commissions` (`App\Services\AgentCommissionService`, rule file `.claude/rules/agent-commissions.md` there). A happyest admin who came in by SSO (`session('agent_sso_admin_id')`, cleared on normal login) sees a link to that page. **The calculation exists twice** (`CommissionLedger` here, `AgentCommissionService` in happyest, both write the same rows): change both together. Rules: 2.5% of `base_rent_amount`, WHT 3%, finder 12 months = 1 month rent / 36 = 2 (same tenant who rented the property before = renewal, none), start month 2026-11, company code 0000001 excluded.
 
 ---
 
