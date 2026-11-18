@@ -32,6 +32,9 @@ class CommissionLedger
     /** % ของสัญญาไม่ถึง 1 ปี (ค่าหาผู้เช่าครั้งเดียว) - ตรงกับ AgentCommissionService::SHORT_LEASE_RATE */
     public const SHORT_LEASE_RATE = 5.0;
 
+    /** % ค่าหัวหน้าทีม (ก้อนเดียว = ค่าเช่า x เดือนตามสัญญา x %) - ตรงกับ AgentCommissionService::LEADER_RATE */
+    public const LEADER_RATE = 0.5;
+
     /** เวลาที่ happyest คำนวณล่าสุด (hr_settings) */
     public const SYNCED_AT_KEY = 'agent_commission.synced_at';
 
@@ -41,7 +44,8 @@ class CommissionLedger
         'lister'         => ['label' => 'ค่านำทรัพย์มาฝาก', 'hint' => 'ได้รับเมื่อผู้เช่าชำระค่าเช่าเดือนนั้น ตลอดสัญญา', 'tone' => 'amber'],
         'finder_monthly' => ['label' => 'ค่าหาผู้เช่า (รายเดือน)', 'hint' => 'ได้รับเมื่อผู้เช่าชำระค่าเช่าเดือนนั้น ตลอดสัญญา', 'tone' => 'violet'],
         'finder'         => ['label' => 'ค่าหาผู้เช่า', 'hint' => 'ได้รับครั้งเดียวเมื่อผู้เช่าเข้าใช้งาน', 'tone' => 'violet'],
-        'leader'         => ['label' => 'ค่าหัวหน้าทีม', 'hint' => 'ได้รับเมื่อผู้เช่าที่ลูกทีมหามาชำระค่าเช่าเดือนนั้น', 'tone' => 'teal'],
+        'leader_once'    => ['label' => 'ค่าหัวหน้าทีม', 'hint' => 'ได้รับครั้งเดียวเมื่อผู้เช่าที่ลูกทีมหามาเข้าใช้งาน', 'tone' => 'teal'],
+        'leader'         => ['label' => 'ค่าหัวหน้าทีม (รายเดือน)', 'hint' => 'ได้รับเมื่อผู้เช่าที่ลูกทีมหามาชำระค่าเช่าเดือนนั้น ตลอดสัญญา', 'tone' => 'teal'],
         'manual'         => ['label' => 'ปรับยอดโดยฝ่ายบัญชี', 'hint' => 'บวกหรือหักตามที่ฝ่ายบัญชีแจ้ง', 'tone' => 'sky'],
     ];
 
@@ -198,6 +202,11 @@ class CommissionLedger
             }
 
             return [$head, 'สัญญาไม่ถึง 1 เดือน ไม่มีค่าหาผู้เช่า'];
+        }
+        if ($item->kind === 'leader_once') {
+            // factor = เดือนตามสัญญา x 0.5 / 100 (36 เดือน = 0.18)
+            return ['ค่าหัวหน้าทีม · '.($item->description ?: 'สัญญาเช่า'),
+                'ค่าเช่า '.$base.' x '.(int) round($factor * 100 / self::LEADER_RATE).' เดือน x '.self::pct(self::LEADER_RATE).'%'];
         }
 
         return [$item->description ?: 'รายการปรับยอด', null];

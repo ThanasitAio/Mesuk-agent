@@ -4,7 +4,7 @@
     $prop      = $item->property_id ? ($properties[$item->property_id] ?? null) : null;
     $amount    = $item->amount();
     $isRent    = in_array($item->kind, L::RENT_KINDS, true);
-    $isFinder  = $item->kind === 'finder';
+    $isFinder  = in_array($item->kind, ['finder', 'leader_once'], true); // ก้อนเดียวต่อสัญญา: ได้เมื่อผู้เช่าเข้าใช้งาน
     $isManual  = $item->kind === 'manual';
     $late      = $stmtMonth && ! $isManual && $item->period < $stmtMonth;
     $overdue   = (! $stmtMonth && $item->due_date && $item->due_date->lt(today())) ? (int) $item->due_date->diffInDays(today()) : 0;

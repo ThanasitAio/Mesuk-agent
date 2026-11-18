@@ -136,7 +136,7 @@
                                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                             @elseif($kind === 'lister')
                                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-                            @elseif($kind === 'leader')
+                            @elseif($kind === 'leader' || $kind === 'leader_once')
                                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                             @elseif($kind === 'finder' || $kind === 'finder_monthly')
                                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
@@ -265,9 +265,10 @@
                 $explain = [
                     'management'     => 'ค่าบริหารโครงการ = '.L::pct($defaultRate).'% ของค่าเช่าแต่ละเดือนของทรัพย์ที่ดูแล',
                     'lister'         => 'ค่านำทรัพย์มาฝาก = 2.5% ของค่าเช่าแต่ละเดือน ตลอดสัญญาเช่า ลูกค้าต่อสัญญาก็ได้ต่อ',
-                    'finder_monthly' => 'ค่าหาผู้เช่า (รายเดือน) = 2.5% (ทรัพย์ฝาก) หรือ 2% (โครงการบริหาร) ของค่าเช่าแต่ละเดือน ตลอดสัญญาเช่า',
-                    'finder'         => 'ค่าหาผู้เช่า (โครงการบริษัท) ได้ครั้งเดียวเมื่อผู้เช่าเข้าใช้งาน: สัญญา 1 ปี ได้ค่าเช่า 1 เดือน 3 ปี ได้ 2 เดือน ไม่ถึง 1 ปี ได้ค่าเช่า x จำนวนเดือน x '.L::pct(L::SHORT_LEASE_RATE).'%',
-                    'leader'         => 'ค่าหัวหน้าทีม = 0.5% ของค่าเช่าแต่ละเดือน เมื่อลูกทีมที่คุณแนะนำโดยตรงหาผู้เช่าได้',
+                    'finder_monthly' => 'ค่าหาผู้เช่า (รายเดือน) = 2.5% ของค่าเช่าแต่ละเดือนของทรัพย์ฝาก ตลอดสัญญาเช่า',
+                    'finder'         => 'ค่าหาผู้เช่า (โครงการ) ได้ครั้งเดียวเมื่อผู้เช่าเข้าใช้งาน: สัญญา 1 ปี ได้ค่าเช่า 1 เดือน 3 ปี ได้ 2 เดือน ไม่ถึง 1 ปี ได้ค่าเช่า x จำนวนเดือน x '.L::pct(L::SHORT_LEASE_RATE).'%',
+                    'leader_once'    => 'ค่าหัวหน้าทีม (โครงการ) = ค่าเช่า x จำนวนเดือนตามสัญญา x '.L::pct(L::LEADER_RATE).'% ได้ครั้งเดียวเมื่อผู้เช่าที่ลูกทีมที่คุณแนะนำโดยตรงหามาเข้าใช้งาน',
+                    'leader'         => 'ค่าหัวหน้าทีม (รายเดือน) = '.L::pct(L::LEADER_RATE).'% ของค่าเช่าแต่ละเดือนของทรัพย์ฝาก เมื่อลูกทีมที่คุณแนะนำโดยตรงหาผู้เช่าได้',
                 ];
                 $shown = array_intersect_key($explain, array_flip($kindsHere)) ?: $explain;
             @endphp
