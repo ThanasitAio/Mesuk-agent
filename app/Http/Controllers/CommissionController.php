@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 
 /**
  * ค่าคอมมิชชั่น (งาน #163) - ผู้บริหารโครงการ/ตัวแทนดูของตัวเองทีละงวด พร้อมที่มาของทุกตัวเลข (ดูอย่างเดียว)
+ * รายการคำนวณที่ happyest (agent-commissions:sync ทุก 15 นาที + หน้าแอดมิน) หน้านี้ไม่คำนวณเอง
  * ฝ่ายบัญชีแก้ยอด เพิ่ม/หักรายการ ตั้งอัตรา เปิดใบ และบันทึกการโอน ที่หลังบ้าน happyest /admin/agent-commissions
  */
 class CommissionController extends Controller
@@ -18,7 +19,6 @@ class CommissionController extends Controller
         $agentCode = (string) session('agent_code');
         $agent = HrAgent::query()->where('agent_code', $agentCode)->first();
 
-        L::sync($agentCode);
         $book = L::book($agentCode);
         $months = $book['months'];
 
@@ -43,6 +43,7 @@ class CommissionController extends Controller
             'properties'   => $properties,
             'viaAdmin'     => L::viaAdmin(),
             'rates'        => L::rates($agentCode),
+            'syncedAt'     => L::syncedAt(),
         ]);
     }
 

@@ -3,24 +3,14 @@
     use App\Helpers\CommissionLedger as L;
     $prop      = $item->property_id ? ($properties[$item->property_id] ?? null) : null;
     $amount    = $item->amount();
-    $isMgmt    = $item->kind === 'management';
+    $isRent    = in_array($item->kind, L::RENT_KINDS, true);
     $isFinder  = $item->kind === 'finder';
     $isManual  = $item->kind === 'manual';
-    $late      = $stmtMonth && $isMgmt && $item->period < $stmtMonth;
+    $late      = $stmtMonth && ! $isManual && $item->period < $stmtMonth;
     $overdue   = (! $stmtMonth && $item->due_date && $item->due_date->lt(today())) ? (int) $item->due_date->diffInDays(today()) : 0;
-
-    if ($isMgmt) {
-        $headline = 'ค่าเช่า '.L::monthLabel($item->period);
-        $formula  = L::money((float) $item->base_amount).' x '.L::pct((float) $item->factor).'%';
-    } elseif ($isFinder) {
-        $headline = 'ค่าหาผู้เช่า · '.($item->description ?: 'สัญญาเช่า');
-        $formula  = (float) $item->factor > 0
-            ? 'ค่าเช่า '.L::money((float) $item->base_amount).' x '.(int) $item->factor.' เดือน'
-            : 'สัญญาไม่ถึง 1 ปี ไม่มีค่าหาผู้เช่า';
-    } else {
-        $headline = $item->description ?: 'รายการปรับยอด';
-        $formula  = null;
-    }
+    [$headline, $formula] = L::describe($item);
+    // รายการรอ (กล่องด้านข้าง) ไม่ได้อยู่ใต้หัวข้อประเภท - บอกประเภทในบรรทัด
+    $kindLabel = ! $stmtMonth ? (L::KINDS[$item->kind]['label'] ?? null) : null;
 @endphp
 <div class="cm-row flex items-start gap-3 px-4 sm:px-5 py-3.5 {{ $item->is_excluded ? 'bg-gray-50/70' : '' }}">
     {{-- รหัสทรัพย์ / ไอคอนรายการปรับยอด --}}
@@ -60,13 +50,16 @@
 
         {{-- ที่มาของตัวเลข --}}
         <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+            @if($kindLabel)
+                <span class="font-semibold text-gray-700">{{ $kindLabel }}</span>
+            @endif
             @if($formula)
                 <span class="inline-flex items-center gap-1 tabular-nums">
                     <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                     {{ $formula }}
                 </span>
             @endif
-            @if($isMgmt && $item->description)
+            @if($isRent && $item->description)
                 <span>{{ $item->description }}</span>
             @endif
 

@@ -5,14 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * รายการค่าคอมมิชชั่นหนึ่งบรรทัด (งาน #163) - สร้าง/อัปเดตโดย App\Helpers\CommissionLedger::sync()
+ * รายการค่าคอมมิชชั่นหนึ่งบรรทัด (งาน #163) - สร้าง/อัปเดตที่ happyest ที่เดียว (AgentCommissionService::sync)
+ * แอปนี้อ่านอย่างเดียว (App\Helpers\CommissionLedger)
  *
  * kind:
- *  - management = ค่าบริหารโครงการ: % ของค่าเช่าหนึ่งเดือนของทรัพย์ที่ดูแล (หนึ่งรายการต่อ hr_payment_records ค่าเช่า)
- *  - finder     = ค่าหาผู้เช่า: ค่าเช่า x จำนวนเดือนตามอายุสัญญา (หนึ่งรายการต่อการจอง)
- *  - manual     = ฝ่ายบัญชีเพิ่มเอง (บวก/หัก)
+ *  - management     = ค่าบริหารโครงการ: % ของค่าเช่าหนึ่งเดือนของทรัพย์ที่ดูแล (หนึ่งรายการต่อ hr_payment_records ค่าเช่า)
+ *  - lister         = ค่านำทรัพย์มาฝาก (ฝากทรัพย์): % ของค่าเช่าทุกเดือน
+ *  - finder_monthly = ค่าหาผู้เช่ารายเดือน (โครงการบริหาร/ฝากทรัพย์): % ของค่าเช่าทุกเดือน
+ *  - finder         = ค่าหาผู้เช่าครั้งเดียว (โครงการบริษัท): ค่าเช่า x 1/2 เดือน หรือ x เดือน x 5% (หนึ่งรายการต่อการจอง)
+ *  - leader         = ค่าหัวหน้าทีม (ผู้แนะนำโดยตรงของผู้หาผู้เช่า): % ของค่าเช่าทุกเดือน
+ *  - manual         = ฝ่ายบัญชีเพิ่มเอง (บวก/หัก)
  * state: waiting = ยังไม่ถึงรอบจ่าย (ผู้เช่ายังไม่ชำระ/ยังไม่เข้าใช้งาน), ready = พร้อมจ่ายในงวดถัดไป
- * payout_id != null = อยู่ในงวดที่โอนแล้ว ระบบไม่แก้ยอดอีก
+ * payout_id != null = อยู่ในใบที่เปิดแล้ว ระบบไม่แก้ยอดอีก
  */
 class AgCommissionItem extends Model
 {
@@ -31,9 +35,12 @@ class AgCommissionItem extends Model
         'edited_at'       => 'datetime',
     ];
 
-    public const KIND_MANAGEMENT = 'management';
-    public const KIND_FINDER     = 'finder';
-    public const KIND_MANUAL     = 'manual';
+    public const KIND_MANAGEMENT     = 'management';
+    public const KIND_FINDER         = 'finder';
+    public const KIND_FINDER_MONTHLY = 'finder_monthly';
+    public const KIND_LISTER         = 'lister';
+    public const KIND_LEADER         = 'leader';
+    public const KIND_MANUAL         = 'manual';
 
     public function payout()
     {

@@ -1,18 +1,23 @@
 @extends('layouts.app')
 
 @section('title', 'ค่าคอมมิชชั่น')
-@section('breadcrumb', 'ค่าบริหารโครงการและค่าหาผู้เช่า แยกที่มาทุกรายการ')
+@section('breadcrumb', 'ค่าคอมมิชชั่นของคุณ แยกที่มาทุกรายการ')
 
 @section('content')
 @php
     use App\Helpers\CommissionLedger as L;
 
     $items      = $stmt['items'];
-    $groups     = [
-        'management' => ['label' => 'ค่าบริหารโครงการ', 'hint' => 'ได้รับเมื่อผู้เช่าชำระค่าเช่าเดือนนั้น', 'tone' => 'brand'],
-        'finder'     => ['label' => 'ค่าหาผู้เช่า', 'hint' => 'ได้รับเมื่อผู้เช่าเข้าใช้งาน', 'tone' => 'violet'],
-        'manual'     => ['label' => 'ปรับยอดโดยฝ่ายบัญชี', 'hint' => 'บวกหรือหักตามที่ฝ่ายบัญชีแจ้ง', 'tone' => 'sky'],
+    $groups     = L::KINDS;
+    $toneClass  = [
+        'brand'  => 'bg-brand-50 text-brand-700',
+        'violet' => 'bg-violet-50 text-violet-700',
+        'amber'  => 'bg-amber-50 text-amber-700',
+        'teal'   => 'bg-teal-50 text-teal-700',
+        'sky'    => 'bg-sky-50 text-sky-700',
     ];
+    // ประเภทที่คนนี้มี (ทุกงวด + รายการรอ) - กล่อง "คิดค่าคอมอย่างไร" อธิบายเฉพาะที่เกี่ยวกับเขา
+    $kindsHere  = collect($months)->flatMap(fn ($s) => $s['items']->pluck('kind'))->merge($waiting->pluck('kind'))->unique()->values()->all();
     $byKind     = $items->groupBy('kind');
     $sumOf      = fn ($rows) => round(collect($rows)->filter->counts()->sum(fn ($i) => $i->amount()), 2);
     $payout     = $stmt['payout'];
@@ -126,11 +131,14 @@
             <section class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <header class="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-gray-100">
                     <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0
-                                     {{ $g['tone'] === 'brand' ? 'bg-brand-50 text-brand-700' : ($g['tone'] === 'violet' ? 'bg-violet-50 text-violet-700' : 'bg-sky-50 text-sky-700') }}">
+                        <span class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 {{ $toneClass[$g['tone']] ?? 'bg-sky-50 text-sky-700' }}">
                             @if($kind === 'management')
                                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                            @elseif($kind === 'finder')
+                            @elseif($kind === 'lister')
+                                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                            @elseif($kind === 'leader')
+                                <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                            @elseif($kind === 'finder' || $kind === 'finder_monthly')
                                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
                             @else
                                 <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
@@ -252,27 +260,39 @@
 
         <section class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 sm:px-5 py-4">
             <p class="text-sm font-bold text-gray-800 mb-3">คิดค่าคอมอย่างไร</p>
+            @php
+                // คำอธิบายตามแบบฟอร์ม FM-MKT-03-13 + บันทึก 6 ต.ค. 69 - แสดงเฉพาะประเภทที่คนนี้มี (ไม่มีเลย = แสดงทั้งหมด)
+                $explain = [
+                    'management'     => 'ค่าบริหารโครงการ = '.L::pct($defaultRate).'% ของค่าเช่าแต่ละเดือนของทรัพย์ที่ดูแล',
+                    'lister'         => 'ค่านำทรัพย์มาฝาก = 2.5% ของค่าเช่าแต่ละเดือน ตลอดสัญญาเช่า ลูกค้าต่อสัญญาก็ได้ต่อ',
+                    'finder_monthly' => 'ค่าหาผู้เช่า (รายเดือน) = 2.5% (ทรัพย์ฝาก) หรือ 2% (โครงการบริหาร) ของค่าเช่าแต่ละเดือน ตลอดสัญญาเช่า',
+                    'finder'         => 'ค่าหาผู้เช่า (โครงการบริษัท) ได้ครั้งเดียวเมื่อผู้เช่าเข้าใช้งาน: สัญญา 1 ปี ได้ค่าเช่า 1 เดือน 3 ปี ได้ 2 เดือน ไม่ถึง 1 ปี ได้ค่าเช่า x จำนวนเดือน x '.L::pct(L::SHORT_LEASE_RATE).'%',
+                    'leader'         => 'ค่าหัวหน้าทีม = 0.5% ของค่าเช่าแต่ละเดือน เมื่อลูกทีมที่คุณแนะนำโดยตรงหาผู้เช่าได้',
+                ];
+                $shown = array_intersect_key($explain, array_flip($kindsHere)) ?: $explain;
+            @endphp
             <ol class="space-y-3 text-xs text-gray-600 leading-relaxed">
+                @foreach($shown as $kind => $text)
+                    <li class="flex gap-2.5">
+                        <span class="w-5 h-5 rounded-full {{ $toneClass[L::KINDS[$kind]['tone']] }} text-[11px] font-bold flex items-center justify-center flex-shrink-0">{{ $loop->iteration }}</span>
+                        <span>{{ $text }}</span>
+                    </li>
+                @endforeach
                 <li class="flex gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-brand-50 text-brand-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">1</span>
-                    <span><b class="text-gray-800">ค่าบริหารโครงการ</b> = {{ L::pct($defaultRate) }}% ของค่าเช่าแต่ละเดือนของทรัพย์ที่ดูแล (ไม่รวม VAT และภาษีที่ดิน) เดือนแรกที่เช่าไม่เต็มเดือนคิดตามวันเช่าจริง</span>
+                    <span class="w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold flex items-center justify-center flex-shrink-0">{{ count($shown) + 1 }}</span>
+                    <span>ฐานคือค่าเช่าไม่รวม VAT และภาษีที่ดิน ได้รับใน<b class="text-gray-800">งวดของเดือนที่ผู้เช่าชำระ</b> ถ้าผู้เช่าจ่ายช้า รายการรออยู่ใน "รอผู้เช่าชำระ" และเข้างวดถัดไปเองเมื่อชำระ</span>
                 </li>
                 <li class="flex gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-brand-50 text-brand-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">2</span>
-                    <span>ได้รับใน<b class="text-gray-800">งวดของเดือนที่ผู้เช่าชำระ</b> ถ้าผู้เช่าจ่ายช้า รายการยังอยู่ใน "รอผู้เช่าชำระ" ไม่หายไปไหน และเข้างวดถัดไปเองเมื่อชำระ</span>
-                </li>
-                <li class="flex gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-violet-50 text-violet-700 text-[11px] font-bold flex items-center justify-center flex-shrink-0">3</span>
-                    <span><b class="text-gray-800">ค่าหาผู้เช่า</b> เมื่อผู้เช่าที่คุณหามาเข้าใช้งาน: สัญญา 1 ปีขึ้นไป ได้ค่าเช่า 1 เดือน สัญญา 3 ปีขึ้นไป ได้ค่าเช่า 2 เดือน</span>
-                </li>
-                <li class="flex gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold flex items-center justify-center flex-shrink-0">4</span>
+                    <span class="w-5 h-5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-bold flex items-center justify-center flex-shrink-0">{{ count($shown) + 2 }}</span>
                     <span>หักภาษี ณ ที่จ่าย {{ L::pct(L::WHT_RATE) }}% จากยอดรวมของงวด ที่เหลือคือยอดโอนสุทธิ</span>
                 </li>
             </ol>
             @if(count(array_diff_key($rates, [0 => true])) > 0)
                 <p class="mt-3 text-[11px] text-gray-400">บางทรัพย์ใช้อัตราเฉพาะตามที่ตกลงไว้ อัตราของแต่ละรายการแสดงอยู่ใต้รายการนั้น</p>
             @endif
+            <p class="mt-3 text-[11px] text-gray-400">
+                ยอดอัปเดตทุก 15 นาที@if($syncedAt) · ล่าสุด {{ L::dateLabel($syncedAt) }} {{ $syncedAt->format('H:i') }} น.@endif
+            </p>
         </section>
 
         <section class="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 sm:px-5 py-4">
